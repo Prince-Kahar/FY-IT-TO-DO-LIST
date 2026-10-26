@@ -56,18 +56,28 @@ export const Navbar = ({ onMenuClick }) => {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img
+            src="/college-logo.png"
+            alt="STERS Logo"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              objectFit: 'contain',
+              border: '1px solid var(--border-light)',
+            }}
+          />
           <span
             style={{
               fontSize: '0.875rem',
-              fontWeight: 600,
-              color: 'var(--text-muted)',
+              fontWeight: 700,
+              color: 'var(--text-main)',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
             }}
           >
-            <GraduationCap size={16} color="var(--primary-600)" />
-            <span>FY B.Sc. Information Technology</span>
+            <span>STERS • FY B.Sc. IT & BCA</span>
           </span>
         </div>
       </div>

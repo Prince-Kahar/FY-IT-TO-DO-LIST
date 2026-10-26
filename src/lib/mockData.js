@@ -119,16 +119,18 @@ export const initialStudents = [
 ];
 
 export const initialAdmin = {
-  id: 'admin-1',
-  full_name: 'Prof. Rajesh Kulkarni (Class Head)',
-  roll_number: 'ADMIN-001',
-  email: 'admin@college.edu',
+  id: 'admin-hemang-001',
+  full_name: 'Prof. Hemang (Class Head / Admin)',
+  roll_number: 'ADMIN-HEMANG',
+  username: 'hemag',
+  email: 'hemag@college.edu',
   role: 'admin',
-  class_name: 'FY B.Sc. IT',
+  class_name: 'FY B.Sc. IT & BCA',
   division: 'All',
   is_active: true,
   created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
 };
+
 
 export const initialTasks = [
   {

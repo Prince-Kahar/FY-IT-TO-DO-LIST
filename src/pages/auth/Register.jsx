@@ -83,26 +83,39 @@ export const Register = () => {
       >
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <img
+            src="/college-logo.png"
+            alt="STERS College Logo"
+            style={{
+              width: 76,
+              height: 76,
+              borderRadius: '50%',
+              objectFit: 'contain',
+              background: '#FFFFFF',
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.2)',
+              border: '2px solid #E0E7FF',
+              margin: '0 auto 12px',
+              display: 'block',
+            }}
+          />
+
           <div
             style={{
-              width: 50,
-              height: 50,
-              borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(135deg, var(--primary-600), var(--teal-600))',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
-              marginBottom: '12px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: '#0D9488',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
             }}
           >
-            <GraduationCap size={26} />
+            The Surat Technical Education & Research Society
           </div>
 
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 700 }}>Student Registration</h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Register your First Year B.Sc. IT student account
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '4px' }}>
+            Student Registration
+          </h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Create your FY B.Sc. IT & BCA student account
           </p>
         </div>
 

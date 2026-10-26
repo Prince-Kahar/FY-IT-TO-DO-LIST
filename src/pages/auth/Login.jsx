@@ -1,38 +1,34 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  GraduationCap,
   Shield,
   User,
   Lock,
-  Mail,
   ArrowRight,
   AlertCircle,
   Loader2,
-  Sparkles,
   Eye,
   EyeOff,
-  KeyRound,
-  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export const Login = () => {
-  const { login, isConfigured } = useAuth();
+  const { login } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('student'); // 'student' | 'admin'
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const executeLogin = async (loginEmail, loginPassword) => {
-    if (!loginEmail.trim() || !loginPassword) {
-      setErrorMsg('Please enter both email and password.');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!identifier.trim() || !password) {
+      setErrorMsg('Please enter both your login credential and password.');
       return;
     }
 
@@ -40,7 +36,7 @@ export const Login = () => {
     setErrorMsg('');
 
     try {
-      const { user, profile } = await login(loginEmail, loginPassword);
+      const { profile } = await login(identifier, password);
       addToast(`Welcome back, ${profile?.full_name || 'User'}!`, 'success');
 
       if (profile?.role === 'admin') {
@@ -50,29 +46,17 @@ export const Login = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setErrorMsg(err.message || 'Invalid email or password.');
+      setErrorMsg(err.message || 'Invalid credentials. Please verify and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    executeLogin(email, password);
-  };
-
-  const handleQuickLogin = (role) => {
-    if (role === 'admin') {
-      setEmail('admin@college.edu');
-      setPassword('admin123');
-      setActiveTab('admin');
-      executeLogin('admin@college.edu', 'admin123');
-    } else {
-      setEmail('student@college.edu');
-      setPassword('student123');
-      setActiveTab('student');
-      executeLogin('student@college.edu', 'student123');
-    }
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setErrorMsg('');
+    setIdentifier('');
+    setPassword('');
   };
 
   return (
@@ -93,142 +77,55 @@ export const Login = () => {
           width: '100%',
           boxShadow: 'var(--shadow-xl)',
           padding: '36px 32px',
+          borderRadius: 'var(--radius-xl)',
         }}
       >
-        {/* Brand Header */}
+        {/* College Logo & Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(135deg, var(--primary-600), var(--teal-600))',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
-              marginBottom: '14px',
-            }}
-          >
-            <GraduationCap size={30} />
+          <div style={{ display: 'inline-block', position: 'relative', marginBottom: '12px' }}>
+            <img
+              src="/college-logo.png"
+              alt="STERS College Logo"
+              style={{
+                width: 86,
+                height: 86,
+                borderRadius: '50%',
+                objectFit: 'contain',
+                background: '#FFFFFF',
+                boxShadow: '0 6px 18px rgba(79, 70, 229, 0.2)',
+                border: '3px solid #E0E7FF',
+                display: 'block',
+              }}
+            />
           </div>
 
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 700 }}>FY IT Task Manager</h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            First Year B.Sc. IT Academic Work & Submission Portal
-          </p>
-        </div>
-
-        {/* Ready Credentials Notice Box */}
-        <div
-          style={{
-            background: '#F0FDFA',
-            border: '1px solid #99F6E4',
-            borderRadius: 'var(--radius-md)',
-            padding: '14px 16px',
-            marginBottom: '20px',
-            fontSize: '0.825rem',
-          }}
-        >
           <div
             style={{
+              fontSize: '0.75rem',
               fontWeight: 700,
-              color: '#0F766E',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              marginBottom: '8px',
+              color: '#0D9488',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
             }}
           >
-            <KeyRound size={15} />
-            <span>Ready-to-Use Login Credentials:</span>
+            The Surat Technical Education & Research Society
           </div>
 
-          <div
+          <h2
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '10px',
-              marginTop: '6px',
+              fontSize: '1.35rem',
+              fontWeight: 800,
+              color: 'var(--text-main)',
+              marginTop: '4px',
+              lineHeight: 1.25,
             }}
           >
-            <div
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #CCFBF1',
-                padding: '8px 10px',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <div style={{ fontWeight: 600, color: 'var(--primary-700)', fontSize: '0.75rem' }}>
-                👤 Student Account
-              </div>
-              <div style={{ color: 'var(--text-main)', fontSize: '0.75rem', marginTop: '2px' }}>
-                <code>student@college.edu</code>
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                Pass: <code>student123</code>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('student')}
-                disabled={isLoading}
-                style={{
-                  marginTop: '6px',
-                  width: '100%',
-                  background: 'var(--primary-50)',
-                  color: 'var(--primary-700)',
-                  border: '1px solid var(--primary-200)',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  fontSize: '0.725rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                ⚡ 1-Click Student Login
-              </button>
-            </div>
+            Smt. U.J. Bodawala BCA College & SASCMA BBA / Commerce
+          </h2>
 
-            <div
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #CCFBF1',
-                padding: '8px 10px',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <div style={{ fontWeight: 600, color: 'var(--teal-700)', fontSize: '0.75rem' }}>
-                🛡️ Admin / Faculty
-              </div>
-              <div style={{ color: 'var(--text-main)', fontSize: '0.75rem', marginTop: '2px' }}>
-                <code>admin@college.edu</code>
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                Pass: <code>admin123</code>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin')}
-                disabled={isLoading}
-                style={{
-                  marginTop: '6px',
-                  width: '100%',
-                  background: 'var(--teal-50)',
-                  color: 'var(--teal-700)',
-                  border: '1px solid var(--teal-200)',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  fontSize: '0.725rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                ⚡ 1-Click Admin Login
-              </button>
-            </div>
-          </div>
+          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            FY B.Sc. IT & BCA Daily Academic Task & Submission Portal
+          </p>
         </div>
 
         {/* Role Toggle Tabs */}
@@ -244,12 +141,7 @@ export const Login = () => {
         >
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('student');
-              setErrorMsg('');
-              setEmail('student@college.edu');
-              setPassword('student123');
-            }}
+            onClick={() => handleTabChange('student')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -263,6 +155,8 @@ export const Login = () => {
               color: activeTab === 'student' ? 'var(--primary-700)' : 'var(--text-muted)',
               boxShadow: activeTab === 'student' ? 'var(--shadow-sm)' : 'none',
               transition: 'all 0.15s ease',
+              cursor: 'pointer',
+              border: 'none',
             }}
           >
             <User size={15} />
@@ -271,12 +165,7 @@ export const Login = () => {
 
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('admin');
-              setErrorMsg('');
-              setEmail('admin@college.edu');
-              setPassword('admin123');
-            }}
+            onClick={() => handleTabChange('admin')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -290,6 +179,8 @@ export const Login = () => {
               color: activeTab === 'admin' ? 'var(--teal-700)' : 'var(--text-muted)',
               boxShadow: activeTab === 'admin' ? 'var(--shadow-sm)' : 'none',
               transition: 'all 0.15s ease',
+              cursor: 'pointer',
+              border: 'none',
             }}
           >
             <Shield size={15} />
@@ -297,7 +188,7 @@ export const Login = () => {
           </button>
         </div>
 
-        {/* Error message */}
+        {/* Error alert */}
         {errorMsg && (
           <div
             style={{
@@ -322,17 +213,20 @@ export const Login = () => {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">
-              {activeTab === 'admin' ? 'Faculty / Admin Email' : 'Student Email'}
+              {activeTab === 'admin' ? 'Admin Username' : 'Student Email or Roll Number'}
             </label>
             <div style={{ position: 'relative' }}>
               <input
-                type="email"
+                type="text"
                 className="form-control"
                 placeholder={
-                  activeTab === 'admin' ? 'admin@college.edu' : 'student@college.edu'
+                  activeTab === 'admin'
+                    ? 'Enter admin username (hemag)'
+                    : 'Enter email (e.g. rahul@student.com) or Roll Number'
                 }
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>
@@ -352,9 +246,10 @@ export const Login = () => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="form-control"
-                placeholder="Enter your password"
+                placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
                 style={{ paddingRight: '40px' }}
               />
@@ -368,6 +263,8 @@ export const Login = () => {
                   transform: 'translateY(-50%)',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
                   display: 'flex',
                 }}
                 title={showPassword ? 'Hide password' : 'Show password'}
@@ -380,13 +277,13 @@ export const Login = () => {
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+            style={{ width: '100%', padding: '12px', marginTop: '10px' }}
             disabled={isLoading}
           >
             {isLoading ? (
               <>
                 <Loader2 size={18} className="spin" />
-                <span>Verifying & Signing in...</span>
+                <span>Verifying credentials...</span>
               </>
             ) : (
               <>
@@ -397,7 +294,7 @@ export const Login = () => {
           </button>
         </form>
 
-        {/* Footer Registration Link */}
+        {/* Footer Registration Link for Students */}
         <div
           style={{
             marginTop: '24px',

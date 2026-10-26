@@ -1,7 +1,7 @@
 {
-  "name": "FY IT Task Manager",
-  "short_name": "FY IT Portal",
-  "description": "Daily Academic Task Management, To-Do List & Journal Submission Portal for FY B.Sc. IT Students and Faculty",
+  "name": "STERS FY IT & BCA Portal",
+  "short_name": "STERS Portal",
+  "description": "The Surat Technical Education & Research Society - FY B.Sc. IT & BCA Academic Portal",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +9,12 @@
   "theme_color": "#4F46E5",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/college-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/pwa-icon-192.svg",
       "sizes": "192x192",

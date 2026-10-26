@@ -71,13 +71,23 @@ export const Sidebar = ({ isOpen, onClose }) => {
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         {/* Brand Header */}
         <div className="sidebar-brand">
-          <div className="brand-icon-box">
-            <GraduationCap size={20} />
-          </div>
+          <img
+            src="/college-logo.png"
+            alt="STERS College Logo"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              objectFit: 'contain',
+              background: '#FFFFFF',
+              border: '2px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            }}
+          />
           <div className="brand-title">
-            <span>FY IT Portal</span>
+            <span>STERS Portal</span>
             <span className="brand-subtitle">
-              {isAdmin ? 'Class Head / Admin' : 'FY B.Sc. IT Student'}
+              {isAdmin ? 'Prof. Hemang (Admin)' : 'FY B.Sc. IT & BCA'}
             </span>
           </div>
         </div>
