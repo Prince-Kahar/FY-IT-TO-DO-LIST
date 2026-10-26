@@ -1,0 +1,250 @@
+import React, { useState } from 'react';
+import { UploadCloud, X, AlertCircle, FileText, CheckCircle2, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { dataService } from '../lib/dataService';
+
+export const SubmitWorkModal = ({ assignment, task, onClose, onSuccess }) => {
+  const { user } = useAuth();
+  const { addToast, triggerConfetti } = useToast();
+
+  const [files, setFiles] = useState([]);
+  const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const MAX_FILES = 5;
+  const MAX_SIZE_MB = 5;
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  const handleFileSelect = (e) => {
+    setErrorMsg('');
+    const selected = Array.from(e.target.files);
+
+    if (files.length + selected.length > MAX_FILES) {
+      setErrorMsg(`You can upload at most ${MAX_FILES} photos per submission.`);
+      return;
+    }
+
+    const validNewFiles = [];
+    for (const f of selected) {
+      if (!ALLOWED_TYPES.includes(f.type.toLowerCase())) {
+        setErrorMsg(`"${f.name}" is not a valid format. Only JPG, PNG, and WEBP photos are allowed.`);
+        return;
+      }
+      if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+        setErrorMsg(`"${f.name}" exceeds the ${MAX_SIZE_MB} MB file limit.`);
+        return;
+      }
+      validNewFiles.push(f);
+    }
+
+    setFiles((prev) => [...prev, ...validNewFiles]);
+  };
+
+  const removeFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (files.length === 0) {
+      setErrorMsg('Please upload at least one photo of your completed handwritten work or practical.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      await dataService.submitTaskWork({
+        assignmentId: assignment.id,
+        studentId: user.id,
+        comment: comment.trim(),
+        files,
+        taskDueDate: task?.due_at,
+      });
+
+      triggerConfetti();
+      addToast('Task submitted successfully! Proof uploaded to storage.', 'success');
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Submission failed:', err);
+      setErrorMsg(err.message || 'Failed to submit work. Please check file format and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">Submit Completed Task</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {task?.title} ({task?.subjects?.name || 'Academic Task'})
+            </p>
+          </div>
+          <button className="photo-remove-btn" onClick={onClose} style={{ position: 'static' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {errorMsg && (
+              <div
+                style={{
+                  background: 'var(--danger-bg)',
+                  color: 'var(--danger-text)',
+                  border: '1px solid var(--danger-border)',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <AlertCircle size={16} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Task Info Reminder */}
+            <div
+              style={{
+                background: 'var(--bg-subtle)',
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: '20px',
+                fontSize: '0.85rem',
+              }}
+            >
+              <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
+                Instructions:
+              </div>
+              <p style={{ color: 'var(--text-muted)' }}>
+                {task?.description || 'Upload photos of your completed notes or lab practical output.'}
+              </p>
+            </div>
+
+            {/* Photo Upload Zone */}
+            <div className="form-group">
+              <label className="form-label">
+                Upload Photo Proof (Handwritten notes, assignments, journal, or code output)
+              </label>
+
+              <label className="photo-dropzone">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                  disabled={isSubmitting || files.length >= MAX_FILES}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'var(--primary-50)',
+                      color: 'var(--primary-600)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <UploadCloud size={24} />
+                  </div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    Click or Drag photos to upload
+                  </div>
+                  <div className="form-hint">
+                    Supported: JPG, PNG, WEBP • Max 5 photos • Up to 5 MB per photo
+                  </div>
+                </div>
+              </label>
+
+              {/* Photo Previews */}
+              {files.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '12px', color: 'var(--text-muted)' }}>
+                    Selected Photos ({files.length} / {MAX_FILES}):
+                  </div>
+                  <div className="photo-previews-grid">
+                    {files.map((file, index) => {
+                      const previewUrl = URL.createObjectURL(file);
+                      return (
+                        <div key={index} className="photo-preview-item">
+                          <img src={previewUrl} alt={file.name} />
+                          <button
+                            type="button"
+                            className="photo-remove-btn"
+                            onClick={() => removeFile(index)}
+                            title="Remove photo"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Optional Comment */}
+            <div className="form-group">
+              <label className="form-label">Description / Student Notes (Optional)</label>
+              <textarea
+                className="form-control"
+                rows={3}
+                placeholder="Mention page numbers, practical test cases executed, or remarks for the teacher..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting || files.length === 0}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="spin" />
+                  <span>Uploading to Storage & Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={16} />
+                  <span>Submit Work</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
