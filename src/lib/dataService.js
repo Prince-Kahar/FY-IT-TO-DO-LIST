@@ -25,12 +25,26 @@ export const dataService = {
   async getSubjects() {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('subjects')
           .select('*, topics(*)')
           .order('created_at', { ascending: true });
-        if (!error && Array.isArray(data)) {
-          return data;
+
+        if (error || !data) {
+          const plain = await supabase
+            .from('subjects')
+            .select('*')
+            .order('created_at', { ascending: true });
+          if (!plain.error && Array.isArray(plain.data)) {
+            data = plain.data;
+          }
+        }
+
+        if (Array.isArray(data)) {
+          return data.map((s) => ({
+            ...s,
+            topics: Array.isArray(s.topics) ? s.topics : [],
+          }));
         }
       } catch (err) {
         console.warn('Error fetching subjects from Supabase:', err);
@@ -191,43 +205,72 @@ export const dataService = {
   },
 
   async createTask(taskData, targetStudentIds = []) {
+    const taskId = taskData.id || 'task-' + Date.now();
+    const cleanTask = {
+      ...taskData,
+      id: taskId,
+      publication_status: taskData.publication_status || 'Published',
+      assignment_target: taskData.assignment_target || 'all',
+      due_at: taskData.due_at || new Date(Date.now() + 86400000 * 7).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
     let taskResult = null;
     if (isSupabaseConfigured()) {
       try {
         const { data: task, error } = await supabase
           .from('tasks')
-          .insert([taskData])
+          .insert([cleanTask])
           .select()
           .single();
+
         if (!error && task) {
           taskResult = task;
-          // If published, assign students
+          // Directly assign task to students in Supabase
           if (task.publication_status === 'Published') {
             try {
-              if (task.assignment_target === 'all' || !targetStudentIds.length) {
-                await supabase.rpc('assign_task_to_all_students', { task_uuid: task.id });
-              } else {
-                await supabase.rpc('assign_task_to_selected_students', {
-                  task_uuid: task.id,
-                  student_ids: targetStudentIds,
-                });
+              const students = await this.getStudents();
+              const targetList = (task.assignment_target === 'all' || !targetStudentIds?.length)
+                ? (students || []).map((s) => s.id)
+                : targetStudentIds;
+
+              if (targetList.length > 0) {
+                const asgRows = targetList.map((sId) => ({
+                  id: 'asg-' + task.id + '-' + sId,
+                  task_id: task.id,
+                  student_id: sId,
+                  status: 'Assigned',
+                  assigned_at: new Date().toISOString(),
+                  is_late: false,
+                }));
+                await supabase.from('task_assignments').upsert(asgRows, { onConflict: 'task_id,student_id' });
+
+                const notifRows = targetList.map((sId) => ({
+                  id: 'notif-' + task.id + '-' + sId,
+                  user_id: sId,
+                  title: 'New Task Assigned: ' + task.title,
+                  message: `Due on ${new Date(task.due_at).toLocaleDateString()}. Check requirements and submit before deadline.`,
+                  notification_type: 'task_assigned',
+                  related_task_id: task.id,
+                  is_read: false,
+                  created_at: new Date().toISOString(),
+                }));
+                await supabase.from('notifications').insert(notifRows);
               }
-            } catch (rpcErr) {
-              console.warn('RPC assign notice:', rpcErr);
+            } catch (asgErr) {
+              console.warn('Supabase direct task assignment notice:', asgErr);
             }
           }
+        } else if (error) {
+          console.warn('Supabase createTask error:', error.message);
         }
       } catch (err) {
         console.warn('Supabase createTask notice:', err);
       }
     }
 
-    const newTask = taskResult || {
-      ...taskData,
-      id: 'task-' + Date.now(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const newTask = taskResult || cleanTask;
     localTasks.unshift(newTask);
 
     if (newTask.publication_status === 'Published') {
@@ -346,8 +389,47 @@ export const dataService = {
           .eq('student_id', studentId)
           .order('assigned_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
-          return data;
+        let currentAssignments = (!error && Array.isArray(data)) ? data : [];
+
+        // Auto-bridge: Fetch all published tasks from Supabase
+        const { data: allTasks } = await supabase
+          .from('tasks')
+          .select('*, subjects(id, name, subject_code), topics(id, name)')
+          .eq('publication_status', 'Published')
+          .order('created_at', { ascending: false });
+
+        if (Array.isArray(allTasks) && allTasks.length > 0) {
+          const assignedTaskIds = new Set(currentAssignments.map((a) => a.task_id || a.tasks?.id));
+          const missingTasks = allTasks.filter((t) => {
+            if (assignedTaskIds.has(t.id)) return false;
+            if (t.assignment_target === 'all' || !t.assignment_target) return true;
+            return false;
+          });
+
+          if (missingTasks.length > 0) {
+            const newAsgRows = missingTasks.map((t) => ({
+              id: 'asg-' + t.id + '-' + studentId,
+              task_id: t.id,
+              student_id: studentId,
+              status: 'Assigned',
+              assigned_at: new Date().toISOString(),
+              is_late: false,
+            }));
+            try {
+              await supabase.from('task_assignments').upsert(newAsgRows, { onConflict: 'task_id,student_id' });
+            } catch (upsertErr) {}
+
+            const synthesized = missingTasks.map((t, idx) => ({
+              ...newAsgRows[idx],
+              tasks: t,
+              submissions: [],
+            }));
+            currentAssignments = [...currentAssignments, ...synthesized];
+          }
+        }
+
+        if (currentAssignments.length > 0) {
+          return currentAssignments;
         }
       } catch (err) {
         console.warn('Supabase getStudentAssignments notice:', err);

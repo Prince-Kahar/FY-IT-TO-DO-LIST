@@ -11,26 +11,49 @@ export const StudentSubjects = () => {
   const [expandedSubjectId, setExpandedSubjectId] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadCurriculum = async () => {
-      setLoading(true);
-      try {
-        const [subList, asgList] = await Promise.all([
-          dataService.getSubjects(),
-          user ? dataService.getStudentAssignments(user.id) : [],
-        ]);
-        setSubjects(subList);
-        setAssignments(asgList);
-        if (subList.length > 0) {
-          setExpandedSubjectId(subList[0].id);
-        }
-      } catch (err) {
-        console.error('Error loading subjects:', err);
-      } finally {
-        setLoading(false);
+  const loadCurriculum = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    try {
+      const [subList, asgList] = await Promise.all([
+        dataService.getSubjects(),
+        user ? dataService.getStudentAssignments(user.id) : [],
+      ]);
+      setSubjects(subList || []);
+      setAssignments(asgList || []);
+      if (subList?.length > 0 && !expandedSubjectId) {
+        setExpandedSubjectId(subList[0].id);
       }
-    };
+    } catch (err) {
+      console.error('Error loading subjects:', err);
+    } finally {
+      if (!isBackground) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadCurriculum();
+
+    // 1. Polling every 10 seconds
+    const interval = setInterval(() => {
+      loadCurriculum(true);
+    }, 10000);
+
+    // 2. Window focus refetch
+    const handleFocus = () => loadCurriculum(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime subscription
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadCurriculum(true);
+    });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, [user]);
 
   const toggleSubject = (id) => {
