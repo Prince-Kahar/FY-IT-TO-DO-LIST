@@ -34,20 +34,42 @@ export const AdminStudents = () => {
   const [drilldownLoading, setDrilldownLoading] = useState(false);
   const [lightboxPhotos, setLightboxPhotos] = useState(null);
 
-  const loadStudents = async () => {
-    setLoading(true);
+  const loadStudents = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await dataService.getStudents();
       setStudents(data);
     } catch (err) {
       console.error('Error loading students:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadStudents();
+
+    // 1. Continuous Live Polling every 12 seconds from Supabase
+    const pollInterval = setInterval(() => {
+      loadStudents(true);
+    }, 12000);
+
+    // 2. Auto refetch when user switches tab or window gains focus
+    const handleFocus = () => loadStudents(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime & local mutation event bus
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadStudents(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleToggleStatus = async (student) => {

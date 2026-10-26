@@ -35,8 +35,8 @@ export const AdminTasks = () => {
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadTasksData = async () => {
-    setLoading(true);
+  const loadTasksData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [tList, sList] = await Promise.all([
         dataService.getTasks(),
@@ -47,12 +47,34 @@ export const AdminTasks = () => {
     } catch (err) {
       console.error('Error loading tasks:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadTasksData();
+
+    // 1. Continuous Live Polling from Supabase
+    const pollInterval = setInterval(() => {
+      loadTasksData(true);
+    }, 12000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadTasksData(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime subscription
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadTasksData(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleDeleteTask = async () => {

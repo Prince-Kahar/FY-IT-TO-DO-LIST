@@ -28,8 +28,8 @@ export const AdminSubmissions = () => {
   // Review Modal
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
-  const loadSubmissions = async () => {
-    setLoading(true);
+  const loadSubmissions = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [subList, sbList] = await Promise.all([
         dataService.getAllSubmissions(),
@@ -40,12 +40,34 @@ export const AdminSubmissions = () => {
     } catch (err) {
       console.error('Error loading submissions:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadSubmissions();
+
+    // 1. Continuous Live Polling every 10 seconds for incoming student submissions
+    const pollInterval = setInterval(() => {
+      loadSubmissions(true);
+    }, 10000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadSubmissions(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime subscription
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadSubmissions(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Filter Submissions with null safety

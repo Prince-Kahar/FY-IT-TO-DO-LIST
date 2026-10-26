@@ -10,20 +10,42 @@ export const AdminAnnouncements = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const loadAnnouncements = async () => {
-    setLoading(true);
+  const loadAnnouncements = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await dataService.getAnnouncements();
       setAnnouncements(data);
     } catch (err) {
       console.error('Error loading announcements:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadAnnouncements();
+
+    // 1. Continuous Live Polling every 12 seconds from Supabase
+    const pollInterval = setInterval(() => {
+      loadAnnouncements(true);
+    }, 12000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadAnnouncements(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime & mutation event bus
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadAnnouncements(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleDelete = async (id, title) => {

@@ -26,6 +26,10 @@ let localAnnouncements = [...initialAnnouncements];
 let localNotifications = [...initialNotifications];
 let localTodos = [...initialTodos];
 
+// Realtime sync channels and listener bus
+let realtimeChannel = null;
+let realtimeListeners = new Set();
+
 export const dataService = {
   // =========================================================================
   // SUBJECTS & TOPICS
@@ -66,11 +70,15 @@ export const dataService = {
           .insert([subjectData])
           .select()
           .single();
-        if (!error && data) return data;
+        if (!error && data) {
+          this.notifyLocalChange('SUBJECT_CREATED', data);
+          return data;
+        }
       } catch (err) {
         console.warn('Supabase createSubject notice:', err);
       }
     }
+    this.notifyLocalChange('SUBJECT_CREATED', newSubject);
     return newSubject;
   },
 
@@ -84,12 +92,17 @@ export const dataService = {
           .eq('id', id)
           .select()
           .single();
-        if (!error && data) return data;
+        if (!error && data) {
+          this.notifyLocalChange('SUBJECT_UPDATED', data);
+          return data;
+        }
       } catch (err) {
         console.warn('Supabase updateSubject notice:', err);
       }
     }
-    return localSubjects.find((s) => s.id === id);
+    const updated = localSubjects.find((s) => s.id === id);
+    this.notifyLocalChange('SUBJECT_UPDATED', updated);
+    return updated;
   },
 
   async deleteSubject(id) {
@@ -102,6 +115,7 @@ export const dataService = {
         console.warn('Supabase deleteSubject notice:', err);
       }
     }
+    this.notifyLocalChange('SUBJECT_DELETED', { id });
     return true;
   },
 
@@ -136,11 +150,15 @@ export const dataService = {
           .insert([topicData])
           .select()
           .single();
-        if (!error && data) return data;
+        if (!error && data) {
+          this.notifyLocalChange('TOPIC_CREATED', data);
+          return data;
+        }
       } catch (err) {
         console.warn('Supabase createTopic notice:', err);
       }
     }
+    this.notifyLocalChange('TOPIC_CREATED', newTopic);
     return newTopic;
   },
 
@@ -153,6 +171,7 @@ export const dataService = {
         console.warn('Supabase deleteTopic notice:', err);
       }
     }
+    this.notifyLocalChange('TOPIC_DELETED', { id });
     return true;
   },
 
@@ -183,29 +202,38 @@ export const dataService = {
   },
 
   async createTask(taskData, targetStudentIds = []) {
+    let taskResult = null;
     if (isSupabaseConfigured()) {
-      const { data: task, error } = await supabase
-        .from('tasks')
-        .insert([taskData])
-        .select()
-        .single();
-      if (error) throw error;
-
-      // If published, assign students
-      if (task.publication_status === 'Published') {
-        if (task.assignment_target === 'all' || !targetStudentIds.length) {
-          await supabase.rpc('assign_task_to_all_students', { task_uuid: task.id });
-        } else {
-          await supabase.rpc('assign_task_to_selected_students', {
-            task_uuid: task.id,
-            student_ids: targetStudentIds,
-          });
+      try {
+        const { data: task, error } = await supabase
+          .from('tasks')
+          .insert([taskData])
+          .select()
+          .single();
+        if (!error && task) {
+          taskResult = task;
+          // If published, assign students
+          if (task.publication_status === 'Published') {
+            try {
+              if (task.assignment_target === 'all' || !targetStudentIds.length) {
+                await supabase.rpc('assign_task_to_all_students', { task_uuid: task.id });
+              } else {
+                await supabase.rpc('assign_task_to_selected_students', {
+                  task_uuid: task.id,
+                  student_ids: targetStudentIds,
+                });
+              }
+            } catch (rpcErr) {
+              console.warn('RPC assign notice:', rpcErr);
+            }
+          }
         }
+      } catch (err) {
+        console.warn('Supabase createTask notice:', err);
       }
-      return task;
     }
 
-    const newTask = {
+    const newTask = taskResult || {
       ...taskData,
       id: 'task-' + Date.now(),
       created_at: new Date().toISOString(),
@@ -244,32 +272,45 @@ export const dataService = {
       });
     }
 
+    this.notifyLocalChange('TASK_CREATED', newTask);
     return newTask;
   },
 
   async updateTask(id, taskData) {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('tasks')
-        .update(taskData)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .update(taskData)
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) {
+          localTasks = localTasks.map((t) => (t.id === id ? { ...t, ...data } : t));
+          this.notifyLocalChange('TASK_UPDATED', data);
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase updateTask notice:', err);
+      }
     }
     localTasks = localTasks.map((t) => (t.id === id ? { ...t, ...taskData } : t));
-    return localTasks.find((t) => t.id === id);
+    const updated = localTasks.find((t) => t.id === id);
+    this.notifyLocalChange('TASK_UPDATED', updated);
+    return updated;
   },
 
   async deleteTask(id) {
     if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('tasks').delete().eq('id', id);
-      if (error) throw error;
-      return true;
+      try {
+        await supabase.from('tasks').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteTask notice:', err);
+      }
     }
     localTasks = localTasks.filter((t) => t.id !== id);
     localAssignments = localAssignments.filter((a) => a.task_id !== id);
+    this.notifyLocalChange('TASK_DELETED', { id });
     return true;
   },
 
@@ -362,25 +403,31 @@ export const dataService = {
   },
 
   async startTask(assignmentId) {
+    let updated = null;
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('task_assignments')
-        .update({
-          status: 'In Progress',
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', assignmentId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('task_assignments')
+          .update({
+            status: 'In Progress',
+            started_at: new Date().toISOString(),
+          })
+          .eq('id', assignmentId)
+          .select()
+          .single();
+        if (!error && data) updated = data;
+      } catch (err) {
+        console.warn('Supabase startTask notice:', err);
+      }
     }
     localAssignments = localAssignments.map((a) =>
       a.id === assignmentId
         ? { ...a, status: 'In Progress', started_at: new Date().toISOString() }
         : a
     );
-    return localAssignments.find((a) => a.id === assignmentId);
+    const res = updated || localAssignments.find((a) => a.id === assignmentId);
+    this.notifyLocalChange('ASSIGNMENT_UPDATED', res);
+    return res;
   },
 
   // =========================================================================
@@ -455,10 +502,12 @@ export const dataService = {
         })
         .eq('id', assignmentId);
 
-      return {
+      const subResult = {
         ...submission,
         submission_files: uploadedFiles,
       };
+      this.notifyLocalChange('SUBMISSION_CREATED', subResult);
+      return subResult;
     }
 
     // Demo Mode Implementation
@@ -498,6 +547,7 @@ export const dataService = {
       assignment.is_late = isLate;
     }
 
+    this.notifyLocalChange('SUBMISSION_CREATED', newSubmission);
     return newSubmission;
   },
 
@@ -619,6 +669,7 @@ export const dataService = {
         },
       ]);
 
+      this.notifyLocalChange('SUBMISSION_REVIEWED', updatedSub);
       return updatedSub;
     }
 
@@ -647,6 +698,7 @@ export const dataService = {
       created_at: new Date().toISOString(),
     });
 
+    this.notifyLocalChange('SUBMISSION_REVIEWED', sub);
     return sub;
   },
 
@@ -683,6 +735,7 @@ export const dataService = {
     localStudents = localStudents.map((s) =>
       s.id === studentId ? { ...s, is_active: !currentStatus } : s
     );
+    let updatedStudent = null;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -691,12 +744,14 @@ export const dataService = {
           .eq('id', studentId)
           .select()
           .single();
-        if (!error && data) return data;
+        if (!error && data) updatedStudent = data;
       } catch (err) {
         console.warn('Supabase toggleStudentActive notice:', err);
       }
     }
-    return localStudents.find((s) => s.id === studentId);
+    const res = updatedStudent || localStudents.find((s) => s.id === studentId);
+    this.notifyLocalChange('STUDENT_UPDATED', res);
+    return res;
   },
 
   // =========================================================================
@@ -722,32 +777,40 @@ export const dataService = {
   },
 
   async createAnnouncement(annData) {
+    let annResult = null;
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('announcements')
-        .insert([annData])
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .insert([annData])
+          .select()
+          .single();
+        if (!error && data) annResult = data;
+      } catch (err) {
+        console.warn('Supabase createAnnouncement notice:', err);
+      }
     }
-    const newAnn = {
+    const newAnn = annResult || {
       ...annData,
       id: 'ann-' + Date.now(),
       published_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
     localAnnouncements.unshift(newAnn);
+    this.notifyLocalChange('ANNOUNCEMENT_CREATED', newAnn);
     return newAnn;
   },
 
   async deleteAnnouncement(id) {
     if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
-      if (error) throw error;
-      return true;
+      try {
+        await supabase.from('announcements').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteAnnouncement notice:', err);
+      }
     }
     localAnnouncements = localAnnouncements.filter((a) => a.id !== id);
+    this.notifyLocalChange('ANNOUNCEMENT_DELETED', { id });
     return true;
   },
 
@@ -866,6 +929,7 @@ export const dataService = {
   },
 
   async createTodo(todoData) {
+    let created = null;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -873,30 +937,34 @@ export const dataService = {
           .insert([todoData])
           .select('*, subjects(id, name, subject_code)')
           .single();
-        if (error) throw error;
-        return data;
+        if (!error && data) created = data;
       } catch (err) {
         console.warn('Fallback to local todo create:', err.message);
       }
     }
 
-    const newTodo = {
-      ...todoData,
-      id: 'todo-' + Date.now(),
-      status: todoData.status || 'pending',
-      subtasks: todoData.subtasks || [],
-      time_spent_minutes: 0,
-      completed_at: null,
-      created_at: new Date().toISOString(),
-    };
-    localTodos.unshift(newTodo);
-    return {
-      ...newTodo,
-      subjects: localSubjects.find((s) => s.id === newTodo.subject_id) || null,
-    };
+    if (!created) {
+      const newTodo = {
+        ...todoData,
+        id: 'todo-' + Date.now(),
+        status: todoData.status || 'pending',
+        subtasks: todoData.subtasks || [],
+        time_spent_minutes: 0,
+        completed_at: null,
+        created_at: new Date().toISOString(),
+      };
+      localTodos.unshift(newTodo);
+      created = {
+        ...newTodo,
+        subjects: localSubjects.find((s) => s.id === newTodo.subject_id) || null,
+      };
+    }
+    this.notifyLocalChange('TODO_CREATED', created);
+    return created;
   },
 
   async updateTodo(id, updates) {
+    let updated = null;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -905,19 +973,20 @@ export const dataService = {
           .eq('id', id)
           .select('*, subjects(id, name, subject_code)')
           .single();
-        if (error) throw error;
-        return data;
+        if (!error && data) updated = data;
       } catch (err) {
         console.warn('Fallback to local todo update:', err.message);
       }
     }
 
     localTodos = localTodos.map((t) => (t.id === id ? { ...t, ...updates } : t));
-    const updated = localTodos.find((t) => t.id === id);
-    return {
-      ...updated,
-      subjects: localSubjects.find((s) => s.id === updated?.subject_id) || null,
+    const localUpdated = localTodos.find((t) => t.id === id);
+    const result = updated || {
+      ...localUpdated,
+      subjects: localSubjects.find((s) => s.id === localUpdated?.subject_id) || null,
     };
+    this.notifyLocalChange('TODO_UPDATED', result);
+    return result;
   },
 
   async toggleTodoStatus(id) {
@@ -968,13 +1037,13 @@ export const dataService = {
     if (isSupabaseConfigured()) {
       try {
         const { error } = await supabase.from('student_todos').delete().eq('id', id);
-        if (error) throw error;
-        return true;
+        if (error) console.warn('Supabase todo delete notice:', error.message);
       } catch (err) {
         console.warn('Fallback to local todo delete:', err.message);
       }
     }
     localTodos = localTodos.filter((t) => t.id !== id);
+    this.notifyLocalChange('TODO_DELETED', { id });
     return true;
   },
 
@@ -1016,5 +1085,56 @@ export const dataService = {
       }
     }
     return importedCount;
+  },
+
+  // =========================================================================
+  // CONTINUOUS LIVE REALTIME SUBSCRIPTION
+  // Automatically refetches data whenever Supabase database tables change
+  // =========================================================================
+  subscribeRealtime(callback) {
+    if (!realtimeListeners) {
+      realtimeListeners = new Set();
+    }
+    realtimeListeners.add(callback);
+
+    if (isSupabaseConfigured() && !realtimeChannel) {
+      try {
+        realtimeChannel = supabase
+          .channel('fy_it_realtime_data')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+              console.log('⚡ Realtime Supabase change received:', payload.table, payload.eventType);
+              realtimeListeners.forEach((cb) => {
+                try {
+                  cb(payload);
+                } catch (e) {
+                  console.error('Error in realtime listener callback:', e);
+                }
+              });
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Realtime channel subscription notice:', err);
+      }
+    }
+
+    return () => {
+      if (realtimeListeners) {
+        realtimeListeners.delete(callback);
+      }
+    };
+  },
+
+  notifyLocalChange(type, detail) {
+    if (realtimeListeners) {
+      realtimeListeners.forEach((cb) => {
+        try {
+          cb({ eventType: type, detail });
+        } catch (e) {}
+      });
+    }
   },
 };

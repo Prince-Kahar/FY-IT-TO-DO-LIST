@@ -27,8 +27,8 @@ export const AdminSubjects = () => {
   const [subjectToEdit, setSubjectToEdit] = useState(null);
   const [topicModalSubject, setTopicModalSubject] = useState(null);
 
-  const loadSubjects = async () => {
-    setLoading(true);
+  const loadSubjects = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await dataService.getSubjects();
       setSubjects(data);
@@ -38,12 +38,34 @@ export const AdminSubjects = () => {
     } catch (err) {
       console.error('Error loading subjects:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadSubjects();
+
+    // 1. Continuous Live Polling every 15 seconds
+    const pollInterval = setInterval(() => {
+      loadSubjects(true);
+    }, 15000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadSubjects(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime & mutation event bus
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadSubjects(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleToggleActive = async (sub) => {

@@ -63,9 +63,9 @@ export const StudentTodoList = () => {
   // Inline Subtask Add State
   const [inlineSubtaskText, setInlineSubtaskText] = useState({});
 
-  const loadTodoData = async () => {
+  const loadTodoData = async (isBackground = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const [todoList, subList, asgList] = await Promise.all([
         dataService.getTodos(user.id),
@@ -75,18 +75,40 @@ export const StudentTodoList = () => {
       setTodos(todoList);
       setSubjects(subList);
       setAssignments(asgList);
-      if (todoList.length > 0) {
+      if (todoList.length > 0 && expandedTodoIds.length === 0) {
         setExpandedTodoIds([todoList[0].id]);
       }
     } catch (err) {
       console.error('Error loading todos:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadTodoData();
+
+    // 1. Continuous Live Polling every 12 seconds from Supabase
+    const pollInterval = setInterval(() => {
+      loadTodoData(true);
+    }, 12000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadTodoData(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime & mutation event bus
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadTodoData(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, [user]);
 
   // Quick Add Task

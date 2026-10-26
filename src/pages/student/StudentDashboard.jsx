@@ -37,9 +37,9 @@ export const StudentDashboard = () => {
   // Modal state
   const [activeSubmitModal, setActiveSubmitModal] = useState(null);
 
-  const loadData = async () => {
+  const loadData = async (isBackground = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const [asgData, subData, annData, todoData] = await Promise.all([
         dataService.getStudentAssignments(user.id),
@@ -54,12 +54,34 @@ export const StudentDashboard = () => {
     } catch (err) {
       console.error('Error loading student dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+
+    // 1. Continuous Live Polling every 12 seconds from Supabase
+    const pollInterval = setInterval(() => {
+      loadData(true);
+    }, 12000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadData(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime subscription
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadData(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, [user]);
 
   const handleToggleTodo = async (id, currentStatus) => {

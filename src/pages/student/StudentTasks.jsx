@@ -37,9 +37,9 @@ export const StudentTasks = () => {
   const [activeSubmitModal, setActiveSubmitModal] = useState(null);
   const [lightboxPhotos, setLightboxPhotos] = useState(null);
 
-  const loadTasks = async () => {
+  const loadTasks = async (isBackground = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const [asgData, subData] = await Promise.all([
         dataService.getStudentAssignments(user.id),
@@ -50,12 +50,34 @@ export const StudentTasks = () => {
     } catch (err) {
       console.error('Error loading tasks:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadTasks();
+
+    // 1. Continuous Live Polling every 12 seconds from Supabase
+    const pollInterval = setInterval(() => {
+      loadTasks(true);
+    }, 12000);
+
+    // 2. Auto refetch on focus / visibility change
+    const handleFocus = () => loadTasks(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime & mutation event bus
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadTasks(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, [user]);
 
   const handleStartTask = async (assignmentId) => {

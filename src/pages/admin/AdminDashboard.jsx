@@ -36,8 +36,8 @@ export const AdminDashboard = () => {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [isAnnModalOpen, setIsAnnModalOpen] = useState(false);
 
-  const loadAdminData = async () => {
-    setLoading(true);
+  const loadAdminData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [stList, tList, subList, sbList, anList] = await Promise.all([
         dataService.getStudents(),
@@ -54,12 +54,34 @@ export const AdminDashboard = () => {
     } catch (err) {
       console.error('Error loading admin dashboard:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadAdminData();
+
+    // 1. Continuous Live Polling from Supabase every 12 seconds
+    const pollInterval = setInterval(() => {
+      loadAdminData(true);
+    }, 12000);
+
+    // 2. Auto refetch when user switches to tab or window gains focus
+    const handleFocus = () => loadAdminData(true);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 3. Supabase Realtime database change subscription
+    const unsubscribe = dataService.subscribeRealtime(() => {
+      loadAdminData(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Compute Admin KPIs with null safety

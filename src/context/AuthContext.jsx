@@ -165,24 +165,30 @@ export const AuthProvider = ({ children }) => {
     const normalized = identifier.trim().toLowerCase();
 
     // 1. ADMIN AUTHENTICATION
-    // Primary Username: hemang (also accepts alias hemag), Password: Hemang@135
+    // Dynamic credentials configured via .env with robust fallback defaults
+    const envAdminUser = (import.meta.env.VITE_ADMIN_USERNAME || 'hemang').trim().toLowerCase();
+    const envAdminPass = (import.meta.env.VITE_ADMIN_PASSWORD || 'Hemang@135').trim();
+    const envAdminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'hemang@college.edu').trim().toLowerCase();
+
     const isAdminUser =
+      normalized === envAdminUser ||
       normalized === 'hemang' ||
       normalized === 'hemag' ||
+      normalized === envAdminEmail ||
       normalized === 'hemang@college.edu' ||
       normalized === 'hemag@college.edu' ||
       normalized === 'admin@college.edu' ||
       normalized === 'admin';
 
     if (isAdminUser) {
-      if (password !== 'Hemang@135' && password !== 'hemang@135') {
+      if (password !== envAdminPass && password !== 'Hemang@135' && password !== 'hemang@135') {
         throw new Error('Incorrect password for Admin. Please enter your valid credentials.');
       }
 
       const adminUser = {
         ...initialAdmin,
-        username: 'hemang',
-        email: 'hemang@college.edu',
+        username: envAdminUser,
+        email: envAdminEmail,
         full_name: 'Prof. Hemang (Class Head / Admin)',
         role: 'admin',
       };
@@ -190,7 +196,7 @@ export const AuthProvider = ({ children }) => {
       if (isSupabaseConfigured()) {
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
-            email: 'hemang@college.edu',
+            email: envAdminEmail,
             password,
           });
           if (!error && data?.user) {
