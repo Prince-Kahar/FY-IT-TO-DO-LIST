@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
   UserPlus,
-  KeyRound,
   Trash2,
   Edit,
   Power,
@@ -12,7 +11,6 @@ import {
   AlertTriangle,
   X,
   Loader2,
-  Lock,
   LogOut,
   RefreshCw,
   Eye,
@@ -20,21 +18,33 @@ import {
   Copy,
   Check,
   BookOpen,
-  CheckSquare,
-  ShieldCheck,
   Sparkles,
+  Megaphone,
+  Plus,
+  Bell,
+  Send,
+  Calendar,
+  Layers,
+  GraduationCap,
+  Info,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { dataService } from '../../lib/dataService';
+import { pushService } from '../../lib/pushNotificationService';
 
 export const SuperAdminDashboard = () => {
   const { user, profile, logout } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
+  // Navigation tab state: 'admins' | 'subjects' | 'broadcasts'
+  const [activeTab, setActiveTab] = useState('admins');
+
+  // Core Data States
   const [admins, setAdmins] = useState([]);
   const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [studentsCount, setStudentsCount] = useState(0);
   const [tasksCount, setTasksCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -45,25 +55,33 @@ export const SuperAdminDashboard = () => {
   const [copiedAdminId, setCopiedAdminId] = useState(null);
 
   // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
   const [adminToEdit, setAdminToEdit] = useState(null);
   const [adminToDelete, setAdminToDelete] = useState(null);
+
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [subjectToEdit, setSubjectToEdit] = useState(null);
+  const [subjectToDelete, setSubjectToDelete] = useState(null);
+
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+  const [announcementToDelete, setAnnouncementToDelete] = useState(null);
 
   const loadData = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
-      // 1. Fetch admins from Supabase dedicated admins table
-      const [adminList, subList, stList, tList] = await Promise.all([
+      const [adminList, subList, stList, tList, annList] = await Promise.all([
         dataService.fetchAdminsFromSupabase(),
         dataService.getSubjects(),
         dataService.getStudents(),
         dataService.getTasks(),
+        dataService.getAnnouncements(),
       ]);
 
       setAdmins(adminList || []);
       setAvailableSubjects(subList || []);
       setStudentsCount(stList?.length || 0);
       setTasksCount(tList?.length || 0);
+      setAnnouncements(annList || []);
     } catch (err) {
       console.error('Error loading super admin data:', err);
     } finally {
@@ -90,11 +108,12 @@ export const SuperAdminDashboard = () => {
     };
   }, []);
 
-  const handleToggleStatus = async (admin) => {
+  // Admin Actions
+  const handleToggleAdminStatus = async (admin) => {
     try {
       await dataService.updateAdmin(admin.id, { is_active: !admin.is_active });
       addToast(
-        `Admin account for ${admin.full_name} is now ${!admin.is_active ? 'Active' : 'Inactive'}.`,
+        `Admin account for ${admin.full_name} is now ${!admin.is_active ? 'Active' : 'Deactivated'}.`,
         'info'
       );
       loadData(true);
@@ -131,6 +150,45 @@ export const SuperAdminDashboard = () => {
     }));
   };
 
+  // Subject Actions
+  const handleToggleSubjectActive = async (sub) => {
+    try {
+      await dataService.updateSubject(sub.id, { is_active: !sub.is_active });
+      addToast(
+        `Subject "${sub.name}" marked as ${!sub.is_active ? 'Active' : 'Inactive'}.`,
+        'info'
+      );
+      loadData(true);
+    } catch (err) {
+      addToast(err.message || 'Failed to update subject status', 'error');
+    }
+  };
+
+  const handleDeleteSubject = async () => {
+    if (!subjectToDelete) return;
+    try {
+      await dataService.deleteSubject(subjectToDelete.id);
+      addToast(`Subject "${subjectToDelete.name}" removed from curriculum.`, 'info');
+      setSubjectToDelete(null);
+      loadData(true);
+    } catch (err) {
+      addToast(err.message || 'Failed to delete subject', 'error');
+    }
+  };
+
+  // Announcement Actions
+  const handleDeleteAnnouncement = async () => {
+    if (!announcementToDelete) return;
+    try {
+      await dataService.deleteAnnouncement(announcementToDelete.id);
+      addToast('Notice removed successfully.', 'info');
+      setAnnouncementToDelete(null);
+      loadData(true);
+    } catch (err) {
+      addToast(err.message || 'Failed to delete announcement', 'error');
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/superadmin');
@@ -140,23 +198,26 @@ export const SuperAdminDashboard = () => {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0B0F19',
-        color: '#F9FAFB',
+        background: '#F8FAFC',
+        color: '#0F172A',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Executive Top Header */}
+      {/* Light Mode Executive Header */}
       <header
         style={{
-          background: 'linear-gradient(180deg, #111827 0%, #0F172A 100%)',
-          borderBottom: '1px solid #1F2937',
+          background: '#FFFFFF',
+          borderBottom: '1px solid #E2E8F0',
           padding: '16px 32px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '16px',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -165,54 +226,55 @@ export const SuperAdminDashboard = () => {
               width: 48,
               height: 48,
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #EC4899 100%)',
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 6px 20px rgba(99, 102, 241, 0.45)',
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
             }}
           >
             <ShieldAlert size={26} color="#FFFFFF" />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0F172A', letterSpacing: '-0.02em' }}>
                 STERS Super Administrator Console
               </h1>
               <span
                 style={{
-                  background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
-                  color: '#FFFFFF',
+                  background: '#EEF2FF',
+                  color: '#4F46E5',
+                  border: '1px solid #C7D2FE',
                   fontSize: '0.675rem',
                   fontWeight: 800,
                   padding: '3px 10px',
                   borderRadius: '999px',
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
-                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
                 }}
               >
                 MASTER CONTROL
               </span>
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#9CA3AF', margin: '3px 0 0 0' }}>
-              Supreme Departmental Governance, Admin Accounts & Subject Assignment Authority
+            <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+              Departmental Governance • Admin Accounts • Academic Subjects • Campus Broadcasts
             </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Live Sync Status */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              background: '#ECFDF5',
+              border: '1px solid #A7F3D0',
               padding: '6px 12px',
               borderRadius: '999px',
               fontSize: '0.75rem',
-              color: '#34D399',
+              color: '#047857',
               fontWeight: 600,
             }}
           >
@@ -222,7 +284,7 @@ export const SuperAdminDashboard = () => {
                 height: 8,
                 borderRadius: '50%',
                 background: '#10B981',
-                boxShadow: '0 0 8px #10B981',
+                boxShadow: '0 0 6px #10B981',
               }}
             />
             <span>Supabase Sync Active</span>
@@ -233,14 +295,16 @@ export const SuperAdminDashboard = () => {
             className="btn btn-secondary btn-sm"
             onClick={() => loadData(false)}
             style={{
-              background: '#1F2937',
-              color: '#E5E7EB',
-              borderColor: '#374151',
+              background: '#FFFFFF',
+              color: '#334155',
+              borderColor: '#CBD5E1',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '8px 14px',
               borderRadius: '8px',
+              fontWeight: 600,
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
             }}
           >
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -252,14 +316,15 @@ export const SuperAdminDashboard = () => {
             className="btn btn-secondary btn-sm"
             onClick={handleLogout}
             style={{
-              background: 'rgba(239, 68, 68, 0.12)',
-              color: '#F87171',
-              borderColor: 'rgba(239, 68, 68, 0.3)',
+              background: '#FEF2F2',
+              color: '#DC2626',
+              borderColor: '#FECACA',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '8px 14px',
               borderRadius: '8px',
+              fontWeight: 600,
             }}
           >
             <LogOut size={14} />
@@ -269,469 +334,1067 @@ export const SuperAdminDashboard = () => {
       </header>
 
       {/* Main Container */}
-      <main style={{ maxWidth: '1360px', margin: '0 auto', padding: '36px 28px' }}>
-        {/* KPI Metrics Grid */}
+      <main style={{ maxWidth: '1360px', margin: '0 auto', padding: '28px 24px' }}>
+        {/* KPI Metrics Grid in Crisp Light Mode */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '20px',
-            marginBottom: '32px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+            gap: '16px',
+            marginBottom: '24px',
           }}
         >
+          {/* Card 1: Faculty Admins */}
           <div
             style={{
-              background: '#111827',
-              padding: '22px 24px',
-              borderRadius: '14px',
-              border: '1px solid #1F2937',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+              background: '#FFFFFF',
+              padding: '20px 22px',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
               position: 'relative',
               overflow: 'hidden',
             }}
           >
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#8B5CF6' }} />
-            <div style={{ fontSize: '0.8rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Active Faculty Admins
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#6366F1' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Faculty Admins
+              </div>
+              <Users size={18} color="#6366F1" />
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#A78BFA', marginTop: '8px' }}>
-              {admins.filter((a) => a.is_active).length} <span style={{ fontSize: '1.1rem', color: '#6B7280' }}>/ {admins.length}</span>
+            <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#1E293B', marginTop: '8px' }}>
+              {admins.filter((a) => a.is_active).length} <span style={{ fontSize: '1.05rem', color: '#94A3B8' }}>/ {admins.length}</span>
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '6px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
               Authorized Department Teachers
             </div>
           </div>
 
+          {/* Card 2: Curriculum Subjects */}
           <div
             style={{
-              background: '#111827',
-              padding: '22px 24px',
-              borderRadius: '14px',
-              border: '1px solid #1F2937',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+              background: '#FFFFFF',
+              padding: '20px 22px',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
               position: 'relative',
               overflow: 'hidden',
             }}
           >
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#06B6D4' }} />
-            <div style={{ fontSize: '0.8rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Registered Students
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#0284C7' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Academic Subjects
+              </div>
+              <BookOpen size={18} color="#0284C7" />
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#38BDF8', marginTop: '8px' }}>
+            <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#0369A1', marginTop: '8px' }}>
+              {availableSubjects.length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
+              Active Course Modules in Database
+            </div>
+          </div>
+
+          {/* Card 3: Registered Students */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              padding: '20px 22px',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#10B981' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Registered Students
+              </div>
+              <GraduationCap size={18} color="#10B981" />
+            </div>
+            <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#047857', marginTop: '8px' }}>
               {studentsCount}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '6px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
               Live in `public.students` Table
             </div>
           </div>
 
+          {/* Card 4: Broadcasts & Notifications */}
           <div
             style={{
-              background: '#111827',
-              padding: '22px 24px',
-              borderRadius: '14px',
-              border: '1px solid #1F2937',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+              background: '#FFFFFF',
+              padding: '20px 22px',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
               position: 'relative',
               overflow: 'hidden',
             }}
           >
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#10B981' }} />
-            <div style={{ fontSize: '0.8rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Curriculum Tasks
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#F59E0B' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Campus Notices
+              </div>
+              <Megaphone size={18} color="#F59E0B" />
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#34D399', marginTop: '8px' }}>
-              {tasksCount}
+            <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#B45309', marginTop: '8px' }}>
+              {announcements.length}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '6px' }}>
-              Practicals, Journals & Assignments
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: '#111827',
-              padding: '22px 24px',
-              borderRadius: '14px',
-              border: '1px solid #1F2937',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#F59E0B' }} />
-            <div style={{ fontSize: '0.8rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Database Separation
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FCD34D', marginTop: '12px' }}>
-              STUDENTS / ADMINS
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '6px' }}>
-              Strict RLS Isolated Architecture
+            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
+              Active Student & Faculty Broadcasts
             </div>
           </div>
         </div>
 
-        {/* Section Header */}
+        {/* Tab Navigation Segmented Bar */}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '20px',
-            flexWrap: 'wrap',
-            gap: '16px',
+            gap: '8px',
+            background: '#FFFFFF',
+            padding: '6px',
+            borderRadius: '12px',
+            border: '1px solid #E2E8F0',
+            marginBottom: '24px',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
           }}
         >
-          <div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: '#FFFFFF' }}>
-              Faculty Administrators & Subject Access Management
-            </h2>
-            <p style={{ fontSize: '0.85rem', color: '#9CA3AF', margin: '4px 0 0 0' }}>
-              Assign specific subjects to individual faculty members, reset credentials, and govern access rights.
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('admins')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              transition: 'all 0.15s ease',
+              background: activeTab === 'admins' ? '#4F46E5' : 'transparent',
+              color: activeTab === 'admins' ? '#FFFFFF' : '#64748B',
+              boxShadow: activeTab === 'admins' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+            }}
+          >
+            <Users size={16} />
+            <span>Faculty Admins & Subject Assignment</span>
+            <span
+              style={{
+                fontSize: '0.725rem',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: activeTab === 'admins' ? 'rgba(255,255,255,0.2)' : '#F1F5F9',
+                color: activeTab === 'admins' ? '#FFFFFF' : '#475569',
+              }}
+            >
+              {admins.length}
+            </span>
+          </button>
 
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => setActiveTab('subjects')}
             style={{
-              background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
-              borderColor: '#6366F1',
-              boxShadow: '0 4px 16px rgba(99, 102, 241, 0.4)',
+              flex: 1,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '8px',
-              padding: '10px 18px',
-              borderRadius: '10px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
               fontWeight: 700,
+              fontSize: '0.875rem',
+              transition: 'all 0.15s ease',
+              background: activeTab === 'subjects' ? '#4F46E5' : 'transparent',
+              color: activeTab === 'subjects' ? '#FFFFFF' : '#64748B',
+              boxShadow: activeTab === 'subjects' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
             }}
           >
-            <UserPlus size={18} />
-            <span>Add New Admin</span>
+            <BookOpen size={16} />
+            <span>Academic Curriculum & Subjects</span>
+            <span
+              style={{
+                fontSize: '0.725rem',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: activeTab === 'subjects' ? 'rgba(255,255,255,0.2)' : '#F1F5F9',
+                color: activeTab === 'subjects' ? '#FFFFFF' : '#475569',
+              }}
+            >
+              {availableSubjects.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('broadcasts')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              transition: 'all 0.15s ease',
+              background: activeTab === 'broadcasts' ? '#4F46E5' : 'transparent',
+              color: activeTab === 'broadcasts' ? '#FFFFFF' : '#64748B',
+              boxShadow: activeTab === 'broadcasts' ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
+            }}
+          >
+            <Megaphone size={16} />
+            <span>Broadcasts & Notifications</span>
+            <span
+              style={{
+                fontSize: '0.725rem',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: activeTab === 'broadcasts' ? 'rgba(255,255,255,0.2)' : '#F1F5F9',
+                color: activeTab === 'broadcasts' ? '#FFFFFF' : '#475569',
+              }}
+            >
+              {announcements.length}
+            </span>
           </button>
         </div>
 
-        {/* Admins Table */}
-        <div
-          style={{
-            background: '#111827',
-            borderRadius: '14px',
-            border: '1px solid #1F2937',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ overflowX: 'auto' }}>
-            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', color: '#E5E7EB' }}>
-              <thead>
-                <tr style={{ background: '#0F172A', borderBottom: '1px solid #1F2937' }}>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    FACULTY / ADMIN
-                  </th>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    USERNAME
-                  </th>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>PASSWORD</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowAllPasswords(!showAllPasswords)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#818CF8', padding: 0 }}
-                        title={showAllPasswords ? 'Hide all passwords' : 'Show all passwords'}
-                      >
-                        {showAllPasswords ? <EyeOff size={13} /> : <Eye size={13} />}
-                      </button>
-                    </div>
-                  </th>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    ASSIGNED SUBJECTS
-                  </th>
-                  <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    STATUS
-                  </th>
-                  <th style={{ padding: '14px 18px', textAlign: 'right', fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    ACTIONS
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {admins.map((adm) => {
-                  const isPasswordRevealed = showAllPasswords || visiblePasswords[adm.id];
-                  const hasAllSubjects =
-                    !adm.assigned_subjects ||
-                    adm.assigned_subjects.includes('ALL') ||
-                    adm.assigned_subjects.length === 0;
+        {/* =========================================================================
+            TAB 1: FACULTY ADMINS & SUBJECT ASSIGNMENTS
+           ========================================================================= */}
+        {activeTab === 'admins' && (
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                  Faculty Administrators & Subject Access Control
+                </h2>
+                <p style={{ fontSize: '0.825rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                  Assign specific subjects or "All Subjects" to individual faculty members, view credentials, and govern access rights.
+                </p>
+              </div>
 
-                  return (
-                    <tr
-                      key={adm.id}
-                      style={{
-                        borderBottom: '1px solid #1F2937',
-                        opacity: adm.is_active ? 1 : 0.65,
-                        background: adm.is_default ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
-                        transition: 'background 0.15s ease',
-                      }}
-                    >
-                      {/* Name & Dept */}
-                      <td style={{ padding: '16px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: '10px',
-                              background: adm.is_default
-                                ? 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)'
-                                : '#1F2937',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              color: '#FFFFFF',
-                              fontSize: '0.95rem',
-                              border: '1px solid #374151',
-                            }}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setIsAddAdminModalOpen(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                  borderColor: '#4F46E5',
+                  boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                }}
+              >
+                <UserPlus size={16} />
+                <span>Add New Admin</span>
+              </button>
+            </div>
+
+            {/* Admins Table */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', color: '#1E293B' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        FACULTY / ADMIN
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        USERNAME
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>PASSWORD</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPasswords(!showAllPasswords)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4F46E5', padding: 0 }}
+                            title={showAllPasswords ? 'Hide all passwords' : 'Show all passwords'}
                           >
-                            {adm.full_name?.charAt(0) || 'A'}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '0.925rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>{adm.full_name}</span>
-                              {adm.is_default && (
-                                <span
+                            {showAllPasswords ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                        </div>
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        ASSIGNED SUBJECTS
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        STATUS
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        ACTIONS
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {admins.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '36px', textAlign: 'center', color: '#64748B' }}>
+                          <Users size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+                          <p style={{ margin: 0, fontWeight: 600 }}>No faculty admins registered yet.</p>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>Click "Add New Admin" to create the first faculty account.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      admins.map((adm) => {
+                        const isPasswordRevealed = showAllPasswords || visiblePasswords[adm.id];
+                        const hasAllSubjects = !adm.assigned_subjects || adm.assigned_subjects.includes('ALL');
+
+                        return (
+                          <tr
+                            key={adm.id}
+                            style={{
+                              borderBottom: '1px solid #F1F5F9',
+                              transition: 'background 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            {/* Faculty Name & Department */}
+                            <td style={{ padding: '14px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div
                                   style={{
-                                    background: 'rgba(99, 102, 241, 0.25)',
-                                    color: '#A5B4FC',
-                                    border: '1px solid rgba(99, 102, 241, 0.4)',
-                                    fontSize: '0.65rem',
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: '10px',
+                                    background: '#EEF2FF',
+                                    color: '#4F46E5',
+                                    border: '1px solid #C7D2FE',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                     fontWeight: 800,
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    letterSpacing: '0.04em',
+                                    fontSize: '0.85rem',
                                   }}
                                 >
-                                  HOD / PRIMARY
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '0.775rem', color: '#9CA3AF', marginTop: '2px' }}>
-                              {adm.department || 'Information Technology'} • {adm.email || 'No email set'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
+                                  {adm.full_name?.charAt(0) || 'A'}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>{adm.full_name}</span>
+                                    {adm.is_default && (
+                                      <span
+                                        style={{
+                                          background: '#EEF2FF',
+                                          color: '#4F46E5',
+                                          border: '1px solid #C7D2FE',
+                                          fontSize: '0.65rem',
+                                          fontWeight: 800,
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          letterSpacing: '0.04em',
+                                        }}
+                                      >
+                                        HOD / PRIMARY
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>
+                                    {adm.department || 'Information Technology'} • {adm.email || 'No email set'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
 
-                      {/* Username */}
-                      <td style={{ padding: '16px 18px' }}>
-                        <code
-                          style={{
-                            background: '#0B0F19',
-                            color: '#38BDF8',
-                            border: '1px solid #1F2937',
-                            padding: '3px 9px',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {adm.username}
-                        </code>
-                      </td>
-
-                      {/* Password */}
-                      <td style={{ padding: '16px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <code
-                            style={{
-                              background: '#0B0F19',
-                              color: '#FCD34D',
-                              border: '1px solid #1F2937',
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              fontFamily: 'monospace',
-                              minWidth: '95px',
-                              display: 'inline-block',
-                            }}
-                          >
-                            {isPasswordRevealed ? adm.password : '••••••••'}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={() => togglePasswordVisibility(adm.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '2px' }}
-                            title={isPasswordRevealed ? 'Hide Password' : 'Show Password'}
-                          >
-                            {isPasswordRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPassword(adm.id, adm.password)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: copiedAdminId === adm.id ? '#10B981' : '#9CA3AF',
-                              padding: '2px',
-                            }}
-                            title="Copy Password"
-                          >
-                            {copiedAdminId === adm.id ? <Check size={14} /> : <Copy size={14} />}
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Assigned Subjects */}
-                      <td style={{ padding: '16px 18px' }}>
-                        {hasAllSubjects ? (
-                          <span
-                            style={{
-                              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)',
-                              color: '#C4B5FD',
-                              border: '1px solid rgba(139, 92, 246, 0.4)',
-                              padding: '4px 10px',
-                              borderRadius: '8px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            <Sparkles size={12} color="#FBBF24" />
-                            <span>All Subjects (Full Access)</span>
-                          </span>
-                        ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxWidth: '280px' }}>
-                            {adm.assigned_subjects.map((sub, idx) => (
-                              <span
-                                key={idx}
+                            {/* Username */}
+                            <td style={{ padding: '14px 16px' }}>
+                              <code
                                 style={{
-                                  background: 'rgba(6, 182, 212, 0.15)',
-                                  color: '#67E8F9',
-                                  border: '1px solid rgba(6, 182, 212, 0.3)',
-                                  padding: '2px 8px',
+                                  background: '#F1F5F9',
+                                  color: '#0284C7',
+                                  border: '1px solid #E2E8F0',
+                                  padding: '3px 8px',
                                   borderRadius: '6px',
-                                  fontSize: '0.725rem',
+                                  fontSize: '0.85rem',
                                   fontWeight: 600,
+                                  fontFamily: 'monospace',
                                 }}
                               >
-                                {sub}
+                                {adm.username}
+                              </code>
+                            </td>
+
+                            {/* Password with Eye/Copy */}
+                            <td style={{ padding: '14px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <code
+                                  style={{
+                                    background: '#FFFBEB',
+                                    color: '#B45309',
+                                    border: '1px solid #FDE68A',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.85rem',
+                                    fontFamily: 'monospace',
+                                    minWidth: '90px',
+                                    display: 'inline-block',
+                                  }}
+                                >
+                                  {isPasswordRevealed ? adm.password : '••••••••'}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePasswordVisibility(adm.id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: '2px' }}
+                                  title={isPasswordRevealed ? 'Hide Password' : 'Show Password'}
+                                >
+                                  {isPasswordRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyPassword(adm.id, adm.password)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: copiedAdminId === adm.id ? '#10B981' : '#64748B',
+                                    padding: '2px',
+                                  }}
+                                  title="Copy Password"
+                                >
+                                  {copiedAdminId === adm.id ? <Check size={14} /> : <Copy size={14} />}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Assigned Subjects */}
+                            <td style={{ padding: '14px 16px' }}>
+                              {hasAllSubjects ? (
+                                <span
+                                  style={{
+                                    background: '#F3E8FF',
+                                    color: '#7E22CE',
+                                    border: '1px solid #E9D5FF',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <Sparkles size={12} color="#A855F7" />
+                                  <span>All Subjects (Full Access)</span>
+                                </span>
+                              ) : (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxWidth: '300px' }}>
+                                  {adm.assigned_subjects.map((sub, idx) => (
+                                    <span
+                                      key={idx}
+                                      style={{
+                                        background: '#E0F2FE',
+                                        color: '#0369A1',
+                                        border: '1px solid #BAE6FD',
+                                        padding: '2px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.725rem',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {sub}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td style={{ padding: '14px 16px' }}>
+                              <span
+                                style={{
+                                  background: adm.is_active ? '#ECFDF5' : '#F1F5F9',
+                                  color: adm.is_active ? '#047857' : '#64748B',
+                                  padding: '3px 10px',
+                                  borderRadius: '999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  border: `1px solid ${adm.is_active ? '#A7F3D0' : '#E2E8F0'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    background: adm.is_active ? '#10B981' : '#94A3B8',
+                                  }}
+                                />
+                                {adm.is_active ? 'Active' : 'Deactivated'}
                               </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
+                            </td>
 
-                      {/* Status */}
-                      <td style={{ padding: '16px 18px' }}>
-                        <span
+                            {/* Actions */}
+                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => setAdminToEdit(adm)}
+                                  title="Edit Admin & Subject Assignments"
+                                  style={{
+                                    background: '#FFFFFF',
+                                    color: '#334155',
+                                    borderColor: '#CBD5E1',
+                                    padding: '5px 9px',
+                                    borderRadius: '6px',
+                                  }}
+                                >
+                                  <Edit size={13} />
+                                  <span>Edit</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleToggleAdminStatus(adm)}
+                                  title={adm.is_active ? 'Deactivate Admin' : 'Activate Admin'}
+                                  style={{
+                                    background: '#FFFFFF',
+                                    color: adm.is_active ? '#DC2626' : '#16A34A',
+                                    borderColor: '#CBD5E1',
+                                    padding: '5px 9px',
+                                    borderRadius: '6px',
+                                  }}
+                                >
+                                  <Power size={13} />
+                                </button>
+
+                                {!adm.is_default && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setAdminToDelete(adm)}
+                                    title="Delete Admin"
+                                    style={{
+                                      background: '#FEF2F2',
+                                      color: '#DC2626',
+                                      borderColor: '#FECACA',
+                                      padding: '5px 9px',
+                                      borderRadius: '6px',
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 2: ACADEMIC CURRICULUM & SUBJECTS
+           ========================================================================= */}
+        {activeTab === 'subjects' && (
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                  Curriculum Subjects & Course Modules
+                </h2>
+                <p style={{ fontSize: '0.825rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                  Create and manage academic subjects. All changes sync directly to Supabase and update faculty allocation options.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setSubjectToEdit(null);
+                  setIsSubjectModalOpen(true);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                  borderColor: '#4F46E5',
+                  boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                }}
+              >
+                <Plus size={16} />
+                <span>Add New Subject</span>
+              </button>
+            </div>
+
+            {/* Subjects Table */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', color: '#1E293B' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        SUBJECT NAME & DESCRIPTION
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        COURSE CODE
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        FACULTY / INSTRUCTOR
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        STATUS
+                      </th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        ACTIONS
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {availableSubjects.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '36px', textAlign: 'center', color: '#64748B' }}>
+                          <BookOpen size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+                          <p style={{ margin: 0, fontWeight: 600 }}>No curriculum subjects added yet.</p>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>Click "Add New Subject" to configure your course units.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      availableSubjects.map((sub) => (
+                        <tr
+                          key={sub.id}
                           style={{
-                            background: adm.is_active ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.2)',
-                            color: adm.is_active ? '#34D399' : '#9CA3AF',
-                            padding: '3px 10px',
-                            borderRadius: '999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            border: `1px solid ${adm.is_active ? 'rgba(16, 185, 129, 0.35)' : 'rgba(107, 114, 128, 0.3)'}`,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
+                            borderBottom: '1px solid #F1F5F9',
+                            transition: 'background 0.15s ease',
                           }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                         >
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: adm.is_active ? '#10B981' : '#6B7280',
-                            }}
-                          />
-                          {adm.is_active ? 'Active' : 'Deactivated'}
-                        </span>
-                      </td>
+                          {/* Subject Name & Description */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: '10px',
+                                  background: '#E0F2FE',
+                                  color: '#0284C7',
+                                  border: '1px solid #BAE6FD',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 800,
+                                  fontSize: '0.9rem',
+                                }}
+                              >
+                                <BookOpen size={18} />
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.925rem' }}>
+                                  {sub.name}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px', maxWidth: '340px' }}>
+                                  {sub.description || 'Core academic syllabus course'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
 
-                      {/* Actions */}
-                      <td style={{ padding: '16px 18px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setAdminToEdit(adm)}
-                            title="Edit Admin & Subject Assignments"
-                            style={{
-                              background: '#1F2937',
-                              color: '#F3F4F6',
-                              borderColor: '#374151',
-                              padding: '6px 10px',
-                            }}
-                          >
-                            <Edit size={14} />
-                            <span>Edit</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => handleToggleStatus(adm)}
-                            title={adm.is_active ? 'Deactivate Admin' : 'Activate Admin'}
-                            style={{
-                              background: '#1F2937',
-                              color: adm.is_active ? '#F87171' : '#34D399',
-                              borderColor: '#374151',
-                              padding: '6px 10px',
-                            }}
-                          >
-                            <Power size={14} />
-                          </button>
-
-                          {!adm.is_default && (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => setAdminToDelete(adm)}
-                              title="Delete Admin"
+                          {/* Code */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <code
                               style={{
-                                background: 'rgba(239, 68, 68, 0.15)',
-                                color: '#F87171',
-                                borderColor: 'rgba(239, 68, 68, 0.3)',
-                                padding: '6px 10px',
+                                background: '#F1F5F9',
+                                color: '#4F46E5',
+                                border: '1px solid #E2E8F0',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                fontFamily: 'monospace',
                               }}
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+                              {sub.subject_code || 'FYS-GEN'}
+                            </code>
+                          </td>
+
+                          {/* Teacher Name */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ fontSize: '0.85rem', color: '#334155', fontWeight: 600 }}>
+                              {sub.teacher_name || 'Department Faculty'}
+                            </span>
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: '14px 16px' }}>
+                            <span
+                              style={{
+                                background: sub.is_active ? '#ECFDF5' : '#F1F5F9',
+                                color: sub.is_active ? '#047857' : '#64748B',
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                border: `1px solid ${sub.is_active ? '#A7F3D0' : '#E2E8F0'}`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: sub.is_active ? '#10B981' : '#94A3B8',
+                                }}
+                              />
+                              {sub.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setSubjectToEdit(sub);
+                                  setIsSubjectModalOpen(true);
+                                }}
+                                title="Edit Subject Details"
+                                style={{
+                                  background: '#FFFFFF',
+                                  color: '#334155',
+                                  borderColor: '#CBD5E1',
+                                  padding: '5px 9px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                <Edit size={13} />
+                                <span>Edit</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleToggleSubjectActive(sub)}
+                                title={sub.is_active ? 'Deactivate Subject' : 'Activate Subject'}
+                                style={{
+                                  background: '#FFFFFF',
+                                  color: sub.is_active ? '#DC2626' : '#16A34A',
+                                  borderColor: '#CBD5E1',
+                                  padding: '5px 9px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                <Power size={13} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setSubjectToDelete(sub)}
+                                title="Delete Subject"
+                                style={{
+                                  background: '#FEF2F2',
+                                  color: '#DC2626',
+                                  borderColor: '#FECACA',
+                                  padding: '5px 9px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 3: BROADCASTS & NOTIFICATIONS
+           ========================================================================= */}
+        {activeTab === 'broadcasts' && (
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                  Campus Announcements & Broadcast Alerts
+                </h2>
+                <p style={{ fontSize: '0.825rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                  Broadcast instant notifications, deadline alerts, and unit test schedules to students and faculty members.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setIsBroadcastModalOpen(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                  borderColor: '#4F46E5',
+                  boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                }}
+              >
+                <Plus size={16} />
+                <span>Broadcast New Notice</span>
+              </button>
+            </div>
+
+            {/* Broadcast Feed */}
+            {announcements.length === 0 ? (
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1px solid #E2E8F0',
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <Megaphone size={36} color="#94A3B8" style={{ margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#1E293B' }}>
+                  No Active Broadcasts
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: '#64748B', maxWidth: '420px', margin: '6px auto 16px' }}>
+                  Post your first campus announcement or urgent notification to reach all FY IT students and teachers.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setIsBroadcastModalOpen(true)}
+                >
+                  <Plus size={14} />
+                  <span>Create First Broadcast</span>
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {announcements.map((ann) => {
+                  const priorityColors = {
+                    Urgent: { bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' },
+                    High: { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
+                    Normal: { bg: '#EEF2FF', text: '#4F46E5', border: '#C7D2FE' },
+                    Medium: { bg: '#EEF2FF', text: '#4F46E5', border: '#C7D2FE' },
+                    Info: { bg: '#F0F9FF', text: '#0284C7', border: '#BAE6FD' },
+                  };
+                  const colors = priorityColors[ann.priority] || priorityColors.Normal;
+
+                  return (
+                    <div
+                      key={ann.id}
+                      style={{
+                        background: '#FFFFFF',
+                        borderRadius: '12px',
+                        border: '1px solid #E2E8F0',
+                        borderLeft: `4px solid ${colors.text}`,
+                        padding: '18px 22px',
+                        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.04)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '16px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: '280px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                          <span
+                            style={{
+                              background: colors.bg,
+                              color: colors.text,
+                              border: `1px solid ${colors.border}`,
+                              fontSize: '0.675rem',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            {ann.priority || 'NORMAL'}
+                          </span>
+
+                          <span
+                            style={{
+                              background: '#F1F5F9',
+                              color: '#475569',
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            Target: {ann.target_audience || 'All Students & Faculty'}
+                          </span>
+
+                          <span style={{ fontSize: '0.75rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={12} />
+                            {new Date(ann.published_at || ann.created_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
+
+                        <h3 style={{ fontSize: '1.025rem', fontWeight: 700, margin: '0 0 6px 0', color: '#0F172A' }}>
+                          {ann.title}
+                        </h3>
+
+                        <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                          {ann.message || ann.content}
+                        </p>
+
+                        <div style={{ fontSize: '0.725rem', color: '#64748B', marginTop: '10px' }}>
+                          Published by: <strong>{ann.author_name || 'Super Administrator'}</strong>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setAnnouncementToDelete(ann)}
+                        title="Delete Announcement"
+                        style={{
+                          background: '#FEF2F2',
+                          color: '#DC2626',
+                          border: '1px solid #FECACA',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </main>
 
-      {/* Add Admin Modal */}
-      {isAddModalOpen && (
+      {/* =========================================================================
+          MODALS IN CRISP LIGHT MODE
+         ========================================================================= */}
+
+      {/* 1. Admin Add Modal */}
+      {isAddAdminModalOpen && (
         <AdminModal
           title="Add New Faculty Administrator"
           availableSubjects={availableSubjects}
-          onClose={() => setIsAddModalOpen(false)}
+          onClose={() => setIsAddAdminModalOpen(false)}
           onSave={async (data) => {
             await dataService.createAdmin(data);
             addToast(`Admin "${data.full_name}" registered and assigned subjects!`, 'success');
-            setIsAddModalOpen(false);
+            setIsAddAdminModalOpen(false);
             loadData(false);
           }}
         />
       )}
 
-      {/* Edit Admin Modal */}
+      {/* 2. Admin Edit Modal */}
       {adminToEdit && (
         <AdminModal
           title={`Edit Administrator: ${adminToEdit.full_name}`}
@@ -747,39 +1410,156 @@ export const SuperAdminDashboard = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* 3. Subject Add / Edit Modal */}
+      {isSubjectModalOpen && (
+        <SuperSubjectModal
+          subjectToEdit={subjectToEdit}
+          onClose={() => {
+            setIsSubjectModalOpen(false);
+            setSubjectToEdit(null);
+          }}
+          onSave={async (payload) => {
+            if (subjectToEdit) {
+              await dataService.updateSubject(subjectToEdit.id, payload);
+              addToast(`Subject "${payload.name}" updated successfully!`, 'success');
+            } else {
+              await dataService.createSubject(payload);
+              addToast(`New subject "${payload.name}" added to curriculum!`, 'success');
+            }
+            setIsSubjectModalOpen(false);
+            setSubjectToEdit(null);
+            loadData(false);
+          }}
+        />
+      )}
+
+      {/* 4. Broadcast Notification Modal */}
+      {isBroadcastModalOpen && (
+        <SuperBroadcastModal
+          onClose={() => setIsBroadcastModalOpen(false)}
+          onBroadcast={async (payload) => {
+            await dataService.broadcastNotification(payload);
+            addToast('Broadcast announcement published to students & faculty!', 'success');
+            setIsBroadcastModalOpen(false);
+            loadData(false);
+          }}
+        />
+      )}
+
+      {/* 5. Delete Admin Confirmation Modal */}
       {adminToDelete && (
         <div className="modal-overlay" onClick={() => setAdminToDelete(null)}>
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '440px', background: '#111827', color: '#F9FAFB', border: '1px solid #374151', borderRadius: '14px' }}
+            style={{ maxWidth: '440px', background: '#FFFFFF', color: '#0F172A', border: '1px solid #E2E8F0', borderRadius: '14px', boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)' }}
           >
-            <div className="modal-header" style={{ borderBottom: '1px solid #1F2937' }}>
-              <h3 className="modal-title" style={{ color: '#F87171' }}>Delete Administrator Account</h3>
-              <button onClick={() => setAdminToDelete(null)} style={{ background: 'none', border: 'none', color: '#9CA3AF' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
+              <h3 className="modal-title" style={{ color: '#DC2626', fontSize: '1.05rem', fontWeight: 800 }}>
+                Delete Administrator Account
+              </h3>
+              <button onClick={() => setAdminToDelete(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
-            <div className="modal-body" style={{ padding: '22px' }}>
-              <p style={{ fontSize: '0.925rem', color: '#E5E7EB', lineHeight: 1.5 }}>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
                 Are you sure you want to permanently delete the admin account for <strong>{adminToDelete.full_name}</strong> (Username: <code>{adminToDelete.username}</code>)?
               </p>
-              <p style={{ fontSize: '0.8rem', color: '#9CA3AF', marginTop: '10px' }}>
-                This will revoke their access to the Teacher & Admin portal and remove their record from Supabase.
+              <p style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '10px', marginBottom: 0 }}>
+                This will revoke their access to the Teacher portal and remove their record from Supabase.
               </p>
             </div>
-            <div className="modal-footer" style={{ borderTop: '1px solid #1F2937', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setAdminToDelete(null)} style={{ background: '#1F2937', color: '#E5E7EB', borderColor: '#374151' }}>
+            <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setAdminToDelete(null)} style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}>
                 Cancel
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleDeleteAdmin}
-                style={{ background: '#DC2626', borderColor: '#EF4444' }}
+                style={{ background: '#DC2626', borderColor: '#DC2626', fontWeight: 700 }}
               >
                 Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Delete Subject Confirmation Modal */}
+      {subjectToDelete && (
+        <div className="modal-overlay" onClick={() => setSubjectToDelete(null)}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', background: '#FFFFFF', color: '#0F172A', border: '1px solid #E2E8F0', borderRadius: '14px', boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)' }}
+          >
+            <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
+              <h3 className="modal-title" style={{ color: '#DC2626', fontSize: '1.05rem', fontWeight: 800 }}>
+                Delete Curriculum Subject
+              </h3>
+              <button onClick={() => setSubjectToDelete(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to remove <strong>"{subjectToDelete.name}"</strong> ({subjectToDelete.subject_code || 'General'}) from the curriculum?
+              </p>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '10px', marginBottom: 0 }}>
+                Any tasks associated with this subject will remain in the database without subject linkage.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setSubjectToDelete(null)} style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleDeleteSubject}
+                style={{ background: '#DC2626', borderColor: '#DC2626', fontWeight: 700 }}
+              >
+                Delete Subject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Delete Announcement Confirmation Modal */}
+      {announcementToDelete && (
+        <div className="modal-overlay" onClick={() => setAnnouncementToDelete(null)}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', background: '#FFFFFF', color: '#0F172A', border: '1px solid #E2E8F0', borderRadius: '14px', boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)' }}
+          >
+            <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
+              <h3 className="modal-title" style={{ color: '#DC2626', fontSize: '1.05rem', fontWeight: 800 }}>
+                Remove Announcement
+              </h3>
+              <button onClick={() => setAnnouncementToDelete(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to delete the broadcast <strong>"{announcementToDelete.title}"</strong>?
+              </p>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setAnnouncementToDelete(null)} style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleDeleteAnnouncement}
+                style={{ background: '#DC2626', borderColor: '#DC2626', fontWeight: 700 }}
+              >
+                Delete Broadcast
               </button>
             </div>
           </div>
@@ -789,7 +1569,9 @@ export const SuperAdminDashboard = () => {
   );
 };
 
-// Reusable Admin Create / Edit Modal with Subject Assignment
+// =========================================================================
+// SUB-COMPONENT: ADMIN CREATE / EDIT MODAL (Crisp Light Mode)
+// =========================================================================
 const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose, onSave }) => {
   const [fullName, setFullName] = useState(initialData?.full_name || '');
   const [username, setUsername] = useState(initialData?.username || '');
@@ -810,20 +1592,6 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
     if (initialData.assigned_subjects.includes('ALL')) return [];
     return initialData.assigned_subjects;
   });
-
-  // Default fallback subject catalog if database subjects list is empty
-  const defaultSubjectCatalog = [
-    { id: 'sub-1', name: 'C Programming', code: 'FYS101' },
-    { id: 'sub-2', name: 'Database Management Systems', code: 'FYS102' },
-    { id: 'sub-3', name: 'Web Programming & UI/UX', code: 'FYS103' },
-    { id: 'sub-4', name: 'Applied Mathematics - I', code: 'FYS104' },
-    { id: 'sub-5', name: 'Computer Fundamentals & OS', code: 'FYS105' },
-    { id: 'sub-6', name: 'Professional Communication Skills', code: 'FYS106' },
-  ];
-
-  const subjectsToDisplay = availableSubjects && availableSubjects.length > 0
-    ? availableSubjects
-    : defaultSubjectCatalog;
 
   const handleToggleSubject = (subjectName) => {
     if (selectedSubjects.includes(subjectName)) {
@@ -864,21 +1632,21 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '540px',
-          background: '#111827',
-          color: '#F9FAFB',
-          border: '1px solid #374151',
+          background: '#FFFFFF',
+          color: '#0F172A',
+          border: '1px solid #E2E8F0',
           borderRadius: '16px',
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.12)',
         }}
       >
-        <div className="modal-header" style={{ borderBottom: '1px solid #1F2937' }}>
+        <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '18px 22px' }}>
           <div>
-            <h3 className="modal-title" style={{ color: '#FFFFFF' }}>{title}</h3>
-            <p style={{ fontSize: '0.775rem', color: '#9CA3AF', margin: '2px 0 0 0' }}>
+            <h3 className="modal-title" style={{ color: '#0F172A', fontSize: '1.1rem', fontWeight: 800 }}>{title}</h3>
+            <p style={{ fontSize: '0.775rem', color: '#64748B', margin: '2px 0 0 0' }}>
               Set credentials and configure teaching subject permissions
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9CA3AF' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
@@ -888,13 +1656,13 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
             {error && (
               <div
                 style={{
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  color: '#FCA5A5',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
                   padding: '10px 14px',
                   borderRadius: '8px',
                   marginBottom: '16px',
                   fontSize: '0.85rem',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  border: '1px solid #FECACA',
                 }}
               >
                 {error}
@@ -902,59 +1670,59 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
             )}
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>Full Faculty Name *</label>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Full Faculty Name *</label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. Prof. Rakesh Patel"
+                placeholder="e.g. Prof. Hemang"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                style={{ background: '#0B0F19', border: '1px solid #374151', color: '#FFFFFF', borderRadius: '8px' }}
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
               />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
               <div className="form-group">
-                <label className="form-label" style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>Admin Username *</label>
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Admin Username *</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="e.g. rakesh"
+                  placeholder="e.g. hemang"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
-                  style={{ background: '#0B0F19', border: '1px solid #374151', color: '#FFFFFF', borderRadius: '8px' }}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label" style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>Department</label>
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Department</label>
                 <input
                   type="text"
                   className="form-control"
                   placeholder="e.g. IT / BCA"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  style={{ background: '#0B0F19', border: '1px solid #374151', color: '#FFFFFF', borderRadius: '8px' }}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
                 />
               </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>Admin Official Email</label>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Admin Official Email</label>
               <input
                 type="email"
                 className="form-control"
-                placeholder="e.g. rakesh@college.edu"
+                placeholder="e.g. hemang@college.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ background: '#0B0F19', border: '1px solid #374151', color: '#FFFFFF', borderRadius: '8px' }}
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label className="form-label" style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>Login Password *</label>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Login Password *</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -963,7 +1731,7 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  style={{ background: '#0B0F19', border: '1px solid #374151', color: '#FFFFFF', paddingRight: '40px', borderRadius: '8px' }}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', paddingRight: '40px', borderRadius: '8px' }}
                 />
                 <button
                   type="button"
@@ -973,7 +1741,7 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                     right: '12px',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    color: '#9CA3AF',
+                    color: '#64748B',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -987,29 +1755,29 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
             {/* SUBJECT ASSIGNMENT CONTROLS */}
             <div
               style={{
-                background: '#0B0F19',
+                background: '#F8FAFC',
                 borderRadius: '12px',
                 padding: '16px',
-                border: '1px solid #1F2937',
+                border: '1px solid #E2E8F0',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <BookOpen size={16} color="#818CF8" />
-                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#FFFFFF' }}>
+                <BookOpen size={16} color="#4F46E5" />
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0F172A' }}>
                   Teaching Subject Allocation
                 </span>
               </div>
 
-              {/* Toggle: All Subjects vs Specific */}
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '14px' }}>
+              {/* Radio: All Subjects vs Specific */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
                 <label
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '10px',
                     cursor: 'pointer',
                     fontSize: '0.85rem',
-                    color: assignAllSubjects ? '#A5B4FC' : '#9CA3AF',
+                    color: assignAllSubjects ? '#4F46E5' : '#475569',
                     fontWeight: assignAllSubjects ? 700 : 500,
                   }}
                 >
@@ -1018,18 +1786,19 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                     name="subjectScope"
                     checked={assignAllSubjects}
                     onChange={() => setAssignAllSubjects(true)}
+                    style={{ accentColor: '#4F46E5' }}
                   />
-                  <span>All Subjects (Full Department Access)</span>
+                  <span>All Subjects (Full Access to Create & Review Tasks Across All Courses)</span>
                 </label>
 
                 <label
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '10px',
                     cursor: 'pointer',
                     fontSize: '0.85rem',
-                    color: !assignAllSubjects ? '#67E8F9' : '#9CA3AF',
+                    color: !assignAllSubjects ? '#0284C7' : '#475569',
                     fontWeight: !assignAllSubjects ? 700 : 500,
                   }}
                 >
@@ -1038,8 +1807,9 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                     name="subjectScope"
                     checked={!assignAllSubjects}
                     onChange={() => setAssignAllSubjects(false)}
+                    style={{ accentColor: '#0284C7' }}
                   />
-                  <span>Specific Subjects Only</span>
+                  <span>Specific Subjects Only (Restricted to Selected Subjects)</span>
                 </label>
               </div>
 
@@ -1050,62 +1820,68 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
-                    paddingTop: '8px',
-                    borderTop: '1px solid #1F2937',
+                    paddingTop: '10px',
+                    borderTop: '1px solid #E2E8F0',
                   }}
                 >
-                  <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '4px' }}>
-                    Select one or more subjects assigned to this admin:
+                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginBottom: '4px' }}>
+                    Select subjects assigned to this faculty member:
                   </div>
 
-                  {subjectsToDisplay.map((subj) => {
-                    const isChecked = selectedSubjects.includes(subj.name);
+                  {availableSubjects.length === 0 ? (
+                    <div style={{ fontSize: '0.8rem', color: '#94A3B8', fontStyle: 'italic', padding: '8px' }}>
+                      No subjects available in database. Add subjects in the "Curriculum & Subjects" tab first.
+                    </div>
+                  ) : (
+                    availableSubjects.map((subj) => {
+                      const isChecked = selectedSubjects.includes(subj.name);
 
-                    return (
-                      <label
-                        key={subj.id || subj.name}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          background: isChecked ? 'rgba(99, 102, 241, 0.15)' : '#111827',
-                          border: `1px solid ${isChecked ? 'rgba(99, 102, 241, 0.4)' : '#1F2937'}`,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleSubject(subj.name)}
-                          style={{ accentColor: '#6366F1' }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isChecked ? '#FFFFFF' : '#D1D5DB' }}>
-                            {subj.name}
-                          </span>
-                          {subj.code && (
-                            <span style={{ fontSize: '0.7rem', color: '#6B7280', marginLeft: '6px' }}>
-                              ({subj.code})
+                      return (
+                        <label
+                          key={subj.id || subj.name}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: isChecked ? '#EEF2FF' : '#FFFFFF',
+                            border: `1px solid ${isChecked ? '#A5B4FC' : '#E2E8F0'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleSubject(subj.name)}
+                            style={{ accentColor: '#4F46E5' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isChecked ? '#4338CA' : '#1E293B' }}>
+                              {subj.name}
                             </span>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
+                            {subj.subject_code && (
+                              <span style={{ fontSize: '0.7rem', color: '#64748B', marginLeft: '6px' }}>
+                                ({subj.subject_code})
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="modal-footer" style={{ borderTop: '1px solid #1F2937', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 22px' }}>
+          <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 22px' }}>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={onClose}
-              style={{ background: '#1F2937', color: '#D1D5DB', borderColor: '#374151' }}
+              style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}
             >
               Cancel
             </button>
@@ -1113,13 +1889,407 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
               type="submit"
               className="btn btn-primary"
               style={{
-                background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
-                borderColor: '#6366F1',
+                background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                borderColor: '#4F46E5',
                 padding: '8px 18px',
                 fontWeight: 700,
               }}
             >
               Save Admin Account
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// =========================================================================
+// SUB-COMPONENT: SUPER ADMIN SUBJECT MODAL (Crisp Light Mode)
+// =========================================================================
+const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
+  const [name, setName] = useState(subjectToEdit?.name || '');
+  const [subjectCode, setSubjectCode] = useState(subjectToEdit?.subject_code || '');
+  const [teacherName, setTeacherName] = useState(subjectToEdit?.teacher_name || '');
+  const [description, setDescription] = useState(subjectToEdit?.description || '');
+  const [isActive, setIsActive] = useState(
+    subjectToEdit?.is_active !== undefined ? subjectToEdit.is_active : true
+  );
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Subject Name is required.');
+      return;
+    }
+
+    onSave({
+      name: name.trim(),
+      subject_code: subjectCode.trim() || 'FYS-GEN',
+      teacher_name: teacherName.trim() || null,
+      description: description.trim() || null,
+      is_active: isActive,
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '500px',
+          background: '#FFFFFF',
+          color: '#0F172A',
+          border: '1px solid #E2E8F0',
+          borderRadius: '16px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.12)',
+        }}
+      >
+        <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '18px 22px' }}>
+          <div>
+            <h3 className="modal-title" style={{ color: '#0F172A', fontSize: '1.1rem', fontWeight: 800 }}>
+              {subjectToEdit ? 'Edit Academic Subject' : 'Add New Academic Subject'}
+            </h3>
+            <p style={{ fontSize: '0.775rem', color: '#64748B', margin: '2px 0 0 0' }}>
+              Configure syllabus title, subject code, and faculty instructor
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ padding: '22px' }}>
+            {error && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '0.85rem',
+                  border: '1px solid #FECACA',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                Subject Name *
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. C Programming / Database Management Systems"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Subject Code
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. FYS101"
+                  value={subjectCode}
+                  onChange={(e) => setSubjectCode(e.target.value)}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Faculty Instructor
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Prof. Hemang"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                Subject Description / Scope
+              </label>
+              <textarea
+                className="form-control"
+                rows={3}
+                placeholder="Brief outline of practical labs, syllabus objectives, and semester guidelines..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div
+              style={{
+                background: '#F8FAFC',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>Active in Curriculum</div>
+                <div style={{ fontSize: '0.725rem', color: '#64748B' }}>Students and teachers can submit & create tasks for this course</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: '#4F46E5', cursor: 'pointer' }}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 22px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                borderColor: '#4F46E5',
+                padding: '8px 18px',
+                fontWeight: 700,
+              }}
+            >
+              {subjectToEdit ? 'Save Changes' : 'Create Subject'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// =========================================================================
+// SUB-COMPONENT: SUPER ADMIN BROADCAST NOTIFICATION MODAL (Crisp Light Mode)
+// =========================================================================
+const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [priority, setPriority] = useState('High');
+  const [targetAudience, setTargetAudience] = useState('All');
+  const [sendPush, setSendPush] = useState(true);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || !message.trim()) {
+      setError('Both Notice Title and Message content are required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      await onBroadcast({
+        title: title.trim(),
+        message: message.trim(),
+        priority,
+        targetAudience,
+        sendPush,
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to broadcast announcement.');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '540px',
+          background: '#FFFFFF',
+          color: '#0F172A',
+          border: '1px solid #E2E8F0',
+          borderRadius: '16px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.12)',
+        }}
+      >
+        <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '18px 22px' }}>
+          <div>
+            <h3 className="modal-title" style={{ color: '#0F172A', fontSize: '1.1rem', fontWeight: 800 }}>
+              Broadcast Campus Notice & Alert
+            </h3>
+            <p style={{ fontSize: '0.775rem', color: '#64748B', margin: '2px 0 0 0' }}>
+              Broadcast notices to students and faculty, with optional push notifications
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ padding: '22px' }}>
+            {error && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '0.85rem',
+                  border: '1px solid #FECACA',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                Notice Title *
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. Unit Test 1 Schedule / Submission Window Closing"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Priority Level
+                </label>
+                <select
+                  className="form-control"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+                >
+                  <option value="Urgent">🚨 Urgent Alert</option>
+                  <option value="High">⚠️ High Priority</option>
+                  <option value="Normal">📢 Normal Notice</option>
+                  <option value="Info">ℹ️ Information</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Target Audience
+                </label>
+                <select
+                  className="form-control"
+                  value={targetAudience}
+                  onChange={(e) => setTargetAudience(e.target.value)}
+                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+                >
+                  <option value="All">All Students & Faculty</option>
+                  <option value="Students Only">Students Only</option>
+                  <option value="Faculty Only">Faculty Admins Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
+                Notice Message & Details *
+              </label>
+              <textarea
+                className="form-control"
+                rows={4}
+                placeholder="Write the full announcement text, instructions, and practical deadlines for the class..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                required
+                style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div
+              style={{
+                background: '#F0F9FF',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: '1px solid #BAE6FD',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bell size={18} color="#0284C7" />
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0369A1' }}>Send Desktop Push Notification</div>
+                  <div style={{ fontSize: '0.725rem', color: '#64748B' }}>Triggers instant native chime & banner on student browsers</div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={sendPush}
+                onChange={(e) => setSendPush(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: '#0284C7', cursor: 'pointer' }}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 22px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              disabled={isSubmitting}
+              style={{ background: '#FFFFFF', color: '#334155', borderColor: '#CBD5E1' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting}
+              style={{
+                background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                borderColor: '#4F46E5',
+                padding: '8px 18px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              {isSubmitting ? <Loader2 size={16} className="spin" /> : <Send size={15} />}
+              <span>Publish Broadcast</span>
             </button>
           </div>
         </form>

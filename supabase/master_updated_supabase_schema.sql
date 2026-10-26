@@ -153,7 +153,8 @@ CREATE TABLE IF NOT EXISTS public.submission_files (
 CREATE TABLE IF NOT EXISTS public.announcements (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    content TEXT NOT NULL,
+    message TEXT,
+    content TEXT,
     author_id TEXT,
     author_name TEXT DEFAULT 'Faculty',
     priority TEXT NOT NULL DEFAULT 'Medium',
@@ -161,6 +162,11 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Ensure backwards-compatibility columns exist
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS message TEXT;
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE public.announcements ALTER COLUMN content DROP NOT NULL;
 
 -- Table: public.notifications
 CREATE TABLE IF NOT EXISTS public.notifications (
