@@ -93,15 +93,21 @@ export const App = () => {
 
             {/* Direct Login Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/Admin/login" element={<AdminLogin />} />
             <Route path="/superadmin/login" element={<SuperAdminLogin />} />
             <Route path="/superAdmin/login" element={<SuperAdminLogin />} />
+            <Route path="/SuperAdmin/login" element={<SuperAdminLogin />} />
 
             {/* Smart Root & Portal Gates */}
             <Route path="/" element={<RootRedirector />} />
             <Route path="/admin" element={<AdminPortalGate />} />
+            <Route path="/Admin" element={<AdminPortalGate />} />
+            <Route path="/ADMIN" element={<AdminPortalGate />} />
             <Route path="/admin/dashboard" element={<AdminPortalGate />} />
             <Route path="/superadmin" element={<SuperAdminPortalGate />} />
             <Route path="/superAdmin" element={<SuperAdminPortalGate />} />
+            <Route path="/SuperAdmin" element={<SuperAdminPortalGate />} />
+            <Route path="/Superadmin" element={<SuperAdminPortalGate />} />
             <Route path="/superadmin/dashboard" element={<SuperAdminPortalGate />} />
             <Route path="/superAdmin/dashboard" element={<SuperAdminPortalGate />} />
 
