@@ -49,7 +49,14 @@ const RootRedirector = () => {
 // Smart Admin Gateway: /admin
 // If not authenticated as admin, renders AdminLogin directly; if authenticated, renders AdminDashboard inside Layout.
 const AdminPortalGate = () => {
-  const { user, isAdmin, isSuperAdmin, loading } = useAuth();
+  const { user, profile, isAdmin, isSuperAdmin, loading, switchPortalSession } = useAuth();
+
+  React.useEffect(() => {
+    if (profile && profile.role !== 'admin' && profile.role !== 'superadmin') {
+      switchPortalSession('admin');
+    }
+  }, [profile]);
+
   if (loading) return null;
   if (!user || (!isAdmin && !isSuperAdmin)) {
     return <AdminLogin />;
@@ -68,7 +75,14 @@ const AdminPortalGate = () => {
 // Smart Super Admin Gateway: /superadmin and /superAdmin
 // If not authenticated as superadmin, renders SuperAdminLogin directly; if authenticated, renders SuperAdminDashboard directly.
 const SuperAdminPortalGate = () => {
-  const { user, isSuperAdmin, loading } = useAuth();
+  const { user, profile, isSuperAdmin, loading, switchPortalSession } = useAuth();
+
+  React.useEffect(() => {
+    if (profile && profile.role !== 'superadmin') {
+      switchPortalSession('superadmin');
+    }
+  }, [profile]);
+
   if (loading) return null;
   if (!user || !isSuperAdmin) {
     return <SuperAdminLogin />;

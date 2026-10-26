@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export const ProtectedRoute = ({ children, allowedRole = null }) => {
-  const { user, profile, loading, isAdmin, isStudent } = useAuth();
+  const { user, profile, loading, isAdmin, isSuperAdmin, switchPortalSession } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -39,14 +39,24 @@ export const ProtectedRoute = ({ children, allowedRole = null }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role authorization
+  // Check role authorization for Super Admin
   if (allowedRole === 'superadmin' && profile?.role !== 'superadmin') {
     return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
   }
 
-  if (allowedRole === 'admin' && !isAdmin) {
-    // Student attempted to access admin route
+  // Check role authorization for Admin
+  if (allowedRole === 'admin' && !isAdmin && !isSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // If student route (allowedRole is null), but active profile is an admin or superadmin:
+  if (!allowedRole && (profile?.role === 'admin' || profile?.role === 'superadmin')) {
+    const studentSession = sessionStorage.getItem('fy_it_student_session') || localStorage.getItem('fy_it_student_session');
+    if (studentSession) {
+      switchPortalSession('student');
+    } else {
+      return <Navigate to={isAdmin ? '/admin' : '/superadmin'} replace />;
+    }
   }
 
   return children;

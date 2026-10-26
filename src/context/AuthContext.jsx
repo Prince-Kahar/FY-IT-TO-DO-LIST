@@ -3,17 +3,70 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { dataService } from '../lib/dataService';
 
 const AuthContext = createContext(null);
-const LOCAL_SESSION_KEY = 'fy_it_user_session';
 
-const getInitialSession = () => {
+// Role-isolated Session Storage Keys (Ensures Multi-tab Independence)
+export const STUDENT_SESSION_KEY = 'fy_it_student_session';
+export const ADMIN_SESSION_KEY = 'fy_it_admin_session';
+export const SUPERADMIN_SESSION_KEY = 'fy_it_superadmin_session';
+export const TAB_ROLE_KEY = 'fy_it_tab_role';
+
+// Determine which role context applies to this browser tab
+export const getTabTargetRole = () => {
+  if (typeof window === 'undefined') return 'student';
+  const path = window.location.pathname.toLowerCase();
+  if (path.startsWith('/superadmin')) return 'superadmin';
+  if (path.startsWith('/admin')) return 'admin';
+  const tabRole = sessionStorage.getItem(TAB_ROLE_KEY);
+  if (tabRole) return tabRole;
+  return 'student';
+};
+
+export const getRoleStorageKey = (role) => {
+  if (role === 'superadmin') return SUPERADMIN_SESSION_KEY;
+  if (role === 'admin') return ADMIN_SESSION_KEY;
+  return STUDENT_SESSION_KEY;
+};
+
+// Retrieve isolated session for the active tab's role
+export const getInitialSession = () => {
   try {
-    const stored = localStorage.getItem(LOCAL_SESSION_KEY) || sessionStorage.getItem('fy_it_demo_user');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed && parsed.id) return parsed;
+    const role = getTabTargetRole();
+    const key = getRoleStorageKey(role);
+
+    // 1. Check tab-isolated sessionStorage first (Unique per browser tab!)
+    const sessionVal = sessionStorage.getItem(key);
+    if (sessionVal) {
+      const parsed = JSON.parse(sessionVal);
+      if (parsed && parsed.id) {
+        sessionStorage.setItem(TAB_ROLE_KEY, role);
+        return parsed;
+      }
+    }
+
+    // 2. Check localStorage for this specific role
+    const localVal = localStorage.getItem(key);
+    if (localVal) {
+      const parsed = JSON.parse(localVal);
+      if (parsed && parsed.id) {
+        sessionStorage.setItem(key, localVal);
+        sessionStorage.setItem(TAB_ROLE_KEY, role);
+        return parsed;
+      }
+    }
+
+    // 3. Fallback: check legacy fy_it_user_session if role matches
+    const legacy = localStorage.getItem('fy_it_user_session');
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      if (parsed && (parsed.role === role || (role === 'admin' && parsed.role === 'admin'))) {
+        sessionStorage.setItem(key, legacy);
+        sessionStorage.setItem(TAB_ROLE_KEY, role);
+        localStorage.setItem(key, legacy);
+        return parsed;
+      }
     }
   } catch (e) {
-    console.warn('Error reading saved session:', e);
+    console.warn('Error reading initial session:', e);
   }
   return null;
 };
@@ -25,53 +78,52 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
-  // Initialize auth state with localStorage fallback for multi-tab preservation
+  // Switch active session context if tab moves between portals
+  const switchPortalSession = (targetRole) => {
+    const key = getRoleStorageKey(targetRole);
+    const stored = sessionStorage.getItem(key) || localStorage.getItem(key);
+    sessionStorage.setItem(TAB_ROLE_KEY, targetRole);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.id) {
+          setUser({ id: parsed.id, email: parsed.email });
+          setProfile(parsed);
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    setUser(null);
+    setProfile(null);
+    return null;
+  };
+
   useEffect(() => {
     let mounted = true;
 
-    // 1. Cross-tab session sync: when logging in or out in another tab, sync automatically
-    const handleStorageChange = (e) => {
-      if (e.key === LOCAL_SESSION_KEY) {
-        if (e.newValue) {
-          try {
-            const parsed = JSON.parse(e.newValue);
-            setUser({ id: parsed.id, email: parsed.email });
-            setProfile(parsed);
-          } catch (err) {}
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     const initializeAuth = async () => {
       try {
-        if (!isSupabaseConfigured()) {
-          if (mounted) setLoading(false);
-          return;
+        const activeRole = getTabTargetRole();
+
+        // Only sync with Supabase GoTrue Auth if the active tab is in Student mode
+        if (activeRole === 'student' && isSupabaseConfigured()) {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (!sessionError && session?.user) {
+            if (mounted) setUser(session.user);
+            const loadedProfile = await fetchUserProfile(session.user.id);
+            if (loadedProfile && mounted) {
+              setProfile(loadedProfile);
+              sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(loadedProfile));
+              localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(loadedProfile));
+            }
+            return;
+          }
         }
 
-        // Live Supabase Auth
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        if (session?.user) {
-          if (mounted) setUser(session.user);
-          const loadedProfile = await fetchUserProfile(session.user.id);
-          if (loadedProfile && mounted) {
-            setProfile(loadedProfile);
-            localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
-          }
-        } else {
-          // If no live Supabase session, preserve existing active local session
-          if (initialSession) {
-            if (mounted) {
-              setUser({ id: initialSession.id, email: initialSession.email });
-              setProfile(initialSession);
-            }
-          }
+        // Otherwise restore saved role session
+        if (initialSession && mounted) {
+          setUser({ id: initialSession.id, email: initialSession.email });
+          setProfile(initialSession);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -88,37 +140,8 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
-    // Set up auth state change listener if Supabase is active
-    let authListener = null;
-    if (isSupabaseConfigured()) {
-      const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          const p = await fetchUserProfile(session.user.id);
-          if (p) {
-            setProfile(p);
-            localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(p));
-          }
-        } else if (event === 'SIGNED_OUT') {
-          // If local session exists, do NOT wipe it out on Supabase startup event
-          const current = localStorage.getItem(LOCAL_SESSION_KEY);
-          if (current) {
-            return;
-          }
-          setUser(null);
-          setProfile(null);
-        }
-        setLoading(false);
-      });
-      authListener = listener;
-    }
-
     return () => {
       mounted = false;
-      window.removeEventListener('storage', handleStorageChange);
-      if (authListener?.subscription) {
-        authListener.subscription.unsubscribe();
-      }
     };
   }, []);
 
@@ -218,8 +241,10 @@ export const AuthProvider = ({ children }) => {
             };
             setUser({ id: matchedSupa.id, email: matchedSupa.email });
             setProfile(studentProfile);
-            localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(studentProfile));
-            sessionStorage.setItem('fy_it_demo_user', JSON.stringify(studentProfile));
+            sessionStorage.setItem(TAB_ROLE_KEY, 'student');
+            sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(studentProfile));
+            localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(studentProfile));
+            localStorage.setItem('fy_it_user_session', JSON.stringify(studentProfile));
             return { user: studentProfile, profile: studentProfile };
           }
         } catch (supaError) {
@@ -257,8 +282,10 @@ export const AuthProvider = ({ children }) => {
       const studentUser = { id: matchedStudent.id, email: matchedStudent.email, role: 'student' };
       setUser(studentUser);
       setProfile({ ...matchedStudent, role: 'student' });
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify({ ...matchedStudent, role: 'student' }));
+      sessionStorage.setItem(TAB_ROLE_KEY, 'student');
+      sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
+      localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
+      localStorage.setItem('fy_it_user_session', JSON.stringify({ ...matchedStudent, role: 'student' }));
       return { user: studentUser, profile: { ...matchedStudent, role: 'student' } };
     }
 
@@ -286,8 +313,9 @@ export const AuthProvider = ({ children }) => {
 
       setUser({ id: superUser.id, email: superUser.email });
       setProfile(superUser);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(superUser));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(superUser));
+      sessionStorage.setItem(TAB_ROLE_KEY, 'superadmin');
+      sessionStorage.setItem(SUPERADMIN_SESSION_KEY, JSON.stringify(superUser));
+      localStorage.setItem(SUPERADMIN_SESSION_KEY, JSON.stringify(superUser));
       return { user: superUser, profile: superUser };
     }
 
@@ -317,8 +345,9 @@ export const AuthProvider = ({ children }) => {
           };
           setUser({ id: matchedAdminRecord.id, email: matchedAdminRecord.email });
           setProfile(adminProfile);
-          localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminProfile));
-          sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminProfile));
+          sessionStorage.setItem(TAB_ROLE_KEY, 'admin');
+          sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminProfile));
+          localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminProfile));
           return { user: adminProfile, profile: adminProfile };
         }
       } catch (adminSupaErr) {
@@ -351,8 +380,9 @@ export const AuthProvider = ({ children }) => {
       };
       setUser({ id: matchedAdmin.id, email: matchedAdmin.email });
       setProfile(adminProfile);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminProfile));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminProfile));
+      sessionStorage.setItem(TAB_ROLE_KEY, 'admin');
+      sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminProfile));
+      localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminProfile));
       return { user: adminProfile, profile: adminProfile };
     }
 
@@ -425,7 +455,7 @@ export const AuthProvider = ({ children }) => {
       roll_number: cleanRoll,
       mobile_number: cleanMobile,
       email: cleanEmail,
-      password, // Stored for credential verification and admin oversight
+      password,
       role: 'student',
       class_name: className,
       division,
@@ -465,22 +495,32 @@ export const AuthProvider = ({ children }) => {
 
     setUser({ id: newStudent.id, email: newStudent.email });
     setProfile(newStudent);
-    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(newStudent));
-    sessionStorage.setItem('fy_it_demo_user', JSON.stringify(newStudent));
+    sessionStorage.setItem(TAB_ROLE_KEY, 'student');
+    sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(newStudent));
+    localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(newStudent));
+    localStorage.setItem('fy_it_user_session', JSON.stringify(newStudent));
     return { user: newStudent, profile: newStudent };
   };
 
-  // Sign Out
+  // Sign Out (Only signs out the current tab's active role, leaving other tabs intact!)
   const logout = async () => {
-    if (isSupabaseConfigured()) {
-      try {
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.warn('Supabase signOut error:', err);
+    const role = profile?.role || getTabTargetRole();
+    const key = getRoleStorageKey(role);
+
+    sessionStorage.removeItem(TAB_ROLE_KEY);
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+
+    if (role === 'student') {
+      localStorage.removeItem('fy_it_user_session');
+      sessionStorage.removeItem('fy_it_demo_user');
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase.auth.signOut();
+        } catch (err) {}
       }
     }
-    localStorage.removeItem(LOCAL_SESSION_KEY);
-    sessionStorage.removeItem('fy_it_demo_user');
+
     setUser(null);
     setProfile(null);
   };
@@ -494,7 +534,6 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       return true;
     }
-    // Demo mode: simulate success
     return true;
   };
 
@@ -511,21 +550,26 @@ export const AuthProvider = ({ children }) => {
         .single();
       if (error) throw error;
       setProfile(data);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(data));
+      const role = profile.role || 'student';
+      const key = getRoleStorageKey(role);
+      sessionStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key, JSON.stringify(data));
       return data;
     }
 
     const updated = { ...profile, ...updates };
     setProfile(updated);
-    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(updated));
-    sessionStorage.setItem('fy_it_demo_user', JSON.stringify(updated));
+    const role = profile.role || 'student';
+    const key = getRoleStorageKey(role);
+    sessionStorage.setItem(key, JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(updated));
     return updated;
   };
 
   const switchDemoRole = () => {};
 
   const isSuperAdmin = profile?.role === 'superadmin';
-  const isAdmin = profile?.role === 'admin' || isSuperAdmin;
+  const isAdmin = profile?.role === 'admin';
   const isStudent = profile?.role === 'student';
 
   return (
@@ -545,6 +589,7 @@ export const AuthProvider = ({ children }) => {
         resetPassword,
         updateProfile,
         switchDemoRole,
+        switchPortalSession,
         isConfigured: isSupabaseConfigured(),
       }}
     >
