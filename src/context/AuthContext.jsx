@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { initialAdmin, initialStudents } from '../lib/mockData';
 import { dataService } from '../lib/dataService';
 
 const AuthContext = createContext(null);
@@ -176,58 +175,27 @@ export const AuthProvider = ({ children }) => {
     const normalized = identifier.trim().toLowerCase();
 
     // -------------------------------------------------------------------------
-    // Credentials definition
+    // Super Admin Credentials directly from .env (Master Root Access)
     // -------------------------------------------------------------------------
-    const envSuperUser = (import.meta.env.VITE_SUPERADMIN_USERNAME || 'superadmin').trim().toLowerCase();
-    const envSuperPass = (import.meta.env.VITE_SUPERADMIN_PASSWORD || 'SuperAdmin@135').trim();
-    const envSuperEmail = (import.meta.env.VITE_SUPERADMIN_EMAIL || 'superadmin@college.edu').trim().toLowerCase();
-
-    const envAdminUser = (import.meta.env.VITE_ADMIN_USERNAME || 'hemang').trim().toLowerCase();
-    const envAdminPass = (import.meta.env.VITE_ADMIN_PASSWORD || 'Hemang@135').trim();
-    const envAdminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'hemang@college.edu').trim().toLowerCase();
-
-    // Read all managed admins from storage
-    let managedAdmins = [];
-    try {
-      managedAdmins = JSON.parse(localStorage.getItem('fy_it_admin_accounts') || '[]');
-    } catch (e) {
-      managedAdmins = [];
-    }
+    const envSuperUser = (import.meta.env.VITE_SUPERADMIN_USERNAME || '').trim().toLowerCase();
+    const envSuperPass = (import.meta.env.VITE_SUPERADMIN_PASSWORD || '').trim();
+    const envSuperEmail = (import.meta.env.VITE_SUPERADMIN_EMAIL || '').trim().toLowerCase();
 
     const isSuperAdminMatch =
-      normalized === envSuperUser ||
-      normalized === envSuperEmail ||
-      normalized === 'superadmin';
-
-    const isPrimaryAdminMatch =
-      normalized === envAdminUser ||
-      normalized === 'hemang' ||
-      normalized === 'hemag' ||
-      normalized === envAdminEmail ||
-      normalized === 'hemang@college.edu' ||
-      normalized === 'hemag@college.edu' ||
-      normalized === 'admin@college.edu' ||
-      normalized === 'admin';
-
-    const matchedManagedAdmin = managedAdmins.find(
-      (a) =>
-        a.username?.toLowerCase() === normalized ||
-        a.email?.toLowerCase() === normalized
-    );
-
-    const isAnyAdminMatch = isPrimaryAdminMatch || !!matchedManagedAdmin;
+      Boolean(envSuperUser && normalized === envSuperUser) ||
+      Boolean(envSuperEmail && normalized === envSuperEmail);
 
     // -------------------------------------------------------------------------
-    // 1. STRICT STUDENT PORTAL LOGIN
+    // 1. STRICT STUDENT PORTAL LOGIN (/login)
     // -------------------------------------------------------------------------
     if (portalType === 'student') {
-      if (isSuperAdminMatch || isAnyAdminMatch) {
+      if (isSuperAdminMatch) {
         throw new Error(
-          'Admin credentials detected. Admins cannot log in through the Student Portal. Please use the Teacher & Admin URL (/admin).'
+          'Super Admin credentials detected. Please use the Super Admin Master Console (/superadmin).'
         );
       }
 
-      // Check dedicated Supabase students table
+      // 1. Query live public.students table from Supabase
       if (isSupabaseConfigured()) {
         try {
           const { data, error } = await supabase
@@ -262,16 +230,13 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Check registered students in localStorage or initial students
+      // 2. Offline fallback: check registered students in localStorage (only real registered students)
       const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-      const allStudents = [...localRegistered, ...initialStudents];
-
-      const matchedStudent = allStudents.find(
+      const matchedStudent = localRegistered.find(
         (s) =>
           s.email?.toLowerCase() === normalized ||
           s.roll_number?.toLowerCase() === normalized ||
           s.mobile_number?.toLowerCase() === normalized ||
-          s.mobile?.toLowerCase() === normalized ||
           s.phone?.toLowerCase() === normalized
       );
 
@@ -305,7 +270,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Access denied. Only Super Administrator can access this master control panel.');
       }
 
-      if (password !== envSuperPass && password !== 'SuperAdmin@135') {
+      if (!envSuperPass || password !== envSuperPass) {
         throw new Error('Incorrect Master Password for Super Admin.');
       }
 
@@ -364,25 +329,7 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // Allow Super Admin to also enter admin portal if needed
-    if (isSuperAdminMatch && (password === envSuperPass || password === 'SuperAdmin@135')) {
-      const superUser = {
-        id: 'superadmin-001',
-        full_name: 'Principal / Super Administrator',
-        username: envSuperUser,
-        email: envSuperEmail,
-        role: 'superadmin',
-        department: 'Academic Council & Board',
-        is_active: true,
-      };
-      setUser({ id: superUser.id, email: superUser.email });
-      setProfile(superUser);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(superUser));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(superUser));
-      return { user: superUser, profile: superUser };
-    }
-
-    // Check admin accounts from dataService / storage
+    // Check managed admins from dataService (saved by Super Admin in fy_it_admin_accounts)
     const adminAccounts = dataService.getAdmins();
     const matchedAdmin = adminAccounts.find(
       (a) =>
@@ -411,7 +358,7 @@ export const AuthProvider = ({ children }) => {
 
     // If student credentials were typed on the Admin page
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-    const isStudentMatch = [...localRegistered, ...initialStudents].some(
+    const isStudentMatch = localRegistered.some(
       (s) =>
         s.email?.toLowerCase() === normalized ||
         s.roll_number?.toLowerCase() === normalized ||
@@ -424,7 +371,7 @@ export const AuthProvider = ({ children }) => {
       );
     }
 
-    throw new Error('Admin account not found with this username or email.');
+    throw new Error('Admin account not found in database with this username or email.');
   };
 
   // Student Registration (Students register their own accounts)
@@ -575,27 +522,7 @@ export const AuthProvider = ({ children }) => {
     return updated;
   };
 
-  // Quick switch for demo testing
-  const switchDemoRole = (targetRole) => {
-    if (targetRole === 'admin') {
-      const adminUser = {
-        ...initialAdmin,
-        username: 'hemang',
-        email: 'hemang@college.edu',
-        role: 'admin',
-      };
-      setUser({ id: adminUser.id, email: adminUser.email });
-      setProfile(adminUser);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminUser));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminUser));
-    } else {
-      const student = initialStudents[0];
-      setUser({ id: student.id, email: student.email });
-      setProfile(student);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(student));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(student));
-    }
-  };
+  const switchDemoRole = () => {};
 
   const isSuperAdmin = profile?.role === 'superadmin';
   const isAdmin = profile?.role === 'admin' || isSuperAdmin;

@@ -169,7 +169,7 @@ export const AdminLogin = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder={`e.g. ${import.meta.env.VITE_ADMIN_USERNAME || 'hemang'} or hemang@college.edu`}
+                placeholder="Enter your Admin Username or Official Email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"

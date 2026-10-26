@@ -102,7 +102,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               {isSuperAdmin
                 ? 'Super Administrator'
                 : isAdmin
-                ? 'Prof. Hemang (Admin)'
+                ? (profile?.full_name ? `${profile.full_name} (Admin)` : 'Faculty Administrator')
                 : 'FY B.Sc. IT & BCA'}
             </span>
           </div>

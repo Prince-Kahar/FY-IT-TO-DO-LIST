@@ -3,28 +3,16 @@
 
 import { supabase, isSupabaseConfigured, uploadSubmissionPhoto, getSubmissionPhotoUrl } from './supabaseClient';
 import { pushService } from './pushNotificationService';
-import {
-  initialSubjects,
-  initialTopics,
-  initialStudents,
-  initialTasks,
-  initialAssignments,
-  initialSubmissions,
-  initialAnnouncements,
-  initialNotifications,
-  initialTodos,
-} from './mockData';
-
-// Memory store for demo mode
-let localSubjects = [...initialSubjects];
-let localTopics = [...initialTopics];
-let localStudents = [...initialStudents];
-let localTasks = [...initialTasks];
-let localAssignments = [...initialAssignments];
-let localSubmissions = [...initialSubmissions];
-let localAnnouncements = [...initialAnnouncements];
-let localNotifications = [...initialNotifications];
-let localTodos = [...initialTodos];
+// Clean in-memory caches for live sync & offline resilience (zero hardcoded mock data)
+let localSubjects = [];
+let localTopics = [];
+let localStudents = [];
+let localTasks = [];
+let localAssignments = [];
+let localSubmissions = [];
+let localAnnouncements = [];
+let localNotifications = [];
+let localTodos = [];
 
 // Realtime sync channels and listener bus
 let realtimeChannel = null;
@@ -41,14 +29,13 @@ export const dataService = {
           .from('subjects')
           .select('*, topics(*)')
           .order('created_at', { ascending: true });
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           return data;
         }
       } catch (err) {
         console.warn('Error fetching subjects from Supabase:', err);
       }
     }
-    // Reliable fallback with topics
     return localSubjects.map((s) => ({
       ...s,
       topics: localTopics.filter((t) => t.subject_id === s.id),
@@ -185,7 +172,7 @@ export const dataService = {
           .from('tasks')
           .select('*, subjects(name, subject_code), topics(name)')
           .order('created_at', { ascending: false });
-        if (!error && Array.isArray(data) && data.length > 0) return data;
+        if (!error && Array.isArray(data)) return data;
       } catch (err) {
         console.warn('Supabase getTasks notice:', err);
       }
@@ -708,27 +695,17 @@ export const dataService = {
   async getStudents() {
     if (isSupabaseConfigured()) {
       try {
-        // Query dedicated students table
+        // Query dedicated students table directly from Supabase
         const { data, error } = await supabase
           .from('students')
           .select('*')
           .order('roll_number', { ascending: true });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-          const combined = [...data];
-          localRegistered.forEach((lr) => {
-            if (!combined.some((c) => c.id === lr.id || (lr.roll_number && c.roll_number === lr.roll_number))) {
-              combined.push(lr);
-            }
-          });
-          return combined.map((st) => {
-            const asgs = localAssignments.filter((a) => a.student_id === st.id);
-            return {
-              ...st,
-              task_assignments: asgs,
-            };
-          });
+        if (!error && Array.isArray(data)) {
+          return data.map((st) => ({
+            ...st,
+            task_assignments: localAssignments.filter((a) => a.student_id === st.id),
+          }));
         }
       } catch (err) {
         console.warn('Supabase getStudents from students table notice:', err);
@@ -736,14 +713,10 @@ export const dataService = {
     }
 
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-    const combined = [...localStudents, ...localRegistered.filter((r) => !localStudents.some((s) => s.id === r.id))];
-    return combined.map((st) => {
-      const asgs = localAssignments.filter((a) => a.student_id === st.id);
-      return {
-        ...st,
-        task_assignments: asgs,
-      };
-    });
+    return localRegistered.map((st) => ({
+      ...st,
+      task_assignments: localAssignments.filter((a) => a.student_id === st.id),
+    }));
   },
 
   async toggleStudentActive(studentId, currentStatus) {
@@ -817,38 +790,11 @@ export const dataService = {
   // ADMINS MANAGEMENT (Separate Table: public.admins)
   // =========================================================================
   getAdmins() {
-    const defaultAdmin = {
-      id: 'admin-hemang-001',
-      full_name: 'Prof. Hemang',
-      username: 'hemang',
-      email: 'hemang@college.edu',
-      password: 'Hemang@135',
-      department: 'Information Technology (HOD)',
-      assigned_subjects: ['ALL'],
-      role: 'admin',
-      is_active: true,
-      is_default: true,
-      created_at: new Date('2026-01-01').toISOString(),
-    };
-
-    let storedAdmins = [];
     try {
-      storedAdmins = JSON.parse(localStorage.getItem('fy_it_admin_accounts') || '[]');
+      return JSON.parse(localStorage.getItem('fy_it_admin_accounts') || '[]');
     } catch (e) {
-      storedAdmins = [];
+      return [];
     }
-
-    if (!storedAdmins || storedAdmins.length === 0) {
-      storedAdmins = [defaultAdmin];
-      localStorage.setItem('fy_it_admin_accounts', JSON.stringify(storedAdmins));
-    } else {
-      const hasDefault = storedAdmins.some((a) => a.username === defaultAdmin.username || a.is_default);
-      if (!hasDefault) {
-        storedAdmins.unshift(defaultAdmin);
-        localStorage.setItem('fy_it_admin_accounts', JSON.stringify(storedAdmins));
-      }
-    }
-    return storedAdmins;
   },
 
   async fetchAdminsFromSupabase() {
@@ -859,7 +805,7 @@ export const dataService = {
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         localStorage.setItem('fy_it_admin_accounts', JSON.stringify(data));
         return data;
       }
@@ -938,7 +884,7 @@ export const dataService = {
     let admins = this.getAdmins();
     const target = admins.find((a) => a.id === adminId);
     if (target?.is_default) {
-      throw new Error('Default Primary Admin (Prof. Hemang) cannot be deleted.');
+      throw new Error('Primary default Administrator account cannot be deleted.');
     }
     admins = admins.filter((a) => a.id !== adminId);
     localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
@@ -968,7 +914,7 @@ export const dataService = {
           .from('announcements')
           .select('*')
           .order('published_at', { ascending: false });
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           return data;
         }
       } catch (err) {
