@@ -20,15 +20,23 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export const Sidebar = ({ isOpen, onClose }) => {
-  const { user, profile, isAdmin, logout } = useAuth();
+  const { user, profile, isAdmin, isSuperAdmin, logout } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
+      const wasSuper = isSuperAdmin;
+      const wasAdmin = isAdmin;
       await logout();
       addToast('Logged out successfully.', 'info');
-      navigate('/login');
+      if (wasSuper) {
+        navigate('/superadmin');
+      } else if (wasAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/login');
+      }
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -54,7 +62,12 @@ export const Sidebar = ({ isOpen, onClose }) => {
     { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   ];
 
-  const links = isAdmin ? adminLinks : studentLinks;
+  const superAdminLinks = [
+    { to: '/superadmin', label: '⚡ Super Admin Console', icon: Shield },
+    ...adminLinks,
+  ];
+
+  const links = isSuperAdmin ? superAdminLinks : isAdmin ? adminLinks : studentLinks;
 
   const initials = (profile?.full_name || 'U')
     .split(' ')
@@ -87,7 +100,11 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <div className="brand-title">
             <span>STERS Portal</span>
             <span className="brand-subtitle">
-              {isAdmin ? 'Prof. Hemang (Admin)' : 'FY B.Sc. IT & BCA'}
+              {isSuperAdmin
+                ? 'Super Administrator'
+                : isAdmin
+                ? 'Prof. Hemang (Admin)'
+                : 'FY B.Sc. IT & BCA'}
             </span>
           </div>
         </div>
@@ -95,7 +112,11 @@ export const Sidebar = ({ isOpen, onClose }) => {
         {/* Navigation List */}
         <nav className="sidebar-nav">
           <div className="nav-section-title">
-            {isAdmin ? 'Academic Administration' : 'Student Learning Hub'}
+            {isSuperAdmin
+              ? 'Master Administration'
+              : isAdmin
+              ? 'Academic Administration'
+              : 'Student Learning Hub'}
           </div>
 
           {links.map((item) => {
@@ -121,7 +142,11 @@ export const Sidebar = ({ isOpen, onClose }) => {
             <div className="user-meta">
               <div className="user-name">{profile?.full_name || 'User'}</div>
               <div className="user-subtext">
-                {isAdmin ? 'Admin / Coordinator' : `${profile?.roll_number || 'FYIT'} • Div ${profile?.division || 'A'}`}
+                {isSuperAdmin
+                  ? 'Master System Root'
+                  : isAdmin
+                  ? 'Admin / Coordinator'
+                  : `${profile?.roll_number || 'FYIT'} • Div ${profile?.division || 'A'}`}
               </div>
             </div>
           </div>

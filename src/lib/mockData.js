@@ -125,10 +125,23 @@ export const initialAdmin = {
   username: 'hemang',
   email: 'hemang@college.edu',
   role: 'admin',
+  department: 'Information Technology (HOD)',
   class_name: 'FY B.Sc. IT & BCA',
   division: 'All',
   is_active: true,
   created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
+};
+
+export const initialSuperAdmin = {
+  id: 'superadmin-001',
+  full_name: 'Principal / Super Administrator',
+  roll_number: 'SUPERADMIN-001',
+  username: 'superadmin',
+  email: 'superadmin@college.edu',
+  role: 'superadmin',
+  department: 'Academic Council & Board',
+  is_active: true,
+  created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
 };
 
 

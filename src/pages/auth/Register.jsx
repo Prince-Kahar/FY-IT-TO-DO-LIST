@@ -11,6 +11,7 @@ export const Register = () => {
 
   const [fullName, setFullName] = useState('');
   const [rollNumber, setRollNumber] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [className, setClassName] = useState('FY B.Sc. IT');
   const [division, setDivision] = useState('A');
   const [email, setEmail] = useState('');
@@ -24,8 +25,13 @@ export const Register = () => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!fullName.trim() || !rollNumber.trim() || !email.trim() || !password) {
-      setErrorMsg('Please fill in all required fields.');
+    if (!fullName.trim() || !rollNumber.trim() || !mobileNumber.trim() || !email.trim() || !password) {
+      setErrorMsg('Please fill in all required fields (Full Name, Roll No, Mobile, Email, Password).');
+      return;
+    }
+
+    if (mobileNumber.trim().length < 10) {
+      setErrorMsg('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -45,6 +51,7 @@ export const Register = () => {
       await register({
         fullName: fullName.trim(),
         rollNumber: rollNumber.trim().toUpperCase(),
+        mobileNumber: mobileNumber.trim(),
         className,
         division,
         email: email.trim().toLowerCase(),
@@ -55,7 +62,7 @@ export const Register = () => {
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
-      setErrorMsg(err.message || 'Registration failed. Email or Roll number may already exist.');
+      setErrorMsg(err.message || 'Registration failed. Email, Mobile, or Roll number may already exist.');
     } finally {
       setIsLoading(false);
     }
@@ -194,16 +201,32 @@ export const Register = () => {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Student Email Address *</label>
-            <input
-              type="email"
-              className="form-control"
-              placeholder="aarav.patel@student.college.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+          {/* Mobile Number & Email */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Mobile Number *</label>
+              <input
+                type="tel"
+                maxLength={10}
+                className="form-control"
+                placeholder="e.g. 9876543210"
+                value={mobileNumber}
+                onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Email Address *</label>
+              <input
+                type="email"
+                className="form-control"
+                placeholder="aarav@student.college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           {/* Passwords */}

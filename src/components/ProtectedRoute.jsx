@@ -28,12 +28,22 @@ export const ProtectedRoute = ({ children, allowedRole = null }) => {
     );
   }
 
-  // If not logged in, redirect to login page with return path
+  // If not logged in, redirect to respective login page with return path
   if (!user) {
+    if (location.pathname.startsWith('/admin')) {
+      return <Navigate to="/admin" state={{ from: location }} replace />;
+    }
+    if (location.pathname.toLowerCase().startsWith('/superadmin')) {
+      return <Navigate to="/superadmin" state={{ from: location }} replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check role authorization
+  if (allowedRole === 'superadmin' && !profile?.role === 'superadmin' && profile?.role !== 'superadmin') {
+    return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
+  }
+
   if (allowedRole === 'admin' && !isAdmin) {
     // Student attempted to access admin route
     return <Navigate to="/dashboard" replace />;

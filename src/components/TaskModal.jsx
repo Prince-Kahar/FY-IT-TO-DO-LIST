@@ -255,10 +255,41 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
 
               <div className="form-group">
-                <label className="form-label">Due Date & Time *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Due Date & Time *</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 2);
+                        d.setHours(23, 59, 0, 0);
+                        setDueAt(d.toISOString().slice(0, 16));
+                      }}
+                    >
+                      +2 Days
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 7);
+                        d.setHours(23, 59, 0, 0);
+                        setDueAt(d.toISOString().slice(0, 16));
+                      }}
+                    >
+                      +1 Week
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="datetime-local"
                   className="form-control"
+                  style={{ marginTop: '6px' }}
                   value={dueAt}
                   onChange={(e) => setDueAt(e.target.value)}
                   required
@@ -306,14 +337,15 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
 
               <div className="form-group">
-                <label className="form-label">Publication Status</label>
+                <label className="form-label">Publication & Schedule</label>
                 <select
                   className="form-control"
                   value={publicationStatus}
                   onChange={(e) => setPublicationStatus(e.target.value)}
                 >
                   <option value="Published">Published (Students see immediately)</option>
-                  <option value="Draft">Draft (Admin only)</option>
+                  <option value="Scheduled">Scheduled (Set specific release date)</option>
+                  <option value="Draft">Draft (Saved only for Admin)</option>
                 </select>
               </div>
             </div>

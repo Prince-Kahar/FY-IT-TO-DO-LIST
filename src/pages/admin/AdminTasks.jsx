@@ -8,8 +8,10 @@ import {
   Edit,
   Trash2,
   CheckCircle2,
+  CheckSquare,
   Users,
   AlertTriangle,
+  CalendarDays,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -28,6 +30,8 @@ export const AdminTasks = () => {
   const [subjectFilter, setSubjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'THIS_WEEK' | 'OVERDUE' | 'CUSTOM'
+  const [customDate, setCustomDate] = useState('');
 
   // Modals
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -108,6 +112,21 @@ export const AdminTasks = () => {
     if (statusFilter !== 'ALL' && t.publication_status !== statusFilter) return false;
     if (typeFilter !== 'ALL' && t.task_type !== typeFilter) return false;
 
+    // Date-based filtering
+    if (dateFilter === 'TODAY') {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (!t.due_at?.startsWith(todayStr)) return false;
+    } else if (dateFilter === 'THIS_WEEK') {
+      const now = new Date();
+      const nextWeek = new Date(now.getTime() + 7 * 86400000);
+      const due = new Date(t.due_at);
+      if (due < now || due > nextWeek) return false;
+    } else if (dateFilter === 'OVERDUE') {
+      if (new Date(t.due_at) >= new Date()) return false;
+    } else if (dateFilter === 'CUSTOM' && customDate) {
+      if (!t.due_at?.startsWith(customDate)) return false;
+    }
+
     return true;
   });
 
@@ -117,7 +136,7 @@ export const AdminTasks = () => {
         <div>
           <h1 className="page-title">Manage Academic Tasks</h1>
           <p className="page-description">
-            Create, publish, edit, and assign subject practicals, journal assignments, and homework to FY B.Sc. IT students.
+            Create, schedule, edit, and assign subject practicals, journal assignments, and homework to FY B.Sc. IT students.
           </p>
         </div>
 
@@ -135,8 +154,8 @@ export const AdminTasks = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="filters-bar">
-        <div className="search-input-box">
+      <div className="filters-bar" style={{ flexWrap: 'wrap', gap: '10px' }}>
+        <div className="search-input-box" style={{ flex: '1 1 240px' }}>
           <Search size={18} color="var(--text-muted)" />
           <input
             type="text"
@@ -145,6 +164,33 @@ export const AdminTasks = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {/* Date Filter Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <CalendarDays size={16} color="var(--primary-600)" />
+          <select
+            className="form-control"
+            style={{ width: 'auto', minWidth: '150px' }}
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          >
+            <option value="ALL">📅 All Due Dates</option>
+            <option value="TODAY">🔥 Due Today</option>
+            <option value="THIS_WEEK">📆 Due This Week</option>
+            <option value="OVERDUE">⚠️ Overdue</option>
+            <option value="CUSTOM">🎯 Specific Date...</option>
+          </select>
+        </div>
+
+        {dateFilter === 'CUSTOM' && (
+          <input
+            type="date"
+            className="form-control"
+            style={{ width: 'auto' }}
+            value={customDate}
+            onChange={(e) => setCustomDate(e.target.value)}
+          />
+        )}
 
         <select
           className="form-control"
@@ -168,6 +214,7 @@ export const AdminTasks = () => {
         >
           <option value="ALL">All Statuses</option>
           <option value="Published">Published</option>
+          <option value="Scheduled">Scheduled</option>
           <option value="Draft">Draft</option>
           <option value="Archived">Archived</option>
         </select>

@@ -159,18 +159,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign In
-  const login = async (identifier, password) => {
+  // Sign In with strict Portal Isolation: 'student' | 'admin' | 'superadmin'
+  const login = async (identifier, password, portalType = 'student') => {
     setAuthError(null);
     const normalized = identifier.trim().toLowerCase();
 
-    // 1. ADMIN AUTHENTICATION
-    // Dynamic credentials configured via .env with robust fallback defaults
+    // -------------------------------------------------------------------------
+    // Credentials definition
+    // -------------------------------------------------------------------------
+    const envSuperUser = (import.meta.env.VITE_SUPERADMIN_USERNAME || 'superadmin').trim().toLowerCase();
+    const envSuperPass = (import.meta.env.VITE_SUPERADMIN_PASSWORD || 'SuperAdmin@135').trim();
+    const envSuperEmail = (import.meta.env.VITE_SUPERADMIN_EMAIL || 'superadmin@college.edu').trim().toLowerCase();
+
     const envAdminUser = (import.meta.env.VITE_ADMIN_USERNAME || 'hemang').trim().toLowerCase();
     const envAdminPass = (import.meta.env.VITE_ADMIN_PASSWORD || 'Hemang@135').trim();
     const envAdminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'hemang@college.edu').trim().toLowerCase();
 
-    const isAdminUser =
+    // Read all managed admins from storage
+    let managedAdmins = [];
+    try {
+      managedAdmins = JSON.parse(localStorage.getItem('fy_it_admin_accounts') || '[]');
+    } catch (e) {
+      managedAdmins = [];
+    }
+
+    const isSuperAdminMatch =
+      normalized === envSuperUser ||
+      normalized === envSuperEmail ||
+      normalized === 'superadmin';
+
+    const isPrimaryAdminMatch =
       normalized === envAdminUser ||
       normalized === 'hemang' ||
       normalized === 'hemag' ||
@@ -180,9 +198,147 @@ export const AuthProvider = ({ children }) => {
       normalized === 'admin@college.edu' ||
       normalized === 'admin';
 
-    if (isAdminUser) {
+    const matchedManagedAdmin = managedAdmins.find(
+      (a) =>
+        a.username?.toLowerCase() === normalized ||
+        a.email?.toLowerCase() === normalized
+    );
+
+    const isAnyAdminMatch = isPrimaryAdminMatch || !!matchedManagedAdmin;
+
+    // -------------------------------------------------------------------------
+    // 1. STRICT STUDENT PORTAL LOGIN
+    // -------------------------------------------------------------------------
+    if (portalType === 'student') {
+      if (isSuperAdminMatch || isAnyAdminMatch) {
+        throw new Error(
+          'Admin credentials detected. Admins cannot log in through the Student Portal. Please use the Teacher & Admin URL (/admin).'
+        );
+      }
+
+      // Check Supabase Auth if email format
+      if (isSupabaseConfigured() && normalized.includes('@')) {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: normalized,
+            password,
+          });
+
+          if (!error && data?.user) {
+            const loadedProfile = await fetchUserProfile(data.user.id);
+            if (loadedProfile && loadedProfile.role === 'admin') {
+              await supabase.auth.signOut();
+              throw new Error(
+                'Admin credentials detected. Please use the Teacher & Admin URL (/admin).'
+              );
+            }
+            if (loadedProfile && !loadedProfile.is_active) {
+              await supabase.auth.signOut();
+              throw new Error('Your student account has been deactivated by the Class Head.');
+            }
+            if (loadedProfile) {
+              setUser(data.user);
+              setProfile(loadedProfile);
+              localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
+              sessionStorage.setItem('fy_it_demo_user', JSON.stringify(loadedProfile));
+              return { user: data.user, profile: loadedProfile };
+            }
+          }
+        } catch (supaError) {
+          if (supaError.message.includes('Admin credentials')) throw supaError;
+          console.warn('Supabase student login fallback:', supaError.message);
+        }
+      }
+
+      // Check registered students in localStorage or initial students
+      const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+      const allStudents = [...localRegistered, ...initialStudents];
+
+      const matchedStudent = allStudents.find(
+        (s) =>
+          s.email?.toLowerCase() === normalized ||
+          s.roll_number?.toLowerCase() === normalized ||
+          s.mobile_number?.toLowerCase() === normalized ||
+          s.mobile?.toLowerCase() === normalized ||
+          s.phone?.toLowerCase() === normalized
+      );
+
+      if (!matchedStudent) {
+        throw new Error(
+          'Student account not found with this Roll Number, Mobile, or Email. Please register your account first.'
+        );
+      }
+
+      if (matchedStudent.password && matchedStudent.password !== password) {
+        throw new Error('Incorrect password for this student account. Please verify and try again.');
+      }
+
+      if (!matchedStudent.is_active) {
+        throw new Error('Your student account has been deactivated by the Class Head.');
+      }
+
+      const studentUser = { id: matchedStudent.id, email: matchedStudent.email };
+      setUser(studentUser);
+      setProfile(matchedStudent);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedStudent));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedStudent));
+      return { user: matchedStudent, profile: matchedStudent };
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. SUPER ADMIN PORTAL LOGIN (/superadmin)
+    // -------------------------------------------------------------------------
+    if (portalType === 'superadmin') {
+      if (!isSuperAdminMatch) {
+        throw new Error('Access denied. Only Super Administrator can access this master control panel.');
+      }
+
+      if (password !== envSuperPass && password !== 'SuperAdmin@135') {
+        throw new Error('Incorrect Master Password for Super Admin.');
+      }
+
+      const superUser = {
+        id: 'superadmin-001',
+        full_name: 'Principal / Super Administrator',
+        username: envSuperUser,
+        email: envSuperEmail,
+        role: 'superadmin',
+        department: 'Academic Council & Board',
+        is_active: true,
+      };
+
+      setUser({ id: superUser.id, email: superUser.email });
+      setProfile(superUser);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(superUser));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(superUser));
+      return { user: superUser, profile: superUser };
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. ADMIN PORTAL LOGIN (/admin)
+    // -------------------------------------------------------------------------
+    // Allow Super Admin to also enter admin portal if needed
+    if (isSuperAdminMatch && (password === envSuperPass || password === 'SuperAdmin@135')) {
+      const superUser = {
+        id: 'superadmin-001',
+        full_name: 'Principal / Super Administrator',
+        username: envSuperUser,
+        email: envSuperEmail,
+        role: 'superadmin',
+        department: 'Academic Council & Board',
+        is_active: true,
+      };
+      setUser({ id: superUser.id, email: superUser.email });
+      setProfile(superUser);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(superUser));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(superUser));
+      return { user: superUser, profile: superUser };
+    }
+
+    // Check primary Admin (Prof. Hemang)
+    if (isPrimaryAdminMatch) {
       if (password !== envAdminPass && password !== 'Hemang@135' && password !== 'hemang@135') {
-        throw new Error('Incorrect password for Admin. Please enter your valid credentials.');
+        throw new Error('Incorrect password for Admin. Please verify and try again.');
       }
 
       const adminUser = {
@@ -191,6 +347,7 @@ export const AuthProvider = ({ children }) => {
         email: envAdminEmail,
         full_name: 'Prof. Hemang (Class Head / Admin)',
         role: 'admin',
+        is_default: true,
       };
 
       if (isSupabaseConfigured()) {
@@ -209,11 +366,10 @@ export const AuthProvider = ({ children }) => {
             return { user: data.user, profile: resolved };
           }
         } catch (supaErr) {
-          console.warn('Supabase admin login fallback:', supaErr);
+          console.warn('Supabase admin login notice:', supaErr);
         }
       }
 
-      // Successful Admin Login (Persisted in localStorage for multi-tab and reload preservation)
       setUser({ id: adminUser.id, email: adminUser.email });
       setProfile(adminUser);
       localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminUser));
@@ -221,67 +377,45 @@ export const AuthProvider = ({ children }) => {
       return { user: adminUser, profile: adminUser };
     }
 
-    // 2. STUDENT AUTHENTICATION (Dynamic student login via Email or Roll Number)
-    if (isSupabaseConfigured() && normalized.includes('@')) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: normalized,
-          password,
-        });
-
-        if (error) throw error;
-
-        const loadedProfile = await fetchUserProfile(data.user.id);
-        if (loadedProfile && !loadedProfile.is_active) {
-          await supabase.auth.signOut();
-          throw new Error('Your student account has been deactivated by the Class Head.');
-        }
-
-        return { user: data.user, profile: loadedProfile };
-      } catch (supaError) {
-        // Fall back to local registered student store if Supabase fails or credentials aren't in Supabase yet
-        console.warn('Supabase student login fallback:', supaError.message);
+    // Check managed admins created by Super Admin
+    if (matchedManagedAdmin) {
+      if (matchedManagedAdmin.password && matchedManagedAdmin.password !== password) {
+        throw new Error('Incorrect password for this Admin account. Please verify.');
       }
+      if (!matchedManagedAdmin.is_active) {
+        throw new Error('This Admin account has been deactivated by the Super Administrator.');
+      }
+
+      setUser({ id: matchedManagedAdmin.id, email: matchedManagedAdmin.email });
+      setProfile(matchedManagedAdmin);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedManagedAdmin));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedManagedAdmin));
+      return { user: matchedManagedAdmin, profile: matchedManagedAdmin };
     }
 
-    // Check registered students in localStorage or initial students
+    // If student credentials were typed on the Admin page
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-    const allStudents = [...localRegistered, ...initialStudents];
-
-    const matchedStudent = allStudents.find(
+    const isStudentMatch = [...localRegistered, ...initialStudents].some(
       (s) =>
         s.email?.toLowerCase() === normalized ||
-        s.roll_number?.toLowerCase() === normalized
+        s.roll_number?.toLowerCase() === normalized ||
+        s.mobile_number?.toLowerCase() === normalized
     );
 
-    if (!matchedStudent) {
+    if (isStudentMatch) {
       throw new Error(
-        'Student account not found with this Email or Roll Number. Please register your account first.'
+        'Access denied. Student accounts cannot log into the Admin Portal. Please use the Student Portal (/login).'
       );
     }
 
-    // Verify password if student was registered with one
-    if (matchedStudent.password && matchedStudent.password !== password) {
-      throw new Error('Incorrect password for this student account. Please try again.');
-    }
-
-    if (!matchedStudent.is_active) {
-      throw new Error('Your student account has been deactivated by the Class Head.');
-    }
-
-    // Set active student session
-    const studentUser = { id: matchedStudent.id, email: matchedStudent.email };
-    setUser(studentUser);
-    setProfile(matchedStudent);
-    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedStudent));
-    sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedStudent));
-    return { user: matchedStudent, profile: matchedStudent };
+    throw new Error('Admin account not found with this username or email.');
   };
 
   // Student Registration (Students register their own accounts)
   const register = async ({
     fullName,
     rollNumber,
+    mobileNumber = '',
     email,
     password,
     className = 'FY B.Sc. IT',
@@ -290,21 +424,26 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     const cleanEmail = email.trim().toLowerCase();
     const cleanRoll = rollNumber.trim().toUpperCase();
+    const cleanMobile = mobileNumber.trim();
 
     // Check if student is already registered locally
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     const alreadyExists = localRegistered.some(
-      (s) => s.email.toLowerCase() === cleanEmail || s.roll_number === cleanRoll
+      (s) =>
+        s.email.toLowerCase() === cleanEmail ||
+        s.roll_number === cleanRoll ||
+        (cleanMobile && s.mobile_number === cleanMobile)
     );
 
     if (alreadyExists) {
-      throw new Error('A student with this Email or Roll Number is already registered. Please login.');
+      throw new Error('A student with this Email, Roll Number, or Mobile Number is already registered. Please login.');
     }
 
     const newStudent = {
       id: 'student-' + Date.now(),
       full_name: fullName.trim(),
       roll_number: cleanRoll,
+      mobile_number: cleanMobile,
       email: cleanEmail,
       password, // Stored for offline credential verification
       role: 'student',
@@ -327,6 +466,7 @@ export const AuthProvider = ({ children }) => {
             data: {
               full_name: fullName.trim(),
               roll_number: cleanRoll,
+              mobile_number: cleanMobile,
               class_name: className,
               division,
             },
@@ -424,7 +564,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const isAdmin = profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'superadmin';
+  const isAdmin = profile?.role === 'admin' || isSuperAdmin;
   const isStudent = profile?.role === 'student';
 
   return (
@@ -434,6 +575,7 @@ export const AuthProvider = ({ children }) => {
         profile,
         role: profile?.role || 'student',
         isAdmin,
+        isSuperAdmin,
         isStudent,
         loading,
         authError,

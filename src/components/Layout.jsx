@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 
-export const Layout = () => {
+export const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -20,7 +20,7 @@ export const Layout = () => {
         <div className="main-content">
           <Navbar onMenuClick={() => setSidebarOpen((prev) => !prev)} />
           <main className="page-body">
-            <Outlet />
+            {children || <Outlet />}
           </main>
         </div>
       </div>

@@ -754,6 +754,127 @@ export const dataService = {
     return res;
   },
 
+  async addStudent(studentData) {
+    const newStudent = {
+      ...studentData,
+      id: 'student-' + Date.now(),
+      role: 'student',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    localStudents.push(newStudent);
+
+    const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+    localRegistered.push(newStudent);
+    localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('profiles').insert([{
+          id: newStudent.id,
+          full_name: newStudent.full_name,
+          roll_number: newStudent.roll_number,
+          email: newStudent.email,
+          role: 'student',
+          class_name: newStudent.class_name || 'FY B.Sc. IT',
+          division: newStudent.division || 'A',
+          is_active: true,
+        }]);
+      } catch (err) {
+        console.warn('Supabase profile creation notice:', err);
+      }
+    }
+
+    this.notifyLocalChange('STUDENT_CREATED', newStudent);
+    return newStudent;
+  },
+
+  // =========================================================================
+  // ADMINS MANAGEMENT (FOR SUPER ADMIN)
+  // =========================================================================
+  getAdmins() {
+    const defaultAdmin = {
+      id: 'admin-hemang-001',
+      full_name: 'Prof. Hemang',
+      username: import.meta.env.VITE_ADMIN_USERNAME || 'hemang',
+      email: import.meta.env.VITE_ADMIN_EMAIL || 'hemang@college.edu',
+      password: import.meta.env.VITE_ADMIN_PASSWORD || 'Hemang@135',
+      department: 'Information Technology (HOD)',
+      role: 'admin',
+      is_active: true,
+      is_default: true,
+      created_at: new Date('2026-01-01').toISOString(),
+    };
+
+    let storedAdmins = [];
+    try {
+      storedAdmins = JSON.parse(localStorage.getItem('fy_it_admin_accounts') || '[]');
+    } catch (e) {
+      storedAdmins = [];
+    }
+
+    if (!storedAdmins || storedAdmins.length === 0) {
+      storedAdmins = [defaultAdmin];
+      localStorage.setItem('fy_it_admin_accounts', JSON.stringify(storedAdmins));
+    } else {
+      const hasDefault = storedAdmins.some((a) => a.username === defaultAdmin.username || a.is_default);
+      if (!hasDefault) {
+        storedAdmins.unshift(defaultAdmin);
+        localStorage.setItem('fy_it_admin_accounts', JSON.stringify(storedAdmins));
+      }
+    }
+    return storedAdmins;
+  },
+
+  createAdmin(adminData) {
+    const admins = this.getAdmins();
+    const newAdmin = {
+      ...adminData,
+      id: 'admin-' + Date.now(),
+      role: 'admin',
+      is_active: true,
+      is_default: false,
+      created_at: new Date().toISOString(),
+    };
+    admins.push(newAdmin);
+    localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
+
+    if (isSupabaseConfigured()) {
+      supabase.from('profiles').insert([{
+        id: newAdmin.id,
+        full_name: newAdmin.full_name,
+        roll_number: 'ADMIN-' + newAdmin.username.toUpperCase(),
+        email: newAdmin.email,
+        role: 'admin',
+        is_active: true,
+      }]).then(() => {}).catch(() => {});
+    }
+
+    this.notifyLocalChange('ADMIN_CREATED', newAdmin);
+    return newAdmin;
+  },
+
+  updateAdmin(adminId, updates) {
+    let admins = this.getAdmins();
+    admins = admins.map((a) => (a.id === adminId ? { ...a, ...updates } : a));
+    localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
+    const updated = admins.find((a) => a.id === adminId);
+    this.notifyLocalChange('ADMIN_UPDATED', updated);
+    return updated;
+  },
+
+  deleteAdmin(adminId) {
+    let admins = this.getAdmins();
+    const target = admins.find((a) => a.id === adminId);
+    if (target?.is_default) {
+      throw new Error('Default Primary Admin cannot be deleted.');
+    }
+    admins = admins.filter((a) => a.id !== adminId);
+    localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
+    this.notifyLocalChange('ADMIN_DELETED', { id: adminId });
+    return true;
+  },
+
   // =========================================================================
   // ANNOUNCEMENTS
   // =========================================================================

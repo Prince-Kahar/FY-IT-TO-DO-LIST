@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Shield,
-  User,
+  GraduationCap,
   Lock,
   ArrowRight,
   AlertCircle,
   Loader2,
   Eye,
   EyeOff,
+  UserCheck,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -21,42 +22,35 @@ export const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState('student'); // 'student' | 'admin'
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isAdminDetected, setIsAdminDetected] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!identifier.trim() || !password) {
-      setErrorMsg('Please enter both your login credential and password.');
+      setErrorMsg('Please enter both your Roll Number / Mobile / Email and password.');
       return;
     }
 
     setIsLoading(true);
     setErrorMsg('');
+    setIsAdminDetected(false);
 
     try {
-      const { profile } = await login(identifier, password);
-      addToast(`Welcome back, ${profile?.full_name || 'User'}!`, 'success');
-
-      if (profile?.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      const { profile } = await login(identifier, password, 'student');
+      addToast(`Welcome back, ${profile?.full_name || 'Student'}!`, 'success');
+      navigate('/dashboard');
     } catch (err) {
-      console.error('Login error:', err);
-      setErrorMsg(err.message || 'Invalid credentials. Please verify and try again.');
+      console.error('Student login error:', err);
+      const msg = err.message || 'Invalid credentials. Please verify and try again.';
+      setErrorMsg(msg);
+      if (msg.includes('Admin credentials detected')) {
+        setIsAdminDetected(true);
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setErrorMsg('');
-    setIdentifier('');
-    setPassword('');
   };
 
   return (
@@ -81,7 +75,7 @@ export const Login = () => {
         }}
       >
         {/* College Logo & Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '22px' }}>
           <div style={{ display: 'inline-block', position: 'relative', marginBottom: '12px' }}>
             <img
               src="/college-logo.png"
@@ -113,117 +107,87 @@ export const Login = () => {
 
           <h2
             style={{
-              fontSize: '1.35rem',
+              fontSize: '1.25rem',
               fontWeight: 800,
               color: 'var(--text-main)',
               marginTop: '4px',
               lineHeight: 1.25,
             }}
           >
-            Smt. U.J. Bodawala BCA College & SASCMA BBA / Commerce
+            Smt. U.J. Bodawala BCA College & SASCMA BBA
           </h2>
 
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            FY B.Sc. IT & BCA Daily Academic Task & Submission Portal
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#EEF2FF',
+              color: 'var(--primary-700)',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              marginTop: '10px',
+              border: '1px solid #C7D2FE',
+            }}
+          >
+            <GraduationCap size={16} />
+            <span>FY B.Sc. IT & BCA Student Portal</span>
+          </div>
+
+          <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+            Sign in to submit handwritten practicals, view teacher feedback, and manage your daily study list.
           </p>
-        </div>
-
-        {/* Role Toggle Tabs */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            background: 'var(--bg-subtle)',
-            padding: '4px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '20px',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleTabChange('student')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '9px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              background: activeTab === 'student' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'student' ? 'var(--primary-700)' : 'var(--text-muted)',
-              boxShadow: activeTab === 'student' ? 'var(--shadow-sm)' : 'none',
-              transition: 'all 0.15s ease',
-              cursor: 'pointer',
-              border: 'none',
-            }}
-          >
-            <User size={15} />
-            <span>Student Login</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('admin')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '9px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              background: activeTab === 'admin' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'admin' ? 'var(--teal-700)' : 'var(--text-muted)',
-              boxShadow: activeTab === 'admin' ? 'var(--shadow-sm)' : 'none',
-              transition: 'all 0.15s ease',
-              cursor: 'pointer',
-              border: 'none',
-            }}
-          >
-            <Shield size={15} />
-            <span>Admin / Faculty</span>
-          </button>
         </div>
 
         {/* Error alert */}
         {errorMsg && (
           <div
             style={{
-              background: 'var(--danger-bg)',
-              color: 'var(--danger-text)',
-              border: '1px solid var(--danger-border)',
-              padding: '10px 14px',
+              background: isAdminDetected ? '#FEF3C7' : 'var(--danger-bg)',
+              color: isAdminDetected ? '#92400E' : 'var(--danger-text)',
+              border: `1px solid ${isAdminDetected ? '#FDE68A' : 'var(--danger-border)'}`,
+              padding: '12px 14px',
               borderRadius: 'var(--radius-md)',
               marginBottom: '18px',
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
               gap: '8px',
               fontSize: '0.85rem',
             }}
           >
-            <AlertCircle size={16} />
-            <span>{errorMsg}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{errorMsg}</span>
+            </div>
+            {isAdminDetected && (
+              <Link
+                to="/admin"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: '4px',
+                  background: '#FFFFFF',
+                  fontWeight: 600,
+                }}
+              >
+                <Shield size={14} />
+                <span>Go to Teacher & Admin Portal (/admin)</span>
+              </Link>
+            )}
           </div>
         )}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">
-              {activeTab === 'admin' ? 'Admin Username' : 'Student Email or Roll Number'}
-            </label>
+            <label className="form-label">Student Roll Number, Mobile, or Email</label>
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
                 className="form-control"
-                placeholder={
-                  activeTab === 'admin'
-                    ? `Enter admin username (${import.meta.env.VITE_ADMIN_USERNAME || 'hemang'})`
-                    : 'Enter email (e.g. rahul@student.com) or Roll Number'
-                }
+                placeholder="e.g. Roll No (FYIT-001) or Mobile or Email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"
@@ -246,7 +210,7 @@ export const Login = () => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="form-control"
-                placeholder="Enter password"
+                placeholder="Enter your student account password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -283,11 +247,11 @@ export const Login = () => {
             {isLoading ? (
               <>
                 <Loader2 size={18} className="spin" />
-                <span>Verifying credentials...</span>
+                <span>Verifying Student Account...</span>
               </>
             ) : (
               <>
-                <span>Sign In as {activeTab === 'admin' ? 'Class Head' : 'Student'}</span>
+                <span>Sign In to Student Portal</span>
                 <ArrowRight size={16} />
               </>
             )}
@@ -305,9 +269,27 @@ export const Login = () => {
             paddingTop: '18px',
           }}
         >
-          <span>New FY B.Sc. IT Student? </span>
+          <span>New FY B.Sc. IT / BCA Student? </span>
           <Link to="/register" style={{ fontWeight: 600, color: 'var(--primary-600)' }}>
             Register Your Account Here
+          </Link>
+        </div>
+
+        {/* Subtle Admin Link */}
+        <div style={{ textAlign: 'center', marginTop: '14px' }}>
+          <Link
+            to="/admin"
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-subtle)',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <Shield size={12} />
+            <span>Faculty & Admin Portal</span>
           </Link>
         </div>
       </div>
