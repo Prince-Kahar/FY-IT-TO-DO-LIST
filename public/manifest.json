@@ -1,0 +1,48 @@
+{
+  "name": "FY IT Task Manager",
+  "short_name": "FY IT Portal",
+  "description": "Daily Academic Task Management, To-Do List & Journal Submission Portal for FY B.Sc. IT Students and Faculty",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/pwa-icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Daily To-Do List",
+      "short_name": "To-Do",
+      "description": "Open your daily study checklist and Pomodoro timer",
+      "url": "/todos",
+      "icons": [{ "src": "/pwa-icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Academic Tasks",
+      "short_name": "Tasks",
+      "description": "View assigned practicals and homework",
+      "url": "/tasks",
+      "icons": [{ "src": "/pwa-icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Student Dashboard",
+      "short_name": "Dashboard",
+      "description": "View overall academic completion and grades",
+      "url": "/dashboard",
+      "icons": [{ "src": "/pwa-icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
+}

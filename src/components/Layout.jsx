@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
+import { PWAInstallPrompt } from './PWAInstallPrompt';
+
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -22,6 +24,10 @@ export const Layout = () => {
           </main>
         </div>
       </div>
+
+      {/* PWA 1-Tap Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 };
+

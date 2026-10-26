@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="pwaGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="50%" stop-color="#4338CA" />
+      <stop offset="100%" stop-color="#0D9488" />
+    </linearGradient>
+    <filter id="shadow512" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Background with rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#pwaGrad512)" />
+  <!-- Inner Academic Cap Icon -->
+  <g transform="translate(96, 96)" filter="url(#shadow512)">
+    <path d="M160 32 L26 102 L160 172 L294 102 Z" fill="#FFFFFF" />
+    <path d="M74 128 L74 204 C74 246 160 274 160 274 C160 274 246 246 246 204 L246 128" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M294 102 L294 200" fill="none" stroke="#FDE047" stroke-width="14" stroke-linecap="round" />
+    <circle cx="294" cy="214" r="12" fill="#FDE047" />
+  </g>
+</svg>
