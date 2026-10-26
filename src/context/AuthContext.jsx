@@ -1,41 +1,36 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { initialAdmin, initialStudents } from '../lib/mockData';
+import { dataService } from '../lib/dataService';
 
 const AuthContext = createContext(null);
 const LOCAL_SESSION_KEY = 'fy_it_user_session';
 
+const getInitialSession = () => {
+  try {
+    const stored = localStorage.getItem(LOCAL_SESSION_KEY) || sessionStorage.getItem('fy_it_demo_user');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.id) return parsed;
+    }
+  } catch (e) {
+    console.warn('Error reading saved session:', e);
+  }
+  return null;
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialSession = getInitialSession();
+  const [user, setUser] = useState(() => (initialSession ? { id: initialSession.id, email: initialSession.email } : null));
+  const [profile, setProfile] = useState(() => initialSession);
+  const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
   // Initialize auth state with localStorage fallback for multi-tab preservation
   useEffect(() => {
     let mounted = true;
 
-    // 1. First, immediately check localStorage / sessionStorage to avoid any auth flicker or white screen
-    const restoreLocalSession = () => {
-      try {
-        const stored = localStorage.getItem(LOCAL_SESSION_KEY) || sessionStorage.getItem('fy_it_demo_user');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && parsed.id) {
-            setUser({ id: parsed.id, email: parsed.email });
-            setProfile(parsed);
-            return parsed;
-          }
-        }
-      } catch (e) {
-        console.warn('Error reading saved local session:', e);
-      }
-      return null;
-    };
-
-    const initialLocal = restoreLocalSession();
-
-    // 2. Cross-tab session sync: when logging in or out in another tab, sync automatically
+    // 1. Cross-tab session sync: when logging in or out in another tab, sync automatically
     const handleStorageChange = (e) => {
       if (e.key === LOCAL_SESSION_KEY) {
         if (e.newValue) {
@@ -71,24 +66,19 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
           }
         } else {
-          // If no live Supabase session, check if we have a valid admin or local session
-          if (initialLocal) {
+          // If no live Supabase session, preserve existing active local session
+          if (initialSession) {
             if (mounted) {
-              setUser({ id: initialLocal.id, email: initialLocal.email });
-              setProfile(initialLocal);
-            }
-          } else {
-            if (mounted) {
-              setUser(null);
-              setProfile(null);
+              setUser({ id: initialSession.id, email: initialSession.email });
+              setProfile(initialSession);
             }
           }
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
-        if (initialLocal && mounted) {
-          setUser({ id: initialLocal.id, email: initialLocal.email });
-          setProfile(initialLocal);
+        if (initialSession && mounted) {
+          setUser({ id: initialSession.id, email: initialSession.email });
+          setProfile(initialSession);
         } else if (mounted) {
           setAuthError(err.message);
         }
@@ -111,16 +101,10 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(p));
           }
         } else if (event === 'SIGNED_OUT') {
-          // Only clear if explicitly signed out
+          // If local session exists, do NOT wipe it out on Supabase startup event
           const current = localStorage.getItem(LOCAL_SESSION_KEY);
           if (current) {
-            try {
-              const parsed = JSON.parse(current);
-              if (parsed.role === 'admin') {
-                // Keep local admin session active unless user explicitly clicks logout in UI
-                return;
-              }
-            } catch (e) {}
+            return;
           }
           setUser(null);
           setProfile(null);
@@ -335,30 +319,32 @@ export const AuthProvider = ({ children }) => {
       return { user: superUser, profile: superUser };
     }
 
-    // Check primary Admin (Prof. Hemang)
-    if (isPrimaryAdminMatch) {
-      if (password !== envAdminPass && password !== 'Hemang@135' && password !== 'hemang@135') {
-        throw new Error('Incorrect password for Admin. Please verify and try again.');
+    // Check admin accounts from database (managed by Super Admin in dataService)
+    const adminAccounts = dataService.getAdmins();
+    const matchedAdmin = adminAccounts.find(
+      (a) =>
+        a.username?.toLowerCase() === normalized ||
+        a.email?.toLowerCase() === normalized
+    );
+
+    if (matchedAdmin) {
+      if (matchedAdmin.password !== password) {
+        throw new Error('Incorrect password for this Admin account. Please verify and try again.');
+      }
+      if (!matchedAdmin.is_active) {
+        throw new Error('This Admin account has been deactivated by the Super Administrator.');
       }
 
-      const adminUser = {
-        ...initialAdmin,
-        username: envAdminUser,
-        email: envAdminEmail,
-        full_name: 'Prof. Hemang (Class Head / Admin)',
-        role: 'admin',
-        is_default: true,
-      };
-
-      if (isSupabaseConfigured()) {
+      // Check if Supabase auth exists for this email
+      if (isSupabaseConfigured() && matchedAdmin.email && matchedAdmin.email.includes('@')) {
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
-            email: envAdminEmail,
+            email: matchedAdmin.email,
             password,
           });
           if (!error && data?.user) {
             const loaded = await fetchUserProfile(data.user.id);
-            const resolved = loaded || adminUser;
+            const resolved = loaded || matchedAdmin;
             setUser(data.user);
             setProfile(resolved);
             localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(resolved));
@@ -370,27 +356,11 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      setUser({ id: adminUser.id, email: adminUser.email });
-      setProfile(adminUser);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminUser));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminUser));
-      return { user: adminUser, profile: adminUser };
-    }
-
-    // Check managed admins created by Super Admin
-    if (matchedManagedAdmin) {
-      if (matchedManagedAdmin.password && matchedManagedAdmin.password !== password) {
-        throw new Error('Incorrect password for this Admin account. Please verify.');
-      }
-      if (!matchedManagedAdmin.is_active) {
-        throw new Error('This Admin account has been deactivated by the Super Administrator.');
-      }
-
-      setUser({ id: matchedManagedAdmin.id, email: matchedManagedAdmin.email });
-      setProfile(matchedManagedAdmin);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedManagedAdmin));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedManagedAdmin));
-      return { user: matchedManagedAdmin, profile: matchedManagedAdmin };
+      setUser({ id: matchedAdmin.id, email: matchedAdmin.email });
+      setProfile(matchedAdmin);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedAdmin));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedAdmin));
+      return { user: matchedAdmin, profile: matchedAdmin };
     }
 
     // If student credentials were typed on the Admin page

@@ -66,7 +66,7 @@ const AdminPortalGate = () => {
 };
 
 // Smart Super Admin Gateway: /superadmin and /superAdmin
-// If not authenticated as superadmin, renders SuperAdminLogin directly; if authenticated, renders SuperAdminDashboard inside Layout.
+// If not authenticated as superadmin, renders SuperAdminLogin directly; if authenticated, renders SuperAdminDashboard directly.
 const SuperAdminPortalGate = () => {
   const { user, isSuperAdmin, loading } = useAuth();
   if (loading) return null;
@@ -74,13 +74,9 @@ const SuperAdminPortalGate = () => {
     return <SuperAdminLogin />;
   }
   return (
-    <ProtectedRoute allowedRole="superadmin">
-      <ErrorBoundary>
-        <Layout>
-          <SuperAdminDashboard />
-        </Layout>
-      </ErrorBoundary>
-    </ProtectedRoute>
+    <ErrorBoundary>
+      <SuperAdminDashboard />
+    </ErrorBoundary>
   );
 };
 
@@ -103,8 +99,11 @@ export const App = () => {
             {/* Smart Root & Portal Gates */}
             <Route path="/" element={<RootRedirector />} />
             <Route path="/admin" element={<AdminPortalGate />} />
+            <Route path="/admin/dashboard" element={<AdminPortalGate />} />
             <Route path="/superadmin" element={<SuperAdminPortalGate />} />
             <Route path="/superAdmin" element={<SuperAdminPortalGate />} />
+            <Route path="/superadmin/dashboard" element={<SuperAdminPortalGate />} />
+            <Route path="/superAdmin/dashboard" element={<SuperAdminPortalGate />} />
 
             {/* Protected Application Routes */}
             <Route
@@ -126,22 +125,6 @@ export const App = () => {
               <Route path="/profile" element={<StudentProfile />} />
 
               {/* Admin Routes */}
-              <Route
-                path="/admin/dashboard"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/superadmin/dashboard"
-                element={
-                  <ProtectedRoute allowedRole="superadmin">
-                    <SuperAdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
               <Route
                 path="/admin/tasks"
                 element={
@@ -190,10 +173,10 @@ export const App = () => {
                   </ProtectedRoute>
                 }
               />
-
-              {/* 404 Route */}
-              <Route path="*" element={<NotFound />} />
             </Route>
+
+            {/* 404 Route placed at root level */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>

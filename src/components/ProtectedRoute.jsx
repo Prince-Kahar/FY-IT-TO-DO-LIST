@@ -40,7 +40,7 @@ export const ProtectedRoute = ({ children, allowedRole = null }) => {
   }
 
   // Check role authorization
-  if (allowedRole === 'superadmin' && !profile?.role === 'superadmin' && profile?.role !== 'superadmin') {
+  if (allowedRole === 'superadmin' && profile?.role !== 'superadmin') {
     return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
   }
 
