@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const DEFAULT_SUPABASE_URL = 'https://cgwlllymkzbltuhsqepg.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnd2xsbHlta3pibHR1aHNxZXBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwMDcyMzIsImV4cCI6MjEwODU4MzIzMn0.anuJA2MRI-O0pAQ6fjqf8LUa6sf1gaQtGT5m0kHV6PU';
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 // Validate whether real credentials are provided
 export const isSupabaseConfigured = () => {
@@ -10,8 +13,7 @@ export const isSupabaseConfigured = () => {
     supabaseUrl.length > 0 &&
     !supabaseUrl.includes('your-project-ref') &&
     typeof supabaseAnonKey === 'string' &&
-    supabaseAnonKey.length > 0 &&
-    !supabaseAnonKey.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
+    supabaseAnonKey.length > 0
   );
 };
 

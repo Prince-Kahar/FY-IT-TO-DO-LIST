@@ -57,18 +57,23 @@ export const dataService = {
   },
 
   async createSubject(subjectData) {
-    const newSubject = {
-      ...subjectData,
-      id: 'sub-' + Date.now(),
+    const cleanSubject = {
+      id: subjectData.id || 'sub-' + Date.now(),
+      name: subjectData.name,
+      subject_code: subjectData.subject_code || 'FYS-GEN',
+      description: subjectData.description || null,
+      teacher_name: subjectData.teacher_name || null,
+      is_active: subjectData.is_active !== undefined ? subjectData.is_active : true,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-    localSubjects.push(newSubject);
+    localSubjects.push(cleanSubject);
 
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('subjects')
-          .insert([newSubject])
+          .insert([cleanSubject])
           .select()
           .single();
         if (!error && data) {
@@ -81,17 +86,18 @@ export const dataService = {
         console.warn('Supabase createSubject notice:', err);
       }
     }
-    this.notifyLocalChange('SUBJECT_CREATED', newSubject);
-    return newSubject;
+    this.notifyLocalChange('SUBJECT_CREATED', cleanSubject);
+    return cleanSubject;
   },
 
   async updateSubject(id, updates) {
+    const { topics, ...cleanUpdates } = updates;
     localSubjects = localSubjects.map((s) => (s.id === id ? { ...s, ...updates } : s));
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('subjects')
-          .update(updates)
+          .update(cleanUpdates)
           .eq('id', id)
           .select()
           .single();
@@ -207,11 +213,19 @@ export const dataService = {
   async createTask(taskData, targetStudentIds = []) {
     const taskId = taskData.id || 'task-' + Date.now();
     const cleanTask = {
-      ...taskData,
       id: taskId,
+      title: taskData.title,
+      description: taskData.description || null,
+      subject_id: taskData.subject_id || null,
+      topic_id: taskData.topic_id || null,
+      task_type: taskData.task_type || 'Assignment',
+      priority: taskData.priority || 'Medium',
+      due_at: taskData.due_at || new Date(Date.now() + 86400000 * 7).toISOString(),
+      max_marks: taskData.max_marks || null,
       publication_status: taskData.publication_status || 'Published',
       assignment_target: taskData.assignment_target || 'all',
-      due_at: taskData.due_at || new Date(Date.now() + 86400000 * 7).toISOString(),
+      reference_url: taskData.reference_url || null,
+      created_by: taskData.created_by || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -309,11 +323,12 @@ export const dataService = {
   },
 
   async updateTask(id, taskData) {
+    const { subjects, topics, submissions, task_assignments, ...cleanTaskUpdates } = taskData;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('tasks')
-          .update(taskData)
+          .update(cleanTaskUpdates)
           .eq('id', id)
           .select()
           .single();
