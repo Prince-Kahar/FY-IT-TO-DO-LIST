@@ -103,7 +103,7 @@ export const StudentNotifications = () => {
           </p>
         </div>
 
-        {notifications.some((n) => !n.is_read) && (
+        {(notifications || []).some((n) => !n?.is_read) && (
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -195,7 +195,7 @@ export const StudentNotifications = () => {
         </div>
       </div>
 
-      {notifications.length === 0 ? (
+      {(!notifications || notifications.length === 0) ? (
         <div className="card empty-state">
           <div className="empty-state-icon">
             <Bell size={28} />
@@ -207,7 +207,7 @@ export const StudentNotifications = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {notifications.map((notif) => (
+          {(notifications || []).map((notif) => (
             <div
               key={notif.id}
               className="card"

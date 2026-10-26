@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Auth Pages
 import { Login } from './pages/auth/Login';
@@ -57,7 +58,9 @@ export const App = () => {
             <Route
               element={
                 <ProtectedRoute>
-                  <Layout />
+                  <ErrorBoundary>
+                    <Layout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >

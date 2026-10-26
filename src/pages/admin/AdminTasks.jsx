@@ -71,10 +71,12 @@ export const AdminTasks = () => {
     }
   };
 
-  const filteredTasks = tasks.filter((t) => {
+  const safeTasks = tasks || [];
+  const filteredTasks = safeTasks.filter((t) => {
+    if (!t) return false;
     if (
       searchQuery &&
-      !t.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !t.title?.toLowerCase().includes(searchQuery.toLowerCase()) &&
       !t.description?.toLowerCase().includes(searchQuery.toLowerCase())
     ) {
       return false;

@@ -237,21 +237,23 @@ export const StudentTodoList = () => {
     );
   };
 
-  // Metrics calculation
-  const totalCount = todos.length;
-  const completedCount = todos.filter((t) => t.status === 'completed').length;
+  // Metrics calculation with null safety
+  const safeTodos = todos || [];
+  const totalCount = safeTodos.length;
+  const completedCount = safeTodos.filter((t) => t?.status === 'completed').length;
   const pendingCount = totalCount - completedCount;
   const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const totalStudyMinutes = todos.reduce((acc, t) => acc + (t.time_spent_minutes || 0), 0);
+  const totalStudyMinutes = safeTodos.reduce((acc, t) => acc + (t?.time_spent_minutes || 0), 0);
   const totalStudyHours = (totalStudyMinutes / 60).toFixed(1);
 
   // Filtered Todos
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  const filteredTodos = todos.filter((t) => {
+  const filteredTodos = (todos || []).filter((t) => {
+    if (!t) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) {
+      if (!t.title?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) {
         return false;
       }
     }

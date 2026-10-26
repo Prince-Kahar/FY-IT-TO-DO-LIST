@@ -32,13 +32,17 @@ export const AdminReports = () => {
     loadReportData();
   }, []);
 
-  // Compute student stats
-  const publishedTasksCount = tasks.filter((t) => t.publication_status === 'Published').length;
+  // Compute student stats with null-safety
+  const safeTasks = tasks || [];
+  const safeStudents = students || [];
+  const safeSubmissions = submissions || [];
 
-  const studentStats = students.map((st) => {
-    const studentSubs = submissions.filter((s) => s.student_id === st.id);
-    const approvedCount = studentSubs.filter((s) => s.status === 'Approved').length;
-    const submittedCount = studentSubs.filter((s) => ['Submitted', 'Under Review'].includes(s.status)).length;
+  const publishedTasksCount = safeTasks.filter((t) => t?.publication_status === 'Published').length;
+
+  const studentStats = safeStudents.map((st) => {
+    const studentSubs = safeSubmissions.filter((s) => s?.student_id === st?.id);
+    const approvedCount = studentSubs.filter((s) => s?.status === 'Approved').length;
+    const submittedCount = studentSubs.filter((s) => ['Submitted', 'Under Review'].includes(s?.status)).length;
     const pct = publishedTasksCount > 0 ? Math.round((approvedCount / publishedTasksCount) * 100) : 0;
 
     return {

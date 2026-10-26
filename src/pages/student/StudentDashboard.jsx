@@ -110,14 +110,14 @@ export const StudentDashboard = () => {
   const completionRate = totalTasks > 0 ? Math.round((approvedTasks / totalTasks) * 100) : 0;
 
   // Upcoming deadlines (next 7 days, not yet submitted/approved)
-  const upcomingDeadlines = assignments
-    .filter((a) => !['Approved', 'Submitted'].includes(a.status) && a.tasks?.due_at)
-    .sort((a, b) => new Date(a.tasks.due_at) - new Date(b.tasks.due_at))
+  const upcomingDeadlines = (assignments || [])
+    .filter((a) => a && !['Approved', 'Submitted'].includes(a.status) && a.tasks?.due_at)
+    .sort((a, b) => new Date(a.tasks?.due_at) - new Date(b.tasks?.due_at))
     .slice(0, 4);
 
   // Recently reviewed submissions
-  const recentlyReviewed = assignments
-    .filter((a) => a.submissions && a.submissions.some((s) => s.reviewed_at))
+  const recentlyReviewed = (assignments || [])
+    .filter((a) => a && Array.isArray(a.submissions) && a.submissions.some((s) => s?.reviewed_at))
     .slice(0, 3);
 
   return (

@@ -62,13 +62,19 @@ export const AdminDashboard = () => {
     loadAdminData();
   }, []);
 
-  // Compute Admin KPIs
-  const totalStudents = students.length;
-  const activeStudents = students.filter((s) => s.is_active).length;
-  const totalPublishedTasks = tasks.filter((t) => t.publication_status === 'Published').length;
-  const pendingReviewSubmissions = submissions.filter((s) => ['Submitted', 'Under Review'].includes(s.status));
-  const approvedSubmissions = submissions.filter((s) => s.status === 'Approved').length;
-  const lateSubmissions = submissions.filter((s) => s.task_assignments?.is_late).length;
+  // Compute Admin KPIs with null safety
+  const safeStudents = students || [];
+  const safeTasks = tasks || [];
+  const safeSubmissions = submissions || [];
+  const safeSubjects = subjects || [];
+  const safeAnnouncements = announcements || [];
+
+  const totalStudents = safeStudents.length;
+  const activeStudents = safeStudents.filter((s) => s?.is_active).length;
+  const totalPublishedTasks = safeTasks.filter((t) => t?.publication_status === 'Published').length;
+  const pendingReviewSubmissions = safeSubmissions.filter((s) => ['Submitted', 'Under Review'].includes(s?.status));
+  const approvedSubmissions = safeSubmissions.filter((s) => s?.status === 'Approved').length;
+  const lateSubmissions = safeSubmissions.filter((s) => s?.task_assignments?.is_late).length;
 
   // Calculate overall class completion percentage
   const totalPossibleSubmissions = totalStudents * totalPublishedTasks;
@@ -210,8 +216,9 @@ export const AdminDashboard = () => {
               <tbody>
                 {pendingReviewSubmissions.slice(0, 6).map((sub) => {
                   const student = sub.profiles;
-                  const task = sub.task_assignments?.tasks;
-                  const isLate = sub.task_assignments?.is_late;
+                  const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
+                  const task = asg?.tasks;
+                  const isLate = asg?.is_late;
                   const files = sub.submission_files || sub.files || [];
 
                   return (
@@ -303,8 +310,8 @@ export const AdminDashboard = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {subjects.map((sub) => {
-              const subTasks = tasks.filter((t) => t.subject_id === sub.id);
+            {(subjects || []).map((sub) => {
+              const subTasks = (tasks || []).filter((t) => t?.subject_id === sub.id);
               const topics = sub.topics || [];
 
               return (
@@ -371,13 +378,13 @@ export const AdminDashboard = () => {
             </button>
           </div>
 
-          {announcements.length === 0 ? (
+          {(!announcements || announcements.length === 0) ? (
             <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
               No announcements published yet.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {announcements.slice(0, 3).map((ann) => (
+              {(announcements || []).slice(0, 3).map((ann) => (
                 <div
                   key={ann.id}
                   style={{

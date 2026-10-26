@@ -221,7 +221,7 @@ export const Login = () => {
                 className="form-control"
                 placeholder={
                   activeTab === 'admin'
-                    ? 'Enter admin username (hemag)'
+                    ? 'Enter admin username (hemang)'
                     : 'Enter email (e.g. rahul@student.com) or Roll Number'
                 }
                 value={identifier}

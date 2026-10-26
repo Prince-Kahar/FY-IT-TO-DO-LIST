@@ -1,16 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 // Validate whether real credentials are provided
 export const isSupabaseConfigured = () => {
   return (
     typeof supabaseUrl === 'string' &&
-    supabaseUrl.trim().length > 0 &&
+    supabaseUrl.length > 0 &&
     !supabaseUrl.includes('your-project-ref') &&
     typeof supabaseAnonKey === 'string' &&
-    supabaseAnonKey.trim().length > 0 &&
+    supabaseAnonKey.length > 0 &&
     !supabaseAnonKey.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
   );
 };

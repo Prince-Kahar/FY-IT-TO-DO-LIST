@@ -49,9 +49,9 @@ export const StudentSubjects = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {subjects.map((sub) => {
+        {(subjects || []).map((sub) => {
           const isExpanded = expandedSubjectId === sub.id;
-          const subAssignments = assignments.filter((a) => a.tasks?.subject_id === sub.id);
+          const subAssignments = (assignments || []).filter((a) => a?.tasks?.subject_id === sub.id);
           const approvedCount = subAssignments.filter((a) => a.status === 'Approved').length;
           const pct = subAssignments.length > 0 ? Math.round((approvedCount / subAssignments.length) * 100) : 0;
           const topics = sub.topics || [];

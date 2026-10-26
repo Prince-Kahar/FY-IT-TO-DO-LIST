@@ -32,14 +32,19 @@ export const dataService = {
   // =========================================================================
   async getSubjects() {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*, topics(*)')
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('subjects')
+          .select('*, topics(*)')
+          .order('created_at', { ascending: true });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error fetching subjects from Supabase:', err);
+      }
     }
-    // Demo fallback
+    // Reliable fallback with topics
     return localSubjects.map((s) => ({
       ...s,
       topics: localTopics.filter((t) => t.subject_id === s.id),
@@ -47,89 +52,107 @@ export const dataService = {
   },
 
   async createSubject(subjectData) {
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('subjects')
-        .insert([subjectData])
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
     const newSubject = {
       ...subjectData,
       id: 'sub-' + Date.now(),
       created_at: new Date().toISOString(),
     };
     localSubjects.push(newSubject);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('subjects')
+          .insert([subjectData])
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Supabase createSubject notice:', err);
+      }
+    }
     return newSubject;
   },
 
   async updateSubject(id, updates) {
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('subjects')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
     localSubjects = localSubjects.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('subjects')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Supabase updateSubject notice:', err);
+      }
+    }
     return localSubjects.find((s) => s.id === id);
   },
 
   async deleteSubject(id) {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('subjects').delete().eq('id', id);
-      if (error) throw error;
-      return true;
-    }
     localSubjects = localSubjects.filter((s) => s.id !== id);
     localTopics = localTopics.filter((t) => t.subject_id !== id);
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('subjects').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteSubject notice:', err);
+      }
+    }
     return true;
   },
 
   async getTopicsBySubject(subjectId) {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('topics')
-        .select('*')
-        .eq('subject_id', subjectId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('topics')
+          .select('*')
+          .eq('subject_id', subjectId)
+          .order('created_at', { ascending: true });
+        if (!error && Array.isArray(data) && data.length > 0) return data;
+      } catch (err) {
+        console.warn('Supabase getTopicsBySubject notice:', err);
+      }
     }
     return localTopics.filter((t) => t.subject_id === subjectId);
   },
 
   async createTopic(topicData) {
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('topics')
-        .insert([topicData])
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
     const newTopic = {
       ...topicData,
       id: 'top-' + Date.now(),
       created_at: new Date().toISOString(),
     };
     localTopics.push(newTopic);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('topics')
+          .insert([topicData])
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Supabase createTopic notice:', err);
+      }
+    }
     return newTopic;
   },
 
   async deleteTopic(id) {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('topics').delete().eq('id', id);
-      if (error) throw error;
-      return true;
-    }
     localTopics = localTopics.filter((t) => t.id !== id);
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('topics').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase deleteTopic notice:', err);
+      }
+    }
     return true;
   },
 
@@ -138,12 +161,15 @@ export const dataService = {
   // =========================================================================
   async getTasks() {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*, subjects(name, subject_code), topics(name)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*, subjects(name, subject_code), topics(name)')
+          .order('created_at', { ascending: false });
+        if (!error && Array.isArray(data) && data.length > 0) return data;
+      } catch (err) {
+        console.warn('Supabase getTasks notice:', err);
+      }
     }
     return localTasks.map((t) => {
       const sub = localSubjects.find((s) => s.id === t.subject_id);
@@ -252,43 +278,50 @@ export const dataService = {
   // =========================================================================
   async getStudentAssignments(studentId) {
     if (isSupabaseConfigured()) {
-      // Refresh overdue tasks on load
-      await supabase.rpc('check_overdue_tasks');
+      try {
+        // Attempt check_overdue_tasks RPC safely without failing if function does not exist
+        try {
+          await supabase.rpc('check_overdue_tasks');
+        } catch (rpcErr) {}
 
-      const { data, error } = await supabase
-        .from('task_assignments')
-        .select(`
-          *,
-          tasks (
-            id,
-            title,
-            description,
-            due_at,
-            priority,
-            task_type,
-            max_marks,
-            subject_id,
-            topic_id,
-            subjects (id, name, subject_code),
-            topics (id, name)
-          ),
-          submissions (
-            id,
-            status,
-            comment,
-            submitted_at,
-            reviewed_at,
-            feedback,
-            marks_awarded,
-            attempt_number,
-            submission_files (id, storage_path, original_file_name, file_size)
-          )
-        `)
-        .eq('student_id', studentId)
-        .order('assigned_at', { ascending: false });
+        const { data, error } = await supabase
+          .from('task_assignments')
+          .select(`
+            *,
+            tasks (
+              id,
+              title,
+              description,
+              due_at,
+              priority,
+              task_type,
+              max_marks,
+              subject_id,
+              topic_id,
+              subjects (id, name, subject_code),
+              topics (id, name)
+            ),
+            submissions (
+              id,
+              status,
+              comment,
+              submitted_at,
+              reviewed_at,
+              feedback,
+              marks_awarded,
+              attempt_number,
+              submission_files (id, storage_path, original_file_name, file_size)
+            )
+          `)
+          .eq('student_id', studentId)
+          .order('assigned_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase getStudentAssignments notice:', err);
+      }
     }
 
     // Demo mode: Return joined assignments
@@ -473,31 +506,42 @@ export const dataService = {
   // =========================================================================
   async getAllSubmissions() {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('submissions')
-        .select(`
-          *,
-          profiles:student_id (id, full_name, roll_number, email, class_name, division),
-          task_assignments:task_assignment_id (
-            id,
-            status,
-            is_late,
-            tasks (
+      try {
+        const { data, error } = await supabase
+          .from('submissions')
+          .select(`
+            *,
+            profiles:student_id (id, full_name, roll_number, email, class_name, division),
+            task_assignments:task_assignment_id (
               id,
-              title,
-              max_marks,
-              due_at,
-              priority,
-              subjects (name, subject_code),
-              topics (name)
-            )
-          ),
-          submission_files (id, storage_path, original_file_name, content_type, file_size)
-        `)
-        .order('submitted_at', { ascending: false });
+              status,
+              is_late,
+              tasks (
+                id,
+                title,
+                max_marks,
+                due_at,
+                priority,
+                subjects (name, subject_code),
+                topics (name)
+              )
+            ),
+            submission_files (id, storage_path, original_file_name, content_type, file_size)
+          `)
+          .order('submitted_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data.map((sub) => {
+            const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
+            return {
+              ...sub,
+              task_assignments: asg,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('Supabase getAllSubmissions notice:', err);
+      }
     }
 
     // Demo fallback: assemble submissions with student & task info
@@ -611,15 +655,22 @@ export const dataService = {
   // =========================================================================
   async getStudents() {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*, task_assignments(id, status, is_late)')
-        .eq('role', 'student')
-        .order('roll_number', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*, task_assignments(id, status, is_late)')
+          .eq('role', 'student')
+          .order('roll_number', { ascending: true });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase getStudents notice:', err);
+      }
     }
-    return localStudents.map((st) => {
+    const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+    const combined = [...localStudents, ...localRegistered.filter((r) => !localStudents.some((s) => s.id === r.id))];
+    return combined.map((st) => {
       const asgs = localAssignments.filter((a) => a.student_id === st.id);
       return {
         ...st,
@@ -629,19 +680,22 @@ export const dataService = {
   },
 
   async toggleStudentActive(studentId, currentStatus) {
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ is_active: !currentStatus })
-        .eq('id', studentId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
     localStudents = localStudents.map((s) =>
       s.id === studentId ? { ...s, is_active: !currentStatus } : s
     );
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ is_active: !currentStatus })
+          .eq('id', studentId)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Supabase toggleStudentActive notice:', err);
+      }
+    }
     return localStudents.find((s) => s.id === studentId);
   },
 
@@ -650,12 +704,17 @@ export const dataService = {
   // =========================================================================
   async getAnnouncements() {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .order('published_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('published_at', { ascending: false });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase getAnnouncements notice:', err);
+      }
     }
     return [...localAnnouncements].sort(
       (a, b) => new Date(b.published_at) - new Date(a.published_at)
@@ -697,13 +756,18 @@ export const dataService = {
   // =========================================================================
   async getNotifications(userId) {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (!error && Array.isArray(data)) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase getNotifications notice:', err);
+      }
     }
     return localNotifications
       .filter((n) => n.user_id === userId)

@@ -112,7 +112,7 @@ export const AdminSubjects = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {subjects.map((sub) => {
+        {(subjects || []).map((sub) => {
           const isExpanded = expandedSubjectId === sub.id;
           const topics = sub.topics || [];
 

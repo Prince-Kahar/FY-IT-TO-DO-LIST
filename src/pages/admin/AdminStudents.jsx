@@ -77,10 +77,12 @@ export const AdminStudents = () => {
     }
   };
 
-  const filteredStudents = students.filter((s) => {
+  const safeStudents = students || [];
+  const filteredStudents = safeStudents.filter((s) => {
+    if (!s) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const matchName = s.full_name.toLowerCase().includes(q);
+      const matchName = s.full_name?.toLowerCase().includes(q);
       const matchRoll = s.roll_number?.toLowerCase().includes(q);
       const matchEmail = s.email?.toLowerCase().includes(q);
       if (!matchName && !matchRoll && !matchEmail) return false;
@@ -284,8 +286,8 @@ export const AdminStudents = () => {
                     Assigned Tasks & Progress ({studentAssignments.length})
                   </div>
 
-                  {studentAssignments.map((asg) => {
-                    const task = asg.tasks;
+                  {(studentAssignments || []).map((asg) => {
+                    const task = asg?.tasks;
                     const sub = asg.submissions?.[asg.submissions.length - 1];
                     const files = sub?.submission_files || sub?.files || [];
 

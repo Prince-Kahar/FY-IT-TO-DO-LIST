@@ -57,7 +57,8 @@ export const AdminAnnouncements = () => {
         </button>
       </div>
 
-      {announcements.length === 0 ? (
+      {/* Announcements List */}
+      {(!announcements || announcements.length === 0) ? (
         <div className="card empty-state">
           <div className="empty-state-icon">
             <Megaphone size={28} />
@@ -69,7 +70,7 @@ export const AdminAnnouncements = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {announcements.map((ann) => (
+          {(announcements || []).map((ann) => (
             <div
               key={ann.id}
               className="card"

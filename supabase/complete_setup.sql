@@ -441,28 +441,28 @@ DECLARE
     admin_id UUID := '00000000-0000-0000-0000-000000000001';
     student_id UUID := '00000000-0000-0000-0000-000000000002';
 BEGIN
-    -- 1. Create Default Admin: hemag@college.edu / Hemang@135
-    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'hemag@college.edu') THEN
+    -- 1. Create Default Admin: hemang@college.edu / Hemang@135 (Username: hemang)
+    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'hemang@college.edu') THEN
         INSERT INTO auth.users (
             id, instance_id, email, encrypted_password, email_confirmed_at,
             raw_app_meta_data, raw_user_meta_data, created_at, updated_at, role, aud
         ) VALUES (
-            admin_id, '00000000-0000-0000-0000-000000000000', 'hemag@college.edu',
+            admin_id, '00000000-0000-0000-0000-000000000000', 'hemang@college.edu',
             crypt('Hemang@135', gen_salt('bf')), NOW(),
             '{"provider":"email","providers":["email"]}',
-            '{"full_name":"Prof. Hemang (Class Head / Admin)","roll_number":"ADMIN-01","class_name":"FY B.Sc. IT & BCA","division":"All"}',
+            '{"full_name":"Prof. Hemang (Class Head / Admin)","roll_number":"ADMIN-HEMANG","class_name":"FY B.Sc. IT & BCA","division":"All","username":"hemang"}',
             NOW(), NOW(), 'authenticated', 'authenticated'
         );
 
         INSERT INTO public.profiles (
             id, full_name, roll_number, email, role, class_name, division, is_active
         ) VALUES (
-            admin_id, 'Prof. Hemang (Class Head / Admin)', 'ADMIN-01', 'hemag@college.edu', 'admin', 'FY B.Sc. IT & BCA', 'All', true
+            admin_id, 'Prof. Hemang (Class Head / Admin)', 'ADMIN-HEMANG', 'hemang@college.edu', 'admin', 'FY B.Sc. IT & BCA', 'All', true
         )
-        ON CONFLICT (id) DO UPDATE SET role = 'admin', full_name = 'Prof. Hemang (Class Head / Admin)', email = 'hemag@college.edu';
+        ON CONFLICT (id) DO UPDATE SET role = 'admin', full_name = 'Prof. Hemang (Class Head / Admin)', email = 'hemang@college.edu';
     ELSE
-        UPDATE auth.users SET encrypted_password = crypt('Hemang@135', gen_salt('bf')) WHERE email = 'hemag@college.edu';
-        UPDATE public.profiles SET role = 'admin', full_name = 'Prof. Hemang (Class Head / Admin)' WHERE email = 'hemag@college.edu';
+        UPDATE auth.users SET encrypted_password = crypt('Hemang@135', gen_salt('bf')), email_confirmed_at = NOW() WHERE email = 'hemang@college.edu';
+        UPDATE public.profiles SET role = 'admin', full_name = 'Prof. Hemang (Class Head / Admin)' WHERE email = 'hemang@college.edu';
     END IF;
 
     -- 2. Create Default Student: student@college.edu / student123

@@ -48,10 +48,13 @@ export const AdminSubmissions = () => {
     loadSubmissions();
   }, []);
 
-  // Filter Submissions
-  const filteredSubmissions = submissions.filter((sub) => {
+  // Filter Submissions with null safety
+  const safeSubmissions = submissions || [];
+  const filteredSubmissions = safeSubmissions.filter((sub) => {
+    if (!sub) return false;
     const student = sub.profiles;
-    const task = sub.task_assignments?.tasks;
+    const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
+    const task = asg?.tasks;
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -65,8 +68,8 @@ export const AdminSubmissions = () => {
     if (statusFilter !== 'ALL' && sub.status !== statusFilter) return false;
     if (subjectFilter !== 'ALL' && task?.subject_id !== subjectFilter) return false;
 
-    if (lateFilter === 'LATE' && !sub.task_assignments?.is_late) return false;
-    if (lateFilter === 'ON_TIME' && sub.task_assignments?.is_late) return false;
+    if (lateFilter === 'LATE' && !asg?.is_late) return false;
+    if (lateFilter === 'ON_TIME' && asg?.is_late) return false;
 
     return true;
   });
@@ -221,8 +224,9 @@ export const AdminSubmissions = () => {
             <tbody>
               {filteredSubmissions.map((sub) => {
                 const student = sub.profiles;
-                const task = sub.task_assignments?.tasks;
-                const isLate = sub.task_assignments?.is_late;
+                const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
+                const task = asg?.tasks;
+                const isLate = asg?.is_late;
                 const files = sub.submission_files || sub.files || [];
 
                 return (

@@ -45,7 +45,7 @@ export const StudentSubmissions = () => {
         </div>
       </div>
 
-      {assignments.length === 0 ? (
+      {(!assignments || assignments.length === 0) ? (
         <div className="card empty-state">
           <div className="empty-state-icon">
             <FileCheck size={28} />
@@ -57,9 +57,9 @@ export const StudentSubmissions = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          {assignments.map((asg) => {
-            const task = asg.tasks;
-            const submissions = asg.submissions || [];
+          {(assignments || []).map((asg) => {
+            const task = asg?.tasks;
+            const submissions = asg?.submissions || [];
 
             return (
               <div key={asg.id} className="card">

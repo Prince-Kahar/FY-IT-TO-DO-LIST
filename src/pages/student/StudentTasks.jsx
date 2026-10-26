@@ -69,8 +69,8 @@ export const StudentTasks = () => {
   };
 
   // Filter & Search logic
-  const filteredAssignments = assignments.filter((asg) => {
-    const task = asg.tasks;
+  const filteredAssignments = (assignments || []).filter((asg) => {
+    const task = asg?.tasks;
     if (!task) return false;
 
     // Search query
