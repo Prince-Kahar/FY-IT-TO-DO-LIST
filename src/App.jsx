@@ -12,6 +12,7 @@ import { ForgotPassword } from './pages/auth/ForgotPassword';
 
 // Student Pages
 import { StudentDashboard } from './pages/student/StudentDashboard';
+import { StudentTodoList } from './pages/student/StudentTodoList';
 import { StudentTasks } from './pages/student/StudentTasks';
 import { StudentSubjects } from './pages/student/StudentSubjects';
 import { StudentSubmissions } from './pages/student/StudentSubmissions';
@@ -62,6 +63,7 @@ export const App = () => {
             >
               {/* Student Routes */}
               <Route path="/dashboard" element={<StudentDashboard />} />
+              <Route path="/todos" element={<StudentTodoList />} />
               <Route path="/tasks" element={<StudentTasks />} />
               <Route path="/subjects" element={<StudentSubjects />} />
               <Route path="/submissions" element={<StudentSubmissions />} />

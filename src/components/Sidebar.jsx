@@ -14,6 +14,7 @@ import {
   LogOut,
   GraduationCap,
   Layers,
+  ListTodo,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -35,6 +36,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const studentLinks = [
     { to: '/dashboard', label: 'Student Dashboard', icon: LayoutDashboard },
+    { to: '/todos', label: 'Daily To-Do List 🔥', icon: ListTodo },
     { to: '/tasks', label: 'My Academic Tasks', icon: CheckSquare },
     { to: '/subjects', label: 'Subjects & Topics', icon: BookOpen },
     { to: '/submissions', label: 'Submission History', icon: FileCheck },

@@ -2,6 +2,7 @@
 // with interactive fallback when evaluating prior to Supabase credentials setup.
 
 import { supabase, isSupabaseConfigured, uploadSubmissionPhoto, getSubmissionPhotoUrl } from './supabaseClient';
+import { pushService } from './pushNotificationService';
 import {
   initialSubjects,
   initialTopics,
@@ -737,5 +738,219 @@ export const dataService = {
       n.user_id === userId ? { ...n, is_read: true } : n
     );
     return true;
+  },
+
+  async createNotification(notifData) {
+    // Trigger desktop push notification if enabled
+    if (pushService.isEnabled()) {
+      pushService.sendNotification(`🔔 ${notifData.title}`, {
+        body: notifData.message,
+        tag: `notif-${Date.now()}`,
+      });
+    }
+
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('notifications')
+        .insert([notifData])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+
+    const newNotif = {
+      ...notifData,
+      id: 'notif-' + Date.now(),
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
+    localNotifications.unshift(newNotif);
+    return newNotif;
+  },
+
+  // =========================================================================
+  // STUDENT DAILY TO-DO LIST & STUDY PLANNER
+  // =========================================================================
+  async getTodos(userId) {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('student_todos')
+        .select('*, subjects(id, name, subject_code)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('student_todos table not available yet, using local store:', error.message);
+        return localTodos
+          .filter((t) => t.user_id === userId)
+          .map((t) => ({
+            ...t,
+            subjects: localSubjects.find((s) => s.id === t.subject_id) || null,
+          }));
+      }
+      return data || [];
+    }
+
+    return localTodos
+      .filter((t) => t.user_id === userId)
+      .map((t) => ({
+        ...t,
+        subjects: localSubjects.find((s) => s.id === t.subject_id) || null,
+      }))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+
+  async createTodo(todoData) {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('student_todos')
+          .insert([todoData])
+          .select('*, subjects(id, name, subject_code)')
+          .single();
+        if (error) throw error;
+        return data;
+      } catch (err) {
+        console.warn('Fallback to local todo create:', err.message);
+      }
+    }
+
+    const newTodo = {
+      ...todoData,
+      id: 'todo-' + Date.now(),
+      status: todoData.status || 'pending',
+      subtasks: todoData.subtasks || [],
+      time_spent_minutes: 0,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+    };
+    localTodos.unshift(newTodo);
+    return {
+      ...newTodo,
+      subjects: localSubjects.find((s) => s.id === newTodo.subject_id) || null,
+    };
+  },
+
+  async updateTodo(id, updates) {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('student_todos')
+          .update(updates)
+          .eq('id', id)
+          .select('*, subjects(id, name, subject_code)')
+          .single();
+        if (error) throw error;
+        return data;
+      } catch (err) {
+        console.warn('Fallback to local todo update:', err.message);
+      }
+    }
+
+    localTodos = localTodos.map((t) => (t.id === id ? { ...t, ...updates } : t));
+    const updated = localTodos.find((t) => t.id === id);
+    return {
+      ...updated,
+      subjects: localSubjects.find((s) => s.id === updated?.subject_id) || null,
+    };
+  },
+
+  async toggleTodoStatus(id) {
+    const current = localTodos.find((t) => t.id === id);
+    const newStatus = current?.status === 'completed' ? 'pending' : 'completed';
+    const completedAt = newStatus === 'completed' ? new Date().toISOString() : null;
+
+    return this.updateTodo(id, {
+      status: newStatus,
+      completed_at: completedAt,
+    });
+  },
+
+  async toggleSubtask(todoId, subtaskId) {
+    const todo = localTodos.find((t) => t.id === todoId);
+    if (!todo) return null;
+
+    const updatedSubtasks = (todo.subtasks || []).map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+
+    return this.updateTodo(todoId, { subtasks: updatedSubtasks });
+  },
+
+  async addSubtask(todoId, text) {
+    const todo = localTodos.find((t) => t.id === todoId);
+    if (!todo) return null;
+
+    const newSubtask = {
+      id: 'st-' + Date.now(),
+      text: text.trim(),
+      completed: false,
+    };
+
+    const updatedSubtasks = [...(todo.subtasks || []), newSubtask];
+    return this.updateTodo(todoId, { subtasks: updatedSubtasks });
+  },
+
+  async deleteSubtask(todoId, subtaskId) {
+    const todo = localTodos.find((t) => t.id === todoId);
+    if (!todo) return null;
+
+    const updatedSubtasks = (todo.subtasks || []).filter((st) => st.id !== subtaskId);
+    return this.updateTodo(todoId, { subtasks: updatedSubtasks });
+  },
+
+  async deleteTodo(id) {
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('student_todos').delete().eq('id', id);
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.warn('Fallback to local todo delete:', err.message);
+      }
+    }
+    localTodos = localTodos.filter((t) => t.id !== id);
+    return true;
+  },
+
+  async logTodoStudyTime(id, minutes) {
+    const todo = localTodos.find((t) => t.id === id);
+    const newTime = (todo?.time_spent_minutes || 0) + minutes;
+    return this.updateTodo(id, { time_spent_minutes: newTime });
+  },
+
+  async importAcademicTasksAsTodos(userId, assignments) {
+    const pendingAsgs = assignments.filter((a) => !['Approved', 'Submitted'].includes(a.status));
+    let importedCount = 0;
+
+    for (const asg of pendingAsgs) {
+      const task = asg.tasks;
+      if (!task) continue;
+
+      // Check if already in todo
+      const exists = localTodos.some(
+        (t) => t.user_id === userId && t.title.includes(task.title)
+      );
+      if (!exists) {
+        await this.createTodo({
+          user_id: userId,
+          title: `Academic: ${task.title}`,
+          description: task.description || '',
+          subject_id: task.subject_id,
+          category: task.task_type || 'Assignment',
+          priority: task.priority || 'Medium',
+          status: asg.status === 'In Progress' ? 'in_progress' : 'pending',
+          due_date: task.due_at ? task.due_at.slice(0, 10) : null,
+          subtasks: [
+            { id: 'st-' + Date.now() + '-1', text: 'Read requirements & instructions', completed: false },
+            { id: 'st-' + Date.now() + '-2', text: 'Complete handwritten write-up or code', completed: false },
+            { id: 'st-' + Date.now() + '-3', text: 'Take clear photos and submit for review', completed: false },
+          ],
+        });
+        importedCount++;
+      }
+    }
+    return importedCount;
   },
 };

@@ -143,6 +143,23 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- STUDENT TODOS: Personal daily action items & study planner
+CREATE TABLE IF NOT EXISTS public.student_todos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
+    category TEXT DEFAULT 'Study',
+    priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+    due_date DATE,
+    subtasks JSONB DEFAULT '[]'::jsonb,
+    time_spent_minutes INT DEFAULT 0,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- 3. Indexes
 -- ==============================================================================
@@ -155,6 +172,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due_at ON public.tasks(due_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_subject ON public.tasks(subject_id);
 CREATE INDEX IF NOT EXISTS idx_assignments_student ON public.task_assignments(student_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_student ON public.submissions(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_todos_user ON public.student_todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_todos_due ON public.student_todos(due_date);
 
 -- ==============================================================================
 -- 4. Helper Functions & Triggers
@@ -379,6 +398,13 @@ CREATE POLICY "Users update own notifications" ON public.notifications FOR UPDAT
 DROP POLICY IF EXISTS "Authenticated users can insert notifications" ON public.notifications;
 CREATE POLICY "Authenticated users can insert notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (true);
 
+-- STUDENT TODOS POLICIES
+ALTER TABLE public.student_todos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students manage own todos" ON public.student_todos;
+CREATE POLICY "Students manage own todos" ON public.student_todos FOR ALL TO authenticated
+USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
 -- ==============================================================================
 -- 6. Storage Bucket Configuration
 -- ==============================================================================
@@ -490,3 +516,19 @@ VALUES (
     NOW()
 )
 ON CONFLICT DO NOTHING;
+
+-- ==============================================================================
+-- 9. Enable Realtime Publications for Instant Live Notifications & Updates
+-- ==============================================================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.student_todos;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- Ignore if tables are already in publication
+    NULL;
+END $$;
+

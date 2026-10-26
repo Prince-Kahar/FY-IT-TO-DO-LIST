@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CheckCheck, Clock, CheckCircle2, Megaphone, FileText } from 'lucide-react';
+import { Bell, BellRing, CheckCheck, Clock, CheckCircle2, Megaphone, FileText, Sparkles, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { dataService } from '../../lib/dataService';
+import { pushService } from '../../lib/pushNotificationService';
 
 export const StudentNotifications = () => {
   const { user } = useAuth();
@@ -10,6 +11,35 @@ export const StudentNotifications = () => {
 
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pushStatus, setPushStatus] = useState(pushService.getPermission());
+  const [isPushEnabled, setIsPushEnabled] = useState(pushService.isEnabled());
+
+  const handleEnablePush = async () => {
+    const res = await pushService.requestPermission();
+    setPushStatus(pushService.getPermission());
+    setIsPushEnabled(pushService.isEnabled());
+    if (res.success) {
+      addToast('🔔 Browser Push Notifications Enabled!', 'success');
+    } else if (res.permission === 'denied') {
+      addToast('Push notifications were blocked in browser settings. Please enable them in browser site settings.', 'warning');
+    }
+  };
+
+  const handleSendTestPush = () => {
+    if (!pushService.isEnabled()) {
+      handleEnablePush();
+      return;
+    }
+    const sent = pushService.sendNotification('🎓 FY IT Portal Test Notification', {
+      body: 'Push notifications are working perfectly on your device!',
+      tag: 'test_notification',
+    });
+    if (sent) {
+      addToast('Test push notification sent! Check your desktop notifications.', 'success');
+    } else {
+      addToast('Unable to send push. Please check browser permissions.', 'warning');
+    }
+  };
 
   const loadNotifications = async () => {
     if (!user) return;
@@ -83,6 +113,86 @@ export const StudentNotifications = () => {
             <span>Mark All as Read</span>
           </button>
         )}
+      </div>
+
+      {/* Push Notifications Status & Controls Card */}
+      <div
+        className="card"
+        style={{
+          background: isPushEnabled
+            ? 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%)'
+            : 'linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%)',
+          border: `1px solid ${isPushEnabled ? '#86EFAC' : '#BFDBFE'}`,
+          marginBottom: '20px',
+          padding: '16px 20px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 'var(--radius-md)',
+                background: isPushEnabled ? 'var(--success-main)' : 'var(--primary-600)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isPushEnabled
+                  ? '0 3px 8px rgba(22, 163, 74, 0.3)'
+                  : '0 3px 8px rgba(79, 70, 229, 0.3)',
+              }}
+            >
+              {isPushEnabled ? <BellRing size={20} /> : <Bell size={20} />}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '0.975rem', fontWeight: 700, margin: 0 }}>
+                  Browser Push Notifications
+                </h3>
+                <span
+                  style={{
+                    background: isPushEnabled ? '#DCFCE7' : '#FEF3C7',
+                    color: isPushEnabled ? '#166534' : '#B45309',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  {isPushEnabled ? '● ACTIVE & READY' : '○ NOT ACTIVATED'}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', margin: 0 }}>
+                Receive instant desktop alerts when practicals are assigned, reviews are published, or Pomodoro study ends.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {!isPushEnabled ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleEnablePush}
+              >
+                <BellRing size={15} />
+                <span>Turn ON Push Notifications</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleSendTestPush}
+                title="Send a sample push notification to your screen"
+              >
+                <Send size={14} />
+                <span>Test Notification</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {notifications.length === 0 ? (

@@ -140,6 +140,23 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- STUDENT TODOS: Personal daily action items & study planner
+CREATE TABLE IF NOT EXISTS public.student_todos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
+    category TEXT DEFAULT 'Study',
+    priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+    due_date DATE,
+    subtasks JSONB DEFAULT '[]'::jsonb,
+    time_spent_minutes INT DEFAULT 0,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- 3. Indexes for Query Performance
 -- ==============================================================================
@@ -158,6 +175,8 @@ CREATE INDEX IF NOT EXISTS idx_submissions_assignment ON public.submissions(task
 CREATE INDEX IF NOT EXISTS idx_submissions_student ON public.submissions(student_id);
 CREATE INDEX IF NOT EXISTS idx_submission_files_sub ON public.submission_files(submission_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_student_todos_user ON public.student_todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_todos_due ON public.student_todos(due_date);
 
 -- ==============================================================================
 -- 4. Helper Functions & Triggers
@@ -557,3 +576,17 @@ CREATE POLICY "Authenticated users can insert notifications"
     ON public.notifications FOR INSERT
     TO authenticated
     WITH CHECK (true);
+
+-- ------------------------------------------------------------------------------
+-- STUDENT TODOS POLICIES (Personal Daily To-Do System)
+-- ------------------------------------------------------------------------------
+ALTER TABLE public.student_todos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students manage own todos" ON public.student_todos;
+CREATE POLICY "Students manage own todos"
+    ON public.student_todos
+    FOR ALL
+    TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+

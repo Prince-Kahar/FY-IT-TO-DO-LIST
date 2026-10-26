@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Bell, Shield, User, GraduationCap, CheckCircle2 } from 'lucide-react';
+import { Menu, Bell, BellRing, Shield, User, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { dataService } from '../lib/dataService';
+import { pushService } from '../lib/pushNotificationService';
 
 export const Navbar = ({ onMenuClick }) => {
   const { user, profile, isAdmin } = useAuth();
+  const { addToast } = useToast();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isPushActive, setIsPushActive] = useState(pushService.isEnabled());
+
+  const handleTogglePush = async () => {
+    if (!isPushActive) {
+      const res = await pushService.requestPermission();
+      if (res.success) {
+        setIsPushActive(true);
+        addToast('🔔 Desktop Push Notifications turned ON!', 'success');
+      } else {
+        addToast('Notification permission was blocked in browser settings.', 'warning');
+      }
+    } else {
+      addToast('Push notifications are already active on this browser.', 'info');
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -69,6 +87,41 @@ export const Navbar = ({ onMenuClick }) => {
             </>
           )}
         </span>
+
+        {/* Push Notification Toggle Button */}
+        <button
+          type="button"
+          onClick={handleTogglePush}
+          style={{
+            position: 'relative',
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--radius-md)',
+            border: `1px solid ${isPushActive ? '#86EFAC' : 'var(--border-light)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: isPushActive ? 'var(--success-main)' : 'var(--text-muted)',
+            background: isPushActive ? '#F0FDF4' : '#FFFFFF',
+            cursor: 'pointer',
+          }}
+          title={isPushActive ? 'Push Notifications: Active (Click to check)' : 'Click to Enable Browser Push Notifications'}
+        >
+          {isPushActive ? <BellRing size={17} /> : <Bell size={17} />}
+          {isPushActive && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: 'var(--success-main)',
+              }}
+            />
+          )}
+        </button>
 
         {/* Notification Bell */}
         <Link
