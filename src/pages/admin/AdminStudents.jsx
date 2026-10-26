@@ -7,12 +7,18 @@ import {
   XCircle,
   Power,
   Eye,
+  EyeOff,
   FileCheck,
   Calendar,
   Clock,
   X,
   UserPlus,
   Phone,
+  Mail,
+  KeyRound,
+  Copy,
+  Check,
+  ShieldCheck,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -30,11 +36,33 @@ export const AdminStudents = () => {
   const [divisionFilter, setDivisionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
+  // Password Visibility & Copy States
+  const [showAllPasswords, setShowAllPasswords] = useState(false);
+  const [visiblePasswordIds, setVisiblePasswordIds] = useState({});
+  const [copiedStudentId, setCopiedStudentId] = useState(null);
+  const [modalShowPassword, setModalShowPassword] = useState(false);
+
   // Drilldown Modal
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentAssignments, setStudentAssignments] = useState([]);
   const [drilldownLoading, setDrilldownLoading] = useState(false);
   const [lightboxPhotos, setLightboxPhotos] = useState(null);
+
+  const togglePasswordVisibility = (studentId) => {
+    setVisiblePasswordIds((prev) => ({
+      ...prev,
+      [studentId]: !prev[studentId],
+    }));
+  };
+
+  const handleCopyPassword = (studentId, password) => {
+    navigator.clipboard.writeText(password);
+    setCopiedStudentId(studentId);
+    addToast('Password copied to clipboard!', 'info');
+    setTimeout(() => {
+      setCopiedStudentId(null);
+    }, 2000);
+  };
 
   // Add Student Modal State
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -247,96 +275,155 @@ export const AdminStudents = () => {
                 <th>Mobile</th>
                 <th>Class & Division</th>
                 <th>Email</th>
+                <th>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Password</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllPasswords(!showAllPasswords)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-600)', padding: 0 }}
+                      title={showAllPasswords ? 'Hide all passwords' : 'Show all passwords'}
+                    >
+                      {showAllPasswords ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </div>
+                </th>
                 <th>Status</th>
                 <th>Enrolled Date</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.map((st) => (
-                <tr key={st.id}>
-                  <td>
-                    <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                      {st.full_name}
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: 'var(--primary-700)' }}>
-                      {st.roll_number || 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <Phone size={12} />
-                      <span>{st.mobile_number || st.mobile || st.phone || 'N/A'}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span>{st.class_name || 'FY B.Sc. IT'}</span>
-                    <span
-                      style={{
-                        background: 'var(--bg-subtle)',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        marginLeft: 6,
-                      }}
-                    >
-                      Div {st.division || 'A'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      {st.email}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        background: st.is_active ? 'var(--success-bg)' : 'var(--danger-bg)',
-                        color: st.is_active ? 'var(--success-text)' : 'var(--danger-text)',
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {st.is_active ? 'Active' : 'Deactivated'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {new Date(st.created_at).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleOpenStudentDetails(st)}
-                        title="View Individual Tasks & Submissions"
-                      >
-                        <Eye size={14} />
-                        <span>Profile & Tasks</span>
-                      </button>
+              {filteredStudents.map((st) => {
+                const isPasswordRevealed = showAllPasswords || visiblePasswordIds[st.id];
+                const studentPass = st.password || 'student@123';
 
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleToggleStatus(st)}
-                        title={st.is_active ? 'Deactivate Student' : 'Activate Student'}
+                return (
+                  <tr key={st.id}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                        {st.full_name}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: 'var(--primary-700)' }}>
+                        {st.roll_number || 'N/A'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        <Phone size={12} />
+                        <span>{st.mobile_number || st.mobile || st.phone || 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span>{st.class_name || 'FY B.Sc. IT'}</span>
+                      <span
                         style={{
-                          color: st.is_active ? 'var(--danger-main)' : 'var(--success-main)',
+                          background: 'var(--bg-subtle)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          marginLeft: 6,
                         }}
                       >
-                        <Power size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        Div {st.division || 'A'}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {st.email}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <code
+                          style={{
+                            background: 'var(--bg-subtle)',
+                            color: 'var(--primary-700)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.825rem',
+                            fontWeight: 600,
+                            fontFamily: 'monospace',
+                            minWidth: '85px',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {isPasswordRevealed ? studentPass : '••••••••'}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility(st.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                          title={isPasswordRevealed ? 'Hide password' : 'Show password'}
+                        >
+                          {isPasswordRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPassword(st.id, studentPass)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: copiedStudentId === st.id ? 'var(--success-main)' : 'var(--text-muted)',
+                            padding: '2px',
+                          }}
+                          title="Copy Password"
+                        >
+                          {copiedStudentId === st.id ? <Check size={13} /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          background: st.is_active ? 'var(--success-bg)' : 'var(--danger-bg)',
+                          color: st.is_active ? 'var(--success-text)' : 'var(--danger-text)',
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {st.is_active ? 'Active' : 'Deactivated'}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {new Date(st.created_at).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleOpenStudentDetails(st)}
+                          title="View Complete Profile, Credentials & Tasks"
+                        >
+                          <Eye size={14} />
+                          <span>Profile & Tasks</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleToggleStatus(st)}
+                          title={st.is_active ? 'Deactivate Student' : 'Activate Student'}
+                          style={{
+                            color: st.is_active ? 'var(--danger-main)' : 'var(--success-main)',
+                          }}
+                        >
+                          <Power size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -363,6 +450,127 @@ export const AdminStudents = () => {
             </div>
 
             <div className="modal-body">
+              {/* Comprehensive Student Credentials & Details Card */}
+              <div
+                style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '16px 20px',
+                  border: '1px solid var(--border-light)',
+                  marginBottom: '20px',
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-700)', textTransform: 'uppercase', marginBottom: '12px' }}>
+                  Student Credentials & Contact Information
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '14px',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Roll Number</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{selectedStudent.roll_number}</strong>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Mobile Number</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Phone size={13} color="var(--primary-600)" />
+                      <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                        {selectedStudent.mobile_number || selectedStudent.mobile || selectedStudent.phone || 'N/A'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Official Email</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Mail size={13} color="var(--primary-600)" />
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{selectedStudent.email}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Account Password</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <code
+                        style={{
+                          background: 'var(--bg-surface)',
+                          color: 'var(--primary-700)',
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          fontSize: '0.875rem',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          border: '1px solid var(--border-light)',
+                        }}
+                      >
+                        {modalShowPassword ? (selectedStudent.password || 'student@123') : '••••••••'}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => setModalShowPassword(!modalShowPassword)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                        title="Toggle password view"
+                      >
+                        {modalShowPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPassword(selectedStudent.id, selectedStudent.password || 'student@123')}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                      >
+                        <Copy size={13} />
+                        <span>Copy</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Account Access Status</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                      <span
+                        style={{
+                          background: selectedStudent.is_active ? 'var(--success-bg)' : 'var(--danger-bg)',
+                          color: selectedStudent.is_active ? 'var(--success-text)' : 'var(--danger-text)',
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {selectedStudent.is_active ? 'Active' : 'Deactivated'}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          handleToggleStatus(selectedStudent);
+                          setSelectedStudent({ ...selectedStudent, is_active: !selectedStudent.is_active });
+                        }}
+                        style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                      >
+                        <Power size={12} />
+                        <span>{selectedStudent.is_active ? 'Deactivate' : 'Activate'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Registered Date</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginTop: '4px', display: 'block' }}>
+                      {new Date(selectedStudent.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {drilldownLoading ? (
                 <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
                   Loading academic records...

@@ -703,23 +703,38 @@ export const dataService = {
   },
 
   // =========================================================================
-  // STUDENTS DIRECTORY & MANAGEMENT
+  // STUDENTS DIRECTORY & MANAGEMENT (Separate Table: public.students)
   // =========================================================================
   async getStudents() {
     if (isSupabaseConfigured()) {
       try {
+        // Query dedicated students table
         const { data, error } = await supabase
-          .from('profiles')
-          .select('*, task_assignments(id, status, is_late)')
-          .eq('role', 'student')
+          .from('students')
+          .select('*')
           .order('roll_number', { ascending: true });
+
         if (!error && Array.isArray(data) && data.length > 0) {
-          return data;
+          const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+          const combined = [...data];
+          localRegistered.forEach((lr) => {
+            if (!combined.some((c) => c.id === lr.id || (lr.roll_number && c.roll_number === lr.roll_number))) {
+              combined.push(lr);
+            }
+          });
+          return combined.map((st) => {
+            const asgs = localAssignments.filter((a) => a.student_id === st.id);
+            return {
+              ...st,
+              task_assignments: asgs,
+            };
+          });
         }
       } catch (err) {
-        console.warn('Supabase getStudents notice:', err);
+        console.warn('Supabase getStudents from students table notice:', err);
       }
     }
+
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     const combined = [...localStudents, ...localRegistered.filter((r) => !localStudents.some((s) => s.id === r.id))];
     return combined.map((st) => {
@@ -739,7 +754,7 @@ export const dataService = {
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
-          .from('profiles')
+          .from('students')
           .update({ is_active: !currentStatus })
           .eq('id', studentId)
           .select()
@@ -770,18 +785,27 @@ export const dataService = {
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('profiles').insert([{
+        // Direct insert into dedicated public.students table
+        const { data, error } = await supabase.from('students').insert([{
           id: newStudent.id,
           full_name: newStudent.full_name,
           roll_number: newStudent.roll_number,
-          email: newStudent.email,
-          role: 'student',
+          mobile_number: newStudent.mobile_number || '',
+          email: newStudent.email || '',
           class_name: newStudent.class_name || 'FY B.Sc. IT',
           division: newStudent.division || 'A',
+          password: newStudent.password || 'student@123',
           is_active: true,
-        }]);
+          created_at: newStudent.created_at,
+        }]).select();
+
+        if (error) {
+          console.warn('Supabase students table insert notice:', error.message);
+        } else {
+          console.log('Student record successfully saved to Supabase students table:', data);
+        }
       } catch (err) {
-        console.warn('Supabase profile creation notice:', err);
+        console.warn('Supabase students insert error:', err);
       }
     }
 
@@ -790,16 +814,17 @@ export const dataService = {
   },
 
   // =========================================================================
-  // ADMINS MANAGEMENT (FOR SUPER ADMIN)
+  // ADMINS MANAGEMENT (Separate Table: public.admins)
   // =========================================================================
   getAdmins() {
     const defaultAdmin = {
       id: 'admin-hemang-001',
       full_name: 'Prof. Hemang',
-      username: import.meta.env.VITE_ADMIN_USERNAME || 'hemang',
-      email: import.meta.env.VITE_ADMIN_EMAIL || 'hemang@college.edu',
-      password: import.meta.env.VITE_ADMIN_PASSWORD || 'Hemang@135',
+      username: 'hemang',
+      email: 'hemang@college.edu',
+      password: 'Hemang@135',
       department: 'Information Technology (HOD)',
+      assigned_subjects: ['ALL'],
       role: 'admin',
       is_active: true,
       is_default: true,
@@ -826,11 +851,30 @@ export const dataService = {
     return storedAdmins;
   },
 
-  createAdmin(adminData) {
+  async fetchAdminsFromSupabase() {
+    if (!isSupabaseConfigured()) return this.getAdmins();
+    try {
+      const { data, error } = await supabase
+        .from('admins')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        localStorage.setItem('fy_it_admin_accounts', JSON.stringify(data));
+        return data;
+      }
+    } catch (err) {
+      console.warn('Supabase fetch admins notice:', err);
+    }
+    return this.getAdmins();
+  },
+
+  async createAdmin(adminData) {
     const admins = this.getAdmins();
     const newAdmin = {
       ...adminData,
       id: 'admin-' + Date.now(),
+      assigned_subjects: adminData.assigned_subjects || ['ALL'],
       role: 'admin',
       is_active: true,
       is_default: false,
@@ -840,37 +884,76 @@ export const dataService = {
     localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
 
     if (isSupabaseConfigured()) {
-      supabase.from('profiles').insert([{
-        id: newAdmin.id,
-        full_name: newAdmin.full_name,
-        roll_number: 'ADMIN-' + newAdmin.username.toUpperCase(),
-        email: newAdmin.email,
-        role: 'admin',
-        is_active: true,
-      }]).then(() => {}).catch(() => {});
+      try {
+        const { data, error } = await supabase.from('admins').insert([{
+          id: newAdmin.id,
+          full_name: newAdmin.full_name,
+          username: newAdmin.username,
+          email: newAdmin.email || '',
+          password: newAdmin.password,
+          department: newAdmin.department || 'Information Technology',
+          assigned_subjects: newAdmin.assigned_subjects,
+          role: 'admin',
+          is_active: true,
+          is_default: false,
+          created_at: newAdmin.created_at,
+        }]).select();
+
+        if (error) {
+          console.warn('Supabase admins table insert notice:', error.message);
+        } else {
+          console.log('Admin record successfully saved to Supabase admins table:', data);
+        }
+      } catch (e) {
+        console.warn('Supabase admins insert error:', e);
+      }
     }
 
     this.notifyLocalChange('ADMIN_CREATED', newAdmin);
     return newAdmin;
   },
 
-  updateAdmin(adminId, updates) {
+  async updateAdmin(adminId, updates) {
     let admins = this.getAdmins();
     admins = admins.map((a) => (a.id === adminId ? { ...a, ...updates } : a));
     localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
     const updated = admins.find((a) => a.id === adminId);
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('admins')
+          .update(updates)
+          .eq('id', adminId);
+      } catch (e) {
+        console.warn('Supabase admins update error:', e);
+      }
+    }
+
     this.notifyLocalChange('ADMIN_UPDATED', updated);
     return updated;
   },
 
-  deleteAdmin(adminId) {
+  async deleteAdmin(adminId) {
     let admins = this.getAdmins();
     const target = admins.find((a) => a.id === adminId);
     if (target?.is_default) {
-      throw new Error('Default Primary Admin cannot be deleted.');
+      throw new Error('Default Primary Admin (Prof. Hemang) cannot be deleted.');
     }
     admins = admins.filter((a) => a.id !== adminId);
     localStorage.setItem('fy_it_admin_accounts', JSON.stringify(admins));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase
+          .from('admins')
+          .delete()
+          .eq('id', adminId);
+      } catch (e) {
+        console.warn('Supabase admins delete error:', e);
+      }
+    }
+
     this.notifyLocalChange('ADMIN_DELETED', { id: adminId });
     return true;
   },

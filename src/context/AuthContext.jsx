@@ -125,20 +125,47 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserProfile = async (userId) => {
     try {
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured()) return null;
+
+      // 1. Check separate students table
+      const { data: stData } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (stData) {
+        setProfile(stData);
+        return stData;
+      }
+
+      // 2. Check separate admins table
+      const { data: admData } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (admData) {
+        setProfile(admData);
+        return admData;
+      }
+
+      // 3. Fallback check profiles table
+      const { data: profData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return null;
+      if (profData) {
+        setProfile(profData);
+        return profData;
       }
-      setProfile(data);
-      return data;
+
+      return null;
     } catch (err) {
-      console.error('Unexpected error fetching profile:', err);
+      console.warn('Error fetching profile:', err);
       return null;
     }
   };
@@ -200,37 +227,38 @@ export const AuthProvider = ({ children }) => {
         );
       }
 
-      // Check Supabase Auth if email format
-      if (isSupabaseConfigured() && normalized.includes('@')) {
+      // Check dedicated Supabase students table
+      if (isSupabaseConfigured()) {
         try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: normalized,
-            password,
-          });
+          const { data, error } = await supabase
+            .from('students')
+            .select('*')
+            .or(`email.ilike.${normalized},roll_number.ilike.${normalized},mobile_number.eq.${normalized}`);
 
-          if (!error && data?.user) {
-            const loadedProfile = await fetchUserProfile(data.user.id);
-            if (loadedProfile && loadedProfile.role === 'admin') {
-              await supabase.auth.signOut();
-              throw new Error(
-                'Admin credentials detected. Please use the Teacher & Admin URL (/admin).'
-              );
+          if (!error && Array.isArray(data) && data.length > 0) {
+            const matchedSupa = data[0];
+            if (matchedSupa.password && matchedSupa.password !== password) {
+              throw new Error('Incorrect password for this student account. Please verify and try again.');
             }
-            if (loadedProfile && !loadedProfile.is_active) {
-              await supabase.auth.signOut();
+            if (!matchedSupa.is_active) {
               throw new Error('Your student account has been deactivated by the Class Head.');
             }
-            if (loadedProfile) {
-              setUser(data.user);
-              setProfile(loadedProfile);
-              localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
-              sessionStorage.setItem('fy_it_demo_user', JSON.stringify(loadedProfile));
-              return { user: data.user, profile: loadedProfile };
-            }
+
+            const studentProfile = {
+              ...matchedSupa,
+              role: 'student',
+            };
+            setUser({ id: matchedSupa.id, email: matchedSupa.email });
+            setProfile(studentProfile);
+            localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(studentProfile));
+            sessionStorage.setItem('fy_it_demo_user', JSON.stringify(studentProfile));
+            return { user: studentProfile, profile: studentProfile };
           }
         } catch (supaError) {
-          if (supaError.message.includes('Admin credentials')) throw supaError;
-          console.warn('Supabase student login fallback:', supaError.message);
+          if (supaError.message?.includes('Incorrect password') || supaError.message?.includes('deactivated')) {
+            throw supaError;
+          }
+          console.warn('Supabase student table lookup notice:', supaError.message);
         }
       }
 
@@ -261,12 +289,12 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Your student account has been deactivated by the Class Head.');
       }
 
-      const studentUser = { id: matchedStudent.id, email: matchedStudent.email };
+      const studentUser = { id: matchedStudent.id, email: matchedStudent.email, role: 'student' };
       setUser(studentUser);
-      setProfile(matchedStudent);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedStudent));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedStudent));
-      return { user: matchedStudent, profile: matchedStudent };
+      setProfile({ ...matchedStudent, role: 'student' });
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify({ ...matchedStudent, role: 'student' }));
+      return { user: studentUser, profile: { ...matchedStudent, role: 'student' } };
     }
 
     // -------------------------------------------------------------------------
@@ -301,6 +329,41 @@ export const AuthProvider = ({ children }) => {
     // -------------------------------------------------------------------------
     // 3. ADMIN PORTAL LOGIN (/admin)
     // -------------------------------------------------------------------------
+    // Check Supabase public.admins table directly
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('admins')
+          .select('*')
+          .or(`username.ilike.${normalized},email.ilike.${normalized}`);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const matchedAdminRecord = data[0];
+          if (matchedAdminRecord.password !== password) {
+            throw new Error('Incorrect password for this Admin account. Please verify and try again.');
+          }
+          if (!matchedAdminRecord.is_active) {
+            throw new Error('This Admin account has been deactivated by the Super Administrator.');
+          }
+
+          const adminProfile = {
+            ...matchedAdminRecord,
+            role: 'admin',
+          };
+          setUser({ id: matchedAdminRecord.id, email: matchedAdminRecord.email });
+          setProfile(adminProfile);
+          localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminProfile));
+          sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminProfile));
+          return { user: adminProfile, profile: adminProfile };
+        }
+      } catch (adminSupaErr) {
+        if (adminSupaErr.message?.includes('Incorrect password') || adminSupaErr.message?.includes('deactivated')) {
+          throw adminSupaErr;
+        }
+        console.warn('Supabase admins lookup notice:', adminSupaErr.message);
+      }
+    }
+
     // Allow Super Admin to also enter admin portal if needed
     if (isSuperAdminMatch && (password === envSuperPass || password === 'SuperAdmin@135')) {
       const superUser = {
@@ -319,7 +382,7 @@ export const AuthProvider = ({ children }) => {
       return { user: superUser, profile: superUser };
     }
 
-    // Check admin accounts from database (managed by Super Admin in dataService)
+    // Check admin accounts from dataService / storage
     const adminAccounts = dataService.getAdmins();
     const matchedAdmin = adminAccounts.find(
       (a) =>
@@ -335,32 +398,15 @@ export const AuthProvider = ({ children }) => {
         throw new Error('This Admin account has been deactivated by the Super Administrator.');
       }
 
-      // Check if Supabase auth exists for this email
-      if (isSupabaseConfigured() && matchedAdmin.email && matchedAdmin.email.includes('@')) {
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: matchedAdmin.email,
-            password,
-          });
-          if (!error && data?.user) {
-            const loaded = await fetchUserProfile(data.user.id);
-            const resolved = loaded || matchedAdmin;
-            setUser(data.user);
-            setProfile(resolved);
-            localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(resolved));
-            sessionStorage.setItem('fy_it_demo_user', JSON.stringify(resolved));
-            return { user: data.user, profile: resolved };
-          }
-        } catch (supaErr) {
-          console.warn('Supabase admin login notice:', supaErr);
-        }
-      }
-
+      const adminProfile = {
+        ...matchedAdmin,
+        role: 'admin',
+      };
       setUser({ id: matchedAdmin.id, email: matchedAdmin.email });
-      setProfile(matchedAdmin);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(matchedAdmin));
-      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(matchedAdmin));
-      return { user: matchedAdmin, profile: matchedAdmin };
+      setProfile(adminProfile);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(adminProfile));
+      sessionStorage.setItem('fy_it_demo_user', JSON.stringify(adminProfile));
+      return { user: adminProfile, profile: adminProfile };
     }
 
     // If student credentials were typed on the Admin page
@@ -396,11 +442,28 @@ export const AuthProvider = ({ children }) => {
     const cleanRoll = rollNumber.trim().toUpperCase();
     const cleanMobile = mobileNumber.trim();
 
+    // Check if student already exists in Supabase public.students table
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, roll_number, email, mobile_number')
+          .or(`email.ilike.${cleanEmail},roll_number.ilike.${cleanRoll}${cleanMobile ? `,mobile_number.eq.${cleanMobile}` : ''}`);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          throw new Error('A student with this Roll Number, Email, or Mobile Number is already registered. Please login.');
+        }
+      } catch (supaCheckErr) {
+        if (supaCheckErr.message?.includes('already registered')) throw supaCheckErr;
+        console.warn('Supabase existence check notice:', supaCheckErr);
+      }
+    }
+
     // Check if student is already registered locally
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     const alreadyExists = localRegistered.some(
       (s) =>
-        s.email.toLowerCase() === cleanEmail ||
+        s.email?.toLowerCase() === cleanEmail ||
         s.roll_number === cleanRoll ||
         (cleanMobile && s.mobile_number === cleanMobile)
     );
@@ -415,7 +478,7 @@ export const AuthProvider = ({ children }) => {
       roll_number: cleanRoll,
       mobile_number: cleanMobile,
       email: cleanEmail,
-      password, // Stored for offline credential verification
+      password, // Stored for credential verification and admin oversight
       role: 'student',
       class_name: className,
       division,
@@ -427,26 +490,26 @@ export const AuthProvider = ({ children }) => {
     localRegistered.push(newStudent);
     localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
 
+    // Save directly to dedicated public.students table in Supabase
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-          options: {
-            data: {
-              full_name: fullName.trim(),
-              roll_number: cleanRoll,
-              mobile_number: cleanMobile,
-              class_name: className,
-              division,
-            },
-          },
-        });
+        const { data, error } = await supabase.from('students').insert([{
+          id: newStudent.id,
+          full_name: newStudent.full_name,
+          roll_number: newStudent.roll_number,
+          mobile_number: newStudent.mobile_number,
+          email: newStudent.email,
+          class_name: newStudent.class_name,
+          division: newStudent.division,
+          password: newStudent.password,
+          is_active: true,
+          created_at: newStudent.created_at,
+        }]).select();
 
         if (error) {
-          console.warn('Supabase registration notice:', error.message);
-        } else if (data?.user) {
-          await fetchUserProfile(data.user.id);
+          console.warn('Supabase students table insert notice:', error.message);
+        } else {
+          console.log('Student successfully saved to Supabase students table:', data);
         }
       } catch (supaErr) {
         console.warn('Supabase register error:', supaErr);

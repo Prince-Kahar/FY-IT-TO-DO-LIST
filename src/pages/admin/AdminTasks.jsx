@@ -12,18 +12,35 @@ import {
   Users,
   AlertTriangle,
   CalendarDays,
+  BookOpen,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { PriorityBadge } from '../../components/StatusBadge';
 import { TaskModal } from '../../components/TaskModal';
 
 export const AdminTasks = () => {
   const { addToast } = useToast();
+  const { profile } = useAuth();
 
   const [tasks, setTasks] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Determine authorized subjects assigned by Super Admin
+  const isAllSubjects =
+    !profile?.assigned_subjects ||
+    profile.assigned_subjects.includes('ALL') ||
+    profile.assigned_subjects.length === 0;
+
+  const effectiveSubjects = isAllSubjects
+    ? subjects
+    : subjects.filter(
+        (s) =>
+          profile.assigned_subjects.includes(s.name) ||
+          profile.assigned_subjects.includes(s.id)
+      );
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +126,15 @@ export const AdminTasks = () => {
     }
 
     if (subjectFilter !== 'ALL' && t.subject_id !== subjectFilter) return false;
+
+    // Restrict task visibility if faculty is assigned specific subjects
+    if (!isAllSubjects) {
+      const isTaskInAssignedSubjects = effectiveSubjects.some(
+        (s) => s.id === t.subject_id || s.name === t.subjects?.name
+      );
+      if (!isTaskInAssignedSubjects) return false;
+    }
+
     if (statusFilter !== 'ALL' && t.publication_status !== statusFilter) return false;
     if (typeFilter !== 'ALL' && t.task_type !== typeFilter) return false;
 
@@ -152,6 +178,44 @@ export const AdminTasks = () => {
           <span>Create New Task</span>
         </button>
       </div>
+
+      {/* Allocated Subject Notice if Restricted */}
+      {!isAllSubjects && (
+        <div
+          style={{
+            background: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.85rem',
+            color: 'var(--primary-800)',
+          }}
+        >
+          <BookOpen size={16} color="var(--primary-600)" />
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+            <strong>Your Teaching Subject Allocation:</strong>
+            {profile.assigned_subjects.map((sub, i) => (
+              <span
+                key={i}
+                style={{
+                  background: 'var(--primary-100)',
+                  color: 'var(--primary-700)',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                }}
+              >
+                {sub}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="filters-bar" style={{ flexWrap: 'wrap', gap: '10px' }}>
@@ -198,8 +262,8 @@ export const AdminTasks = () => {
           value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
         >
-          <option value="ALL">All Subjects</option>
-          {subjects.map((s) => (
+          <option value="ALL">{isAllSubjects ? 'All Subjects' : 'All My Subjects'}</option>
+          {effectiveSubjects.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
@@ -394,7 +458,7 @@ export const AdminTasks = () => {
       {isTaskModalOpen && (
         <TaskModal
           taskToEdit={taskToEdit}
-          subjects={subjects}
+          subjects={effectiveSubjects}
           onClose={() => {
             setIsTaskModalOpen(false);
             setTaskToEdit(null);

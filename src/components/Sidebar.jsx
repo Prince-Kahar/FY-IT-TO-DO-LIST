@@ -64,7 +64,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const superAdminLinks = [
     { to: '/superadmin', label: '⚡ Super Admin Console', icon: Shield },
-    ...adminLinks,
   ];
 
   const links = isSuperAdmin ? superAdminLinks : isAdmin ? adminLinks : studentLinks;
