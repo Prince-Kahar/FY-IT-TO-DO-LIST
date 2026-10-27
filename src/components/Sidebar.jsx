@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { dataService } from '../lib/dataService';
 
 export const Sidebar = ({ isOpen, onClose }) => {
   const { user, profile, isAdmin, isSuperAdmin, logout } = useAuth();
@@ -87,24 +88,179 @@ export const Sidebar = ({ isOpen, onClose }) => {
     }
   };
 
+  const [counts, setCounts] = useState(() => {
+    if (isAdmin || isSuperAdmin) {
+      const t = dataService.getCachedTasks();
+      const s = dataService.getCachedSubmissions();
+      const sb = dataService.getCachedSubjects();
+      const st = dataService.getCachedStudents();
+      const a = dataService.getCachedAnnouncements();
+      return {
+        adminTasks: t?.length || 0,
+        pendingSubmissions: s?.filter((sub) => sub.status === 'Submitted')?.length || 0,
+        subjects: sb?.length || 0,
+        students: st?.length || 0,
+        announcements: a?.length || 0,
+      };
+    } else {
+      const td = dataService.getCachedTodos(user?.id);
+      const asg = dataService.getCachedStudentAssignments(user?.id);
+      const sb = dataService.getCachedSubjects();
+      const notifs = dataService.getCachedAnnouncements();
+      return {
+        todos: td?.filter((item) => item.status !== 'Completed')?.length || 0,
+        tasks: asg?.filter((item) => ['Assigned', 'In Progress', 'Overdue'].includes(item.status))?.length || 0,
+        subjects: sb?.length || 0,
+        submissions: asg?.filter((item) => ['Submitted', 'Approved', 'Needs Revision'].includes(item.status))?.length || 0,
+        notifications: notifs?.length || 0,
+      };
+    }
+  });
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        if (isAdmin || isSuperAdmin) {
+          const [tasks, submissions, subjects, students, announcements] = await Promise.all([
+            dataService.getTasks(),
+            dataService.getSubmissions(),
+            dataService.getSubjects(),
+            dataService.getStudents(),
+            dataService.getAnnouncements(),
+          ]);
+          setCounts({
+            adminTasks: tasks?.length || 0,
+            pendingSubmissions: submissions?.filter((s) => s.status === 'Submitted')?.length || 0,
+            subjects: subjects?.length || 0,
+            students: students?.length || 0,
+            announcements: announcements?.length || 0,
+          });
+        } else if (user) {
+          const [todos, assignments, subjects, notifs] = await Promise.all([
+            dataService.getTodos(user.id),
+            dataService.getStudentAssignments(user.id),
+            dataService.getSubjects(),
+            dataService.getNotifications(user.id),
+          ]);
+          const unreadNotifs = notifs?.filter((n) => !n.is_read)?.length;
+          setCounts({
+            todos: todos?.filter((t) => t.status !== 'Completed')?.length || 0,
+            tasks: assignments?.filter((a) => ['Assigned', 'In Progress', 'Overdue'].includes(a.status))?.length || 0,
+            subjects: subjects?.length || 0,
+            submissions: assignments?.filter((a) => ['Submitted', 'Approved', 'Needs Revision'].includes(a.status))?.length || 0,
+            notifications: (unreadNotifs != null && unreadNotifs > 0) ? unreadNotifs : (notifs?.length || 0),
+          });
+        }
+      } catch (e) {}
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 1500);
+    const unsub = dataService.subscribeRealtime(fetchCounts);
+    return () => {
+      clearInterval(interval);
+      if (unsub) unsub();
+    };
+  }, [user, isAdmin, isSuperAdmin]);
+
   const studentLinks = [
     { to: '/dashboard', label: 'Student Dashboard', icon: LayoutDashboard },
-    { to: '/todos', label: 'Daily To-Do List 🔥', icon: ListTodo },
-    { to: '/tasks', label: 'My Academic Tasks', icon: CheckSquare },
-    { to: '/subjects', label: 'Subjects & Topics', icon: BookOpen },
-    { to: '/submissions', label: 'Submission History', icon: FileCheck },
-    { to: '/notifications', label: 'Notifications', icon: Bell },
+    {
+      to: '/todos',
+      label: 'Daily To-Do List 🔥',
+      icon: ListTodo,
+      badge: counts.todos,
+      badgeBg: '#FEF3C7',
+      badgeColor: '#B45309',
+      badgeBorder: '#FDE68A',
+    },
+    {
+      to: '/tasks',
+      label: 'My Academic Tasks',
+      icon: CheckSquare,
+      badge: counts.tasks,
+      badgeBg: '#EEF2FF',
+      badgeColor: 'var(--primary-700)',
+      badgeBorder: '#C7D2FE',
+    },
+    {
+      to: '/subjects',
+      label: 'Subjects & Topics',
+      icon: BookOpen,
+      badge: counts.subjects,
+      badgeBg: '#F1F5F9',
+      badgeColor: '#475569',
+      badgeBorder: '#E2E8F0',
+    },
+    {
+      to: '/submissions',
+      label: 'Submission History',
+      icon: FileCheck,
+      badge: counts.submissions,
+      badgeBg: '#DCFCE7',
+      badgeColor: '#166534',
+      badgeBorder: '#BBF7D0',
+    },
+    {
+      to: '/notifications',
+      label: 'Notifications',
+      icon: Bell,
+      badge: counts.notifications,
+      badgeBg: '#FEE2E2',
+      badgeColor: '#DC2626',
+      badgeBorder: '#FECACA',
+    },
     { to: '/profile', label: 'Student Profile', icon: User },
   ];
 
   const adminLinks = [
     { to: '/admin', label: 'Admin Dashboard', icon: LayoutDashboard },
-    { to: '/admin/tasks', label: 'Manage Tasks', icon: CheckSquare },
-    { to: '/admin/submissions', label: 'Review Submissions', icon: FileCheck },
-    { to: '/admin/subjects', label: 'Subjects & Topics', icon: BookOpen },
-    { to: '/admin/students', label: 'Manage Students', icon: Users },
+    {
+      to: '/admin/tasks',
+      label: 'Manage Tasks',
+      icon: CheckSquare,
+      badge: counts.adminTasks,
+      badgeBg: '#EEF2FF',
+      badgeColor: 'var(--primary-700)',
+      badgeBorder: '#C7D2FE',
+    },
+    {
+      to: '/admin/submissions',
+      label: 'Review Submissions',
+      icon: FileCheck,
+      badge: counts.pendingSubmissions,
+      badgeBg: counts.pendingSubmissions > 0 ? '#FEF3C7' : '#DCFCE7',
+      badgeColor: counts.pendingSubmissions > 0 ? '#B45309' : '#166534',
+      badgeBorder: counts.pendingSubmissions > 0 ? '#FDE68A' : '#BBF7D0',
+    },
+    {
+      to: '/admin/subjects',
+      label: 'Subjects & Topics',
+      icon: BookOpen,
+      badge: counts.subjects,
+      badgeBg: '#F1F5F9',
+      badgeColor: '#475569',
+      badgeBorder: '#E2E8F0',
+    },
+    {
+      to: '/admin/students',
+      label: 'Manage Students',
+      icon: Users,
+      badge: counts.students,
+      badgeBg: '#F0FDF4',
+      badgeColor: '#15803D',
+      badgeBorder: '#BBF7D0',
+    },
     { to: '/admin/reports', label: 'Progress Reports', icon: BarChart3 },
-    { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
+    {
+      to: '/admin/announcements',
+      label: 'Announcements',
+      icon: Megaphone,
+      badge: counts.announcements,
+      badgeBg: '#F0FDFA',
+      badgeColor: '#0F766E',
+      badgeBorder: '#99F6E4',
+    },
   ];
 
   const superAdminLinks = [
@@ -229,7 +385,30 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   color={isActive ? '#FFFFFF' : 'currentColor'}
                   style={{ pointerEvents: 'none', flexShrink: 0 }}
                 />
-                <span style={{ pointerEvents: 'none' }}>{item.label}</span>
+                <span style={{ pointerEvents: 'none', flex: 1 }}>{item.label}</span>
+                {item.badge != null && item.badge > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 'auto',
+                      fontSize: '0.725rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: isActive ? 'rgba(255, 255, 255, 0.25)' : item.badgeBg,
+                      color: isActive ? '#FFFFFF' : item.badgeColor,
+                      border: isActive
+                        ? '1px solid rgba(255, 255, 255, 0.35)'
+                        : `1px solid ${item.badgeBorder}`,
+                      minWidth: '20px',
+                      textAlign: 'center',
+                      lineHeight: '1.2',
+                      flexShrink: 0,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
