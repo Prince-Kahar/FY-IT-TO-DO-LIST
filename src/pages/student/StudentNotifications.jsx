@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { dataService } from '../../lib/dataService';
 import { pushService } from '../../lib/pushNotificationService';
+import { AttachmentActions } from '../../components/AttachmentActions';
 
 export const StudentNotifications = () => {
   const { user } = useAuth();
@@ -274,39 +275,7 @@ export const StudentNotifications = () => {
                     {notif.message}
                   </p>
 
-                  {notif.attachment && (
-                    <div style={{ marginTop: '10px' }}>
-                      <a
-                        href={notif.attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        download={notif.attachment.name}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          background: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          color: '#0369A1',
-                          padding: '6px 12px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                          textDecoration: 'none',
-                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                        }}
-                      >
-                        <Paperclip size={14} color="#0284C7" />
-                        <span>📎 {notif.attachment.name}</span>
-                        {notif.attachment.size && (
-                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
-                            ({(notif.attachment.size / 1024).toFixed(0)} KB)
-                          </span>
-                        )}
-                        <Download size={13} style={{ marginLeft: 4 }} />
-                      </a>
-                    </div>
-                  )}
+                  {notif.attachment && <AttachmentActions attachment={notif.attachment} />}
 
                   <div style={{ fontSize: '0.725rem', color: 'var(--text-subtle)', marginTop: '6px' }}>
                     {new Date(notif.created_at).toLocaleString()}

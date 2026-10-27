@@ -36,6 +36,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { dataService } from '../../lib/dataService';
 import { pushService } from '../../lib/pushNotificationService';
+import { AttachmentActions } from '../../components/AttachmentActions';
 
 export const SuperAdminDashboard = () => {
   const { user, profile, logout } = useAuth();
@@ -1349,34 +1350,7 @@ export const SuperAdminDashboard = () => {
                           {ann.message || ann.content}
                         </p>
 
-                        {ann.attachment && (
-                          <div style={{ marginTop: '10px' }}>
-                            <a
-                              href={ann.attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={ann.attachment.name}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                background: '#F8FAFC',
-                                color: '#1E293B',
-                                border: '1px solid #CBD5E1',
-                                padding: '5px 12px',
-                                borderRadius: '6px',
-                                fontSize: '0.775rem',
-                                fontWeight: 600,
-                                textDecoration: 'none',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <Paperclip size={13} color="#4F46E5" />
-                              <span>📎 {ann.attachment.name}</span>
-                              <ExternalLink size={12} color="#64748B" />
-                            </a>
-                          </div>
-                        )}
+                        {ann.attachment && <AttachmentActions attachment={ann.attachment} theme="superadmin" />}
 
                         <div style={{ fontSize: '0.725rem', color: '#64748B', marginTop: '10px' }}>
                           Published by: <strong>{ann.author_name || 'Super Administrator'}</strong>

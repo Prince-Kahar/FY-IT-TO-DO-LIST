@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Plus, Trash2, Calendar, CheckCircle2, Paperclip, Download } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Calendar, CheckCircle2 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
 import { AnnouncementModal } from '../../components/AnnouncementModal';
+import { AttachmentActions } from '../../components/AttachmentActions';
 
 export const AdminAnnouncements = () => {
   const { addToast } = useToast();
@@ -148,38 +149,7 @@ export const AdminAnnouncements = () => {
                 {ann.message}
               </p>
 
-              {ann.attachment && (
-                <div style={{ marginTop: '12px' }}>
-                  <a
-                    href={ann.attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    download={ann.attachment.name}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: '#F0FDF4',
-                      border: '1px solid #BBF7D0',
-                      color: '#166534',
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <Paperclip size={14} color="#166534" />
-                    <span>📎 {ann.attachment.name}</span>
-                    {ann.attachment.size && (
-                      <span style={{ fontSize: '0.7rem', color: '#15803D' }}>
-                        ({(ann.attachment.size / 1024).toFixed(0)} KB)
-                      </span>
-                    )}
-                    <Download size={13} style={{ marginLeft: 4 }} />
-                  </a>
-                </div>
-              )}
+              {ann.attachment && <AttachmentActions attachment={ann.attachment} />}
             </div>
           ))}
         </div>
