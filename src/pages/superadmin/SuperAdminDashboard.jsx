@@ -453,12 +453,10 @@ export const SuperAdminDashboard = () => {
           </div>
         </div>
 
-        {/* Tab Navigation Segmented Bar */}
+        {/* Tab Navigation Segmented Bar (Horizontally scrollable on mobile) */}
         <div
+          className="tab-scroll-bar"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
             background: '#FFFFFF',
             padding: '6px',
             borderRadius: '12px',
@@ -471,7 +469,8 @@ export const SuperAdminDashboard = () => {
             type="button"
             onClick={() => setActiveTab('admins')}
             style={{
-              flex: 1,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -507,7 +506,8 @@ export const SuperAdminDashboard = () => {
             type="button"
             onClick={() => setActiveTab('subjects')}
             style={{
-              flex: 1,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -543,7 +543,8 @@ export const SuperAdminDashboard = () => {
             type="button"
             onClick={() => setActiveTab('broadcasts')}
             style={{
-              flex: 1,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1682,7 +1683,7 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-grid-2" style={{ marginBottom: '14px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>Admin Username *</label>
                 <input
@@ -1994,7 +1995,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-grid-2" style={{ marginBottom: '14px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
                   Subject Code
@@ -2187,7 +2188,7 @@ const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-grid-2" style={{ marginBottom: '14px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
                   Priority Level

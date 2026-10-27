@@ -78,7 +78,7 @@ export const StudentProfile = () => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+      <div className="dashboard-grid-2">
         {/* Profile Card */}
         <div className="card">
           <div className="card-header">

@@ -386,14 +386,7 @@ export const StudentDashboard = () => {
       </div>
 
       {/* Grid: Upcoming Deadlines & Class Announcements */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-          gap: '24px',
-          marginBottom: '28px',
-        }}
-      >
+      <div className="dashboard-grid-2">
         {/* Upcoming Deadlines */}
         <div className="card">
           <div className="card-header">

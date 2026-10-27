@@ -321,7 +321,7 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Grid: Subject Completion Overview & Active Announcements */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+      <div className="dashboard-grid-2">
         {/* Subject Overview */}
         <div className="card">
           <div className="card-header">

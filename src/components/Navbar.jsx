@@ -65,19 +65,12 @@ export const Navbar = ({ onMenuClick }) => {
               borderRadius: '50%',
               objectFit: 'contain',
               border: '1px solid var(--border-light)',
+              flexShrink: 0,
             }}
           />
-          <span
-            style={{
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              color: 'var(--text-main)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>STERS • FY B.Sc. IT & BCA</span>
+          <span className="navbar-brand-text">
+            <span className="navbar-title-full">STERS • FY B.Sc. IT & BCA</span>
+            <span className="navbar-title-short">STERS FYIT</span>
           </span>
         </div>
       </div>
@@ -88,12 +81,14 @@ export const Navbar = ({ onMenuClick }) => {
           {isAdmin ? (
             <>
               <Shield size={12} />
-              <span>Class Head / Admin</span>
+              <span className="role-text-full">Class Head / Admin</span>
+              <span className="role-text-short">Admin</span>
             </>
           ) : (
             <>
               <User size={12} />
-              <span>Student ({profile?.roll_number || 'FYIT'})</span>
+              <span className="role-text-full">Student ({profile?.roll_number || 'FYIT'})</span>
+              <span className="role-text-short">{profile?.roll_number || 'Student'}</span>
             </>
           )}
         </span>

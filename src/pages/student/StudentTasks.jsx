@@ -150,15 +150,7 @@ export const StudentTasks = () => {
       </div>
 
       {/* Status Filter Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          overflowX: 'auto',
-          gap: '8px',
-          paddingBottom: '8px',
-          marginBottom: '16px',
-        }}
-      >
+      <div className="tab-scroll-bar" style={{ marginBottom: '16px' }}>
         {[
           { key: 'ALL', label: 'All Tasks', count: assignments.length },
           {
@@ -193,6 +185,8 @@ export const StudentTasks = () => {
             className="btn btn-sm"
             onClick={() => setStatusFilter(tab.key)}
             style={{
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
               background: statusFilter === tab.key ? 'var(--primary-600)' : '#FFFFFF',
               color: statusFilter === tab.key ? '#FFFFFF' : 'var(--text-muted)',
               border: `1px solid ${statusFilter === tab.key ? 'var(--primary-600)' : 'var(--border-light)'}`,

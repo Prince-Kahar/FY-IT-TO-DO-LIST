@@ -187,7 +187,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
             </div>
 
             {/* Subject and Topic selection */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-grid-2">
               <div className="form-group">
                 <label className="form-label">Subject *</label>
                 <select
@@ -323,7 +323,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
             </div>
 
             {/* Assignment Target & Publication Status */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-grid-2">
               <div className="form-group">
                 <label className="form-label">Target Students</label>
                 <select

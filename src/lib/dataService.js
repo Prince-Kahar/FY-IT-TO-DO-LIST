@@ -14,6 +14,23 @@ let localAnnouncements = [];
 let localNotifications = [];
 let localTodos = [];
 
+// RFC4122 v4 UUID helpers for Supabase PostgreSQL compatibility
+export const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+export const isValidUUID = (str) => {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+};
+
 // Realtime sync channels and listener bus
 let realtimeChannel = null;
 let realtimeListeners = new Set();
@@ -57,8 +74,9 @@ export const dataService = {
   },
 
   async createSubject(subjectData) {
+    const subjectId = (subjectData.id && isValidUUID(subjectData.id)) ? subjectData.id : generateUUID();
     const cleanSubject = {
-      id: subjectData.id || 'sub-' + Date.now(),
+      id: subjectId,
       name: subjectData.name,
       subject_code: subjectData.subject_code || 'FYS-GEN',
       description: subjectData.description || null,
@@ -80,10 +98,10 @@ export const dataService = {
           this.notifyLocalChange('SUBJECT_CREATED', data);
           return data;
         } else if (error) {
-          console.warn('Supabase createSubject error:', error.message);
+          console.error('Supabase createSubject error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase createSubject notice:', err);
+        console.error('Supabase createSubject notice:', err);
       }
     }
     this.notifyLocalChange('SUBJECT_CREATED', cleanSubject);
@@ -145,9 +163,10 @@ export const dataService = {
   },
 
   async createTopic(topicData) {
+    const topicId = (topicData.id && isValidUUID(topicData.id)) ? topicData.id : generateUUID();
     const newTopic = {
       ...topicData,
-      id: 'top-' + Date.now(),
+      id: topicId,
       created_at: new Date().toISOString(),
     };
     localTopics.push(newTopic);
@@ -156,15 +175,17 @@ export const dataService = {
       try {
         const { data, error } = await supabase
           .from('topics')
-          .insert([topicData])
+          .insert([newTopic])
           .select()
           .single();
         if (!error && data) {
           this.notifyLocalChange('TOPIC_CREATED', data);
           return data;
+        } else if (error) {
+          console.error('Supabase createTopic error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase createTopic notice:', err);
+        console.error('Supabase createTopic notice:', err);
       }
     }
     this.notifyLocalChange('TOPIC_CREATED', newTopic);
@@ -211,13 +232,21 @@ export const dataService = {
   },
 
   async createTask(taskData, targetStudentIds = []) {
-    const taskId = taskData.id || 'task-' + Date.now();
+    let resolvedSubjectId = (taskData.subject_id && isValidUUID(taskData.subject_id)) ? taskData.subject_id : null;
+    if (!resolvedSubjectId) {
+      const subs = await this.getSubjects();
+      if (subs && subs.length > 0 && isValidUUID(subs[0].id)) {
+        resolvedSubjectId = subs[0].id;
+      }
+    }
+
+    const taskId = (taskData.id && isValidUUID(taskData.id)) ? taskData.id : generateUUID();
     const cleanTask = {
       id: taskId,
       title: taskData.title,
       description: taskData.description || null,
-      subject_id: taskData.subject_id || null,
-      topic_id: taskData.topic_id || null,
+      subject_id: resolvedSubjectId,
+      topic_id: (taskData.topic_id && isValidUUID(taskData.topic_id)) ? taskData.topic_id : null,
       task_type: taskData.task_type || 'Assignment',
       priority: taskData.priority || 'Medium',
       due_at: taskData.due_at || new Date(Date.now() + 86400000 * 7).toISOString(),
@@ -225,7 +254,7 @@ export const dataService = {
       publication_status: taskData.publication_status || 'Published',
       assignment_target: taskData.assignment_target || 'all',
       reference_url: taskData.reference_url || null,
-      created_by: taskData.created_by || null,
+      created_by: (taskData.created_by && isValidUUID(taskData.created_by)) ? taskData.created_by : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -236,51 +265,16 @@ export const dataService = {
         const { data: task, error } = await supabase
           .from('tasks')
           .insert([cleanTask])
-          .select()
+          .select('*, subjects(name, subject_code), topics(name)')
           .single();
 
         if (!error && task) {
           taskResult = task;
-          // Directly assign task to students in Supabase
-          if (task.publication_status === 'Published') {
-            try {
-              const students = await this.getStudents();
-              const targetList = (task.assignment_target === 'all' || !targetStudentIds?.length)
-                ? (students || []).map((s) => s.id)
-                : targetStudentIds;
-
-              if (targetList.length > 0) {
-                const asgRows = targetList.map((sId) => ({
-                  id: 'asg-' + task.id + '-' + sId,
-                  task_id: task.id,
-                  student_id: sId,
-                  status: 'Assigned',
-                  assigned_at: new Date().toISOString(),
-                  is_late: false,
-                }));
-                await supabase.from('task_assignments').upsert(asgRows, { onConflict: 'task_id,student_id' });
-
-                const notifRows = targetList.map((sId) => ({
-                  id: 'notif-' + task.id + '-' + sId,
-                  user_id: sId,
-                  title: 'New Task Assigned: ' + task.title,
-                  message: `Due on ${new Date(task.due_at).toLocaleDateString()}. Check requirements and submit before deadline.`,
-                  notification_type: 'task_assigned',
-                  related_task_id: task.id,
-                  is_read: false,
-                  created_at: new Date().toISOString(),
-                }));
-                await supabase.from('notifications').insert(notifRows);
-              }
-            } catch (asgErr) {
-              console.warn('Supabase direct task assignment notice:', asgErr);
-            }
-          }
         } else if (error) {
-          console.warn('Supabase createTask error:', error.message);
+          console.error('Supabase createTask error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase createTask notice:', err);
+        console.error('Supabase createTask notice:', err);
       }
     }
 
@@ -295,7 +289,7 @@ export const dataService = {
 
       studentsToAssign.forEach((st) => {
         localAssignments.push({
-          id: 'asg-' + Date.now() + '-' + st.id,
+          id: 'asg-' + newTask.id + '-' + st.id,
           task_id: newTask.id,
           student_id: st.id,
           status: 'Assigned',
@@ -367,84 +361,64 @@ export const dataService = {
   async getStudentAssignments(studentId) {
     if (isSupabaseConfigured()) {
       try {
-        // Attempt check_overdue_tasks RPC safely without failing if function does not exist
-        try {
-          await supabase.rpc('check_overdue_tasks');
-        } catch (rpcErr) {}
-
-        const { data, error } = await supabase
-          .from('task_assignments')
-          .select(`
-            *,
-            tasks (
-              id,
-              title,
-              description,
-              due_at,
-              priority,
-              task_type,
-              max_marks,
-              subject_id,
-              topic_id,
-              subjects (id, name, subject_code),
-              topics (id, name)
-            ),
-            submissions (
-              id,
-              status,
-              comment,
-              submitted_at,
-              reviewed_at,
-              feedback,
-              marks_awarded,
-              attempt_number,
-              submission_files (id, storage_path, original_file_name, file_size)
-            )
-          `)
-          .eq('student_id', studentId)
-          .order('assigned_at', { ascending: false });
-
-        let currentAssignments = (!error && Array.isArray(data)) ? data : [];
-
-        // Auto-bridge: Fetch all published tasks from Supabase
-        const { data: allTasks } = await supabase
+        // 1. Fetch all published tasks directly from Supabase
+        const { data: allTasks, error: tasksError } = await supabase
           .from('tasks')
           .select('*, subjects(id, name, subject_code), topics(id, name)')
           .eq('publication_status', 'Published')
           .order('created_at', { ascending: false });
 
-        if (Array.isArray(allTasks) && allTasks.length > 0) {
-          const assignedTaskIds = new Set(currentAssignments.map((a) => a.task_id || a.tasks?.id));
-          const missingTasks = allTasks.filter((t) => {
-            if (assignedTaskIds.has(t.id)) return false;
-            if (t.assignment_target === 'all' || !t.assignment_target) return true;
-            return false;
+        if (!tasksError && Array.isArray(allTasks)) {
+          // 2. Fetch submissions for this student from localStorage & Supabase
+          const localStoredSubs = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+          let studentSubmissions = localStoredSubs.filter(
+            (s) => s.student_id === studentId || s.student_id === String(studentId)
+          );
+
+          try {
+            const { data: remoteSubs } = await supabase
+              .from('submissions')
+              .select('*, submission_files(*)');
+            if (Array.isArray(remoteSubs)) {
+              const matchedRemote = remoteSubs.filter(
+                (s) => s.student_id === studentId || s.student_id === String(studentId)
+              );
+              studentSubmissions = [...studentSubmissions, ...matchedRemote];
+            }
+          } catch (e) {}
+
+          // 3. Map each published task into an assignment object
+          const assignments = allTasks.map((task) => {
+            const taskSubs = studentSubmissions.filter(
+              (s) => s.task_id === task.id || s.task_assignment_id === ('asg-' + task.id + '-' + studentId)
+            );
+            const latestSub = taskSubs[0] || null;
+
+            let status = 'Assigned';
+            if (latestSub) {
+              status = latestSub.status || 'Submitted';
+            } else if (task.due_at && new Date(task.due_at) < new Date()) {
+              status = 'Overdue';
+            }
+
+            return {
+              id: 'asg-' + task.id + '-' + studentId,
+              task_id: task.id,
+              student_id: studentId,
+              status: status,
+              assigned_at: task.created_at || new Date().toISOString(),
+              started_at: null,
+              completed_at: latestSub?.submitted_at || null,
+              is_late: task.due_at ? new Date() > new Date(task.due_at) : false,
+              tasks: task,
+              submissions: taskSubs.map((s) => ({
+                ...s,
+                submission_files: s.submission_files || s.files || [],
+              })),
+            };
           });
 
-          if (missingTasks.length > 0) {
-            const newAsgRows = missingTasks.map((t) => ({
-              id: 'asg-' + t.id + '-' + studentId,
-              task_id: t.id,
-              student_id: studentId,
-              status: 'Assigned',
-              assigned_at: new Date().toISOString(),
-              is_late: false,
-            }));
-            try {
-              await supabase.from('task_assignments').upsert(newAsgRows, { onConflict: 'task_id,student_id' });
-            } catch (upsertErr) {}
-
-            const synthesized = missingTasks.map((t, idx) => ({
-              ...newAsgRows[idx],
-              tasks: t,
-              submissions: [],
-            }));
-            currentAssignments = [...currentAssignments, ...synthesized];
-          }
-        }
-
-        if (currentAssignments.length > 0) {
-          return currentAssignments;
+          return assignments;
         }
       } catch (err) {
         console.warn('Supabase getStudentAssignments notice:', err);
@@ -521,126 +495,140 @@ export const dataService = {
   // =========================================================================
   async submitTaskWork({ assignmentId, studentId, comment, files, taskDueDate }) {
     const isLate = taskDueDate ? new Date() > new Date(taskDueDate) : false;
+    const submissionId = generateUUID();
 
-    if (isSupabaseConfigured()) {
-      // 1. Fetch current assignment to determine attempt number
-      const { data: existingSubmissions } = await supabase
-        .from('submissions')
-        .select('id, attempt_number')
-        .eq('task_assignment_id', assignmentId)
-        .order('attempt_number', { ascending: false });
-
-      const nextAttempt = (existingSubmissions?.[0]?.attempt_number || 0) + 1;
-
-      // 2. Insert submission record
-      const { data: submission, error: subError } = await supabase
-        .from('submissions')
-        .insert([
-          {
-            task_assignment_id: assignmentId,
-            student_id: studentId,
-            comment,
-            status: 'Submitted',
-            submitted_at: new Date().toISOString(),
-            attempt_number: nextAttempt,
-          },
-        ])
-        .select()
-        .single();
-
-      if (subError) throw subError;
-
-      // 3. Upload files to Supabase Storage & insert submission_files
-      const uploadedFiles = [];
-      for (const file of files) {
-        const uploadResult = await uploadSubmissionPhoto({
-          file,
-          studentId,
-          taskAssignmentId: assignmentId,
-          submissionId: submission.id,
-        });
-
-        const { data: fileRecord, error: fileError } = await supabase
-          .from('submission_files')
-          .insert([
-            {
-              submission_id: submission.id,
-              storage_path: uploadResult.storagePath,
-              original_file_name: uploadResult.originalName,
-              content_type: uploadResult.contentType,
-              file_size: uploadResult.fileSize,
-            },
-          ])
-          .select()
-          .single();
-
-        if (fileError) console.error('Error saving submission file metadata:', fileError);
-        uploadedFiles.push({ ...fileRecord, signed_url: uploadResult.signedUrl });
-      }
-
-      // 4. Update task_assignment status to 'Submitted'
-      await supabase
-        .from('task_assignments')
-        .update({
-          status: 'Submitted',
-          completed_at: new Date().toISOString(),
-          is_late: isLate,
-        })
-        .eq('id', assignmentId);
-
-      const subResult = {
-        ...submission,
-        submission_files: uploadedFiles,
-      };
-      this.notifyLocalChange('SUBMISSION_CREATED', subResult);
-      return subResult;
-    }
-
-    // Demo Mode Implementation
-    const assignment = localAssignments.find((a) => a.id === assignmentId);
-    const existingCount = localSubmissions.filter((s) => s.task_assignment_id === assignmentId).length;
-
-    const newSubmissionId = 'subm-' + Date.now();
+    // 1. Prepare uploaded photos representation
     const uploadedPhotos = files.map((f, idx) => ({
       id: 'file-' + Date.now() + '-' + idx,
-      storage_path: `${studentId}/${assignmentId}/${newSubmissionId}/${f.name}`,
+      storage_path: `${studentId}/${assignmentId}/${submissionId}/${f.name}`,
       original_file_name: f.name,
       signed_url: URL.createObjectURL(f),
       content_type: f.type,
       file_size: f.size,
     }));
 
-    const newSubmission = {
-      id: newSubmissionId,
-      task_assignment_id: assignmentId,
-      student_id: studentId,
-      comment,
-      status: 'Submitted',
-      submitted_at: new Date().toISOString(),
-      reviewed_by: null,
-      reviewed_at: null,
-      feedback: null,
-      marks_awarded: null,
-      attempt_number: existingCount + 1,
-      files: uploadedPhotos,
-    };
+    let supaSubmission = null;
+    let supaUploadedFiles = [];
 
-    localSubmissions.unshift(newSubmission);
+    if (isSupabaseConfigured() && isValidUUID(assignmentId) && isValidUUID(studentId)) {
+      try {
+        const { data: existingSubmissions } = await supabase
+          .from('submissions')
+          .select('id, attempt_number')
+          .eq('task_assignment_id', assignmentId)
+          .order('attempt_number', { ascending: false });
 
+        const nextAttempt = (existingSubmissions?.[0]?.attempt_number || 0) + 1;
+
+        const { data: subData, error: subError } = await supabase
+          .from('submissions')
+          .insert([
+            {
+              id: submissionId,
+              task_assignment_id: assignmentId,
+              student_id: studentId,
+              comment,
+              status: 'Submitted',
+              submitted_at: new Date().toISOString(),
+              attempt_number: nextAttempt,
+            },
+          ])
+          .select()
+          .single();
+
+        if (!subError && subData) {
+          supaSubmission = subData;
+          for (const file of files) {
+            try {
+              const uploadResult = await uploadSubmissionPhoto({
+                file,
+                studentId,
+                taskAssignmentId: assignmentId,
+                submissionId: subData.id,
+              });
+
+              const { data: fileRecord } = await supabase
+                .from('submission_files')
+                .insert([
+                  {
+                    submission_id: subData.id,
+                    storage_path: uploadResult.storagePath,
+                    original_file_name: uploadResult.originalName,
+                    content_type: uploadResult.contentType,
+                    file_size: uploadResult.fileSize,
+                  },
+                ])
+                .select()
+                .single();
+
+              if (fileRecord) {
+                supaUploadedFiles.push({ ...fileRecord, signed_url: uploadResult.signedUrl });
+              }
+            } catch (err) {}
+          }
+
+          await supabase
+            .from('task_assignments')
+            .update({
+              status: 'Submitted',
+              completed_at: new Date().toISOString(),
+              is_late: isLate,
+            })
+            .eq('id', assignmentId);
+        }
+      } catch (err) {
+        console.warn('Supabase direct submission attempt notice:', err);
+      }
+    }
+
+    const finalSubmission = supaSubmission
+      ? { ...supaSubmission, submission_files: supaUploadedFiles.length > 0 ? supaUploadedFiles : uploadedPhotos }
+      : {
+          id: submissionId,
+          task_assignment_id: assignmentId,
+          student_id: studentId,
+          comment,
+          status: 'Submitted',
+          submitted_at: new Date().toISOString(),
+          reviewed_by: null,
+          reviewed_at: null,
+          feedback: null,
+          marks_awarded: null,
+          attempt_number: 1,
+          submission_files: uploadedPhotos,
+          files: uploadedPhotos,
+        };
+
+    // Store in localStorage for persistent offline proof
+    try {
+      const stored = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      stored.unshift(finalSubmission);
+      localStorage.setItem('fy_it_submissions', JSON.stringify(stored));
+    } catch (e) {}
+
+    localSubmissions.unshift(finalSubmission);
+
+    const assignment = localAssignments.find((a) => a.id === assignmentId);
     if (assignment) {
       assignment.status = 'Submitted';
       assignment.completed_at = new Date().toISOString();
       assignment.is_late = isLate;
     }
 
-    this.notifyLocalChange('SUBMISSION_CREATED', newSubmission);
-    return newSubmission;
+    this.notifyLocalChange('SUBMISSION_CREATED', finalSubmission);
+    return finalSubmission;
   },
 
   // =========================================================================
   // ADMIN REVIEW & FEEDBACK
   // =========================================================================
   async getAllSubmissions() {
+    let allSubs = [];
+    try {
+      const localStored = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      allSubs = [...localStored, ...localSubmissions];
+    } catch (e) {}
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -667,43 +655,39 @@ export const dataService = {
           .order('submitted_at', { ascending: false });
 
         if (!error && Array.isArray(data) && data.length > 0) {
-          return data.map((sub) => {
-            const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
-            return {
-              ...sub,
-              task_assignments: asg,
-            };
-          });
+          allSubs = [...data, ...allSubs];
         }
       } catch (err) {
         console.warn('Supabase getAllSubmissions notice:', err);
       }
     }
 
-    // Demo fallback: assemble submissions with student & task info
-    return localSubmissions.map((sub) => {
-      const st = localStudents.find((s) => s.id === sub.student_id);
-      const asg = localAssignments.find((a) => a.id === sub.task_assignment_id);
-      const t = asg ? localTasks.find((tk) => tk.id === asg.task_id) : null;
-      const s = t ? localSubjects.find((sb) => sb.id === t.subject_id) : null;
-      const tp = t ? localTopics.find((top) => top.id === t.topic_id) : null;
+    // Deduplicate by ID
+    const seen = new Set();
+    const uniqueSubs = allSubs.filter((s) => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+
+    const students = await this.getStudents();
+    const tasks = await this.getTasks();
+
+    return uniqueSubs.map((sub) => {
+      const st = students.find((s) => s.id === sub.student_id);
+      const taskId = sub.task_assignment_id?.replace(/^asg-/, '').replace(/-[^-]+$/, '') || sub.task_id;
+      const t = tasks.find((tk) => tk.id === taskId);
+      const asg = Array.isArray(sub.task_assignments) ? sub.task_assignments[0] : sub.task_assignments;
 
       return {
         ...sub,
-        profiles: st || { full_name: 'Student', roll_number: 'N/A' },
-        task_assignments: asg
-          ? {
-              ...asg,
-              tasks: t
-                ? {
-                    ...t,
-                    subjects: s ? { name: s.name, subject_code: s.subject_code } : null,
-                    topics: tp ? { name: tp.name } : null,
-                  }
-                : null,
-            }
-          : null,
-        submission_files: sub.files || [],
+        profiles: sub.profiles || st || { full_name: 'Student', roll_number: 'N/A' },
+        task_assignments: asg || {
+          id: sub.task_assignment_id,
+          status: sub.status,
+          tasks: t || null,
+        },
+        submission_files: sub.submission_files || sub.files || [],
       };
     });
   },
@@ -1027,13 +1011,14 @@ export const dataService = {
 
   async createAnnouncement(annData) {
     let annResult = null;
+    const annId = (annData.id && isValidUUID(annData.id)) ? annData.id : generateUUID();
     const cleanPayload = {
       ...annData,
-      id: annData.id || 'ann-' + Date.now(),
+      id: annId,
       title: annData.title || 'Campus Announcement',
       message: annData.message || annData.content || '',
       content: annData.content || annData.message || '',
-      author_id: annData.author_id || null,
+      author_id: (annData.author_id && isValidUUID(annData.author_id)) ? annData.author_id : null,
       author_name: annData.author_name || 'Super Administrator',
       priority: annData.priority || 'Medium',
       target_audience: annData.target_audience || 'All',
@@ -1050,10 +1035,10 @@ export const dataService = {
           .single();
         if (!error && data) annResult = data;
         else if (error) {
-          console.warn('Supabase createAnnouncement error:', error.message);
+          console.error('Supabase createAnnouncement error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase createAnnouncement notice:', err);
+        console.error('Supabase createAnnouncement notice:', err);
       }
     }
     const newAnn = annResult || cleanPayload;

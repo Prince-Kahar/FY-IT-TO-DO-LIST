@@ -15,6 +15,7 @@ import {
   GraduationCap,
   Layers,
   ListTodo,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -96,7 +97,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
             }}
           />
-          <div className="brand-title">
+          <div className="brand-title" style={{ flex: 1 }}>
             <span>STERS Portal</span>
             <span className="brand-subtitle">
               {isSuperAdmin
@@ -106,6 +107,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 : 'FY B.Sc. IT & BCA'}
             </span>
           </div>
+
+          {/* Close button visible on mobile screens */}
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={onClose}
+            aria-label="Close sidebar navigation"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation List */}
