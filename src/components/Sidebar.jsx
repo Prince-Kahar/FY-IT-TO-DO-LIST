@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -24,17 +24,24 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { user, profile, isAdmin, isSuperAdmin, logout } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavClick = (to) => {
+    navigate(to);
+    if (onClose) {
+      onClose();
+    }
+  };
 
   const handleLogout = async () => {
     try {
-      const wasSuper = isSuperAdmin;
-      const wasAdmin = isAdmin;
-      await logout();
+      const currentRole = isSuperAdmin ? 'superadmin' : isAdmin ? 'admin' : 'student';
+      await logout(currentRole);
       addToast('Logged out successfully.', 'info');
-      if (wasSuper) {
-        navigate('/superadmin');
-      } else if (wasAdmin) {
-        navigate('/admin');
+      if (currentRole === 'superadmin') {
+        navigate('/superadmin/login');
+      } else if (currentRole === 'admin') {
+        navigate('/admin/login');
       } else {
         navigate('/login');
       }
@@ -131,16 +138,40 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
           {links.map((item) => {
             const Icon = item.icon;
+            const isActive =
+              location.pathname === item.to ||
+              (item.to !== '/admin' &&
+                item.to !== '/dashboard' &&
+                item.to !== '/superadmin' &&
+                location.pathname.startsWith(item.to));
+
             return (
-              <NavLink
+              <button
                 key={item.to}
-                to={item.to}
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                onClick={onClose}
+                type="button"
+                className={`nav-link ${isActive ? 'active' : ''}`}
+                onClick={() => handleNavClick(item.to)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: isActive ? 'var(--primary-600)' : 'transparent',
+                  font: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  color: isActive ? '#FFFFFF' : 'var(--text-muted)',
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: '0.9rem',
+                  touchAction: 'manipulation',
+                }}
               >
-                <Icon size={18} />
+                <Icon size={18} color={isActive ? '#FFFFFF' : 'currentColor'} />
                 <span>{item.label}</span>
-              </NavLink>
+              </button>
             );
           })}
         </nav>

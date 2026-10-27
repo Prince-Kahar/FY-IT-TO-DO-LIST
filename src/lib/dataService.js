@@ -359,70 +359,91 @@ export const dataService = {
   // STUDENT SPECIFIC ASSIGNMENTS & PROGRESS
   // =========================================================================
   async getStudentAssignments(studentId) {
+    let allTasks = [];
+
     if (isSupabaseConfigured()) {
       try {
-        // 1. Fetch all published tasks directly from Supabase
-        const { data: allTasks, error: tasksError } = await supabase
+        // 1. Fetch tasks directly from Supabase
+        const { data: remoteTasks, error: tasksError } = await supabase
           .from('tasks')
           .select('*, subjects(id, name, subject_code), topics(id, name)')
-          .eq('publication_status', 'Published')
           .order('created_at', { ascending: false });
 
-        if (!tasksError && Array.isArray(allTasks)) {
-          // 2. Fetch submissions for this student from localStorage & Supabase
-          const localStoredSubs = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
-          let studentSubmissions = localStoredSubs.filter(
-            (s) => s.student_id === studentId || s.student_id === String(studentId)
+        if (!tasksError && Array.isArray(remoteTasks)) {
+          allTasks = remoteTasks.filter(
+            (t) => !t.publication_status || t.publication_status.toLowerCase() === 'published'
           );
-
-          try {
-            const { data: remoteSubs } = await supabase
-              .from('submissions')
-              .select('*, submission_files(*)');
-            if (Array.isArray(remoteSubs)) {
-              const matchedRemote = remoteSubs.filter(
-                (s) => s.student_id === studentId || s.student_id === String(studentId)
-              );
-              studentSubmissions = [...studentSubmissions, ...matchedRemote];
-            }
-          } catch (e) {}
-
-          // 3. Map each published task into an assignment object
-          const assignments = allTasks.map((task) => {
-            const taskSubs = studentSubmissions.filter(
-              (s) => s.task_id === task.id || s.task_assignment_id === ('asg-' + task.id + '-' + studentId)
-            );
-            const latestSub = taskSubs[0] || null;
-
-            let status = 'Assigned';
-            if (latestSub) {
-              status = latestSub.status || 'Submitted';
-            } else if (task.due_at && new Date(task.due_at) < new Date()) {
-              status = 'Overdue';
-            }
-
-            return {
-              id: 'asg-' + task.id + '-' + studentId,
-              task_id: task.id,
-              student_id: studentId,
-              status: status,
-              assigned_at: task.created_at || new Date().toISOString(),
-              started_at: null,
-              completed_at: latestSub?.submitted_at || null,
-              is_late: task.due_at ? new Date() > new Date(task.due_at) : false,
-              tasks: task,
-              submissions: taskSubs.map((s) => ({
-                ...s,
-                submission_files: s.submission_files || s.files || [],
-              })),
-            };
-          });
-
-          return assignments;
         }
       } catch (err) {
         console.warn('Supabase getStudentAssignments notice:', err);
       }
+    }
+
+    // 2. Merge with any local tasks created recently
+    if (Array.isArray(localTasks) && localTasks.length > 0) {
+      const seenTaskIds = new Set(allTasks.map((t) => t.id));
+      localTasks
+        .filter((t) => !t.publication_status || t.publication_status.toLowerCase() === 'published')
+        .forEach((lt) => {
+          if (!seenTaskIds.has(lt.id)) {
+            allTasks.push(lt);
+            seenTaskIds.add(lt.id);
+          }
+        });
+    }
+
+    if (allTasks.length > 0) {
+      const localStoredSubs = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      let studentSubmissions = localStoredSubs.filter(
+        (s) => s.student_id === studentId || s.student_id === String(studentId)
+      );
+
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: remoteSubs } = await supabase
+            .from('submissions')
+            .select('*, submission_files(*)');
+          if (Array.isArray(remoteSubs)) {
+            const matchedRemote = remoteSubs.filter(
+              (s) => s.student_id === studentId || s.student_id === String(studentId)
+            );
+            studentSubmissions = [...studentSubmissions, ...matchedRemote];
+          }
+        } catch (e) {}
+      }
+
+      // Map each published task into an assignment object
+      const assignments = allTasks.map((task) => {
+        const taskSubs = studentSubmissions.filter(
+          (s) => s.task_id === task.id || s.task_assignment_id === ('asg-' + task.id + '-' + studentId)
+        );
+        const latestSub = taskSubs[0] || null;
+
+        let status = 'Assigned';
+        if (latestSub) {
+          status = latestSub.status || 'Submitted';
+        } else if (task.due_at && new Date(task.due_at) < new Date()) {
+          status = 'Overdue';
+        }
+
+        return {
+          id: 'asg-' + task.id + '-' + studentId,
+          task_id: task.id,
+          student_id: studentId,
+          status: status,
+          assigned_at: task.created_at || new Date().toISOString(),
+          started_at: null,
+          completed_at: latestSub?.submitted_at || null,
+          is_late: task.due_at ? new Date() > new Date(task.due_at) : false,
+          tasks: task,
+          submissions: taskSubs.map((s) => ({
+            ...s,
+            submission_files: s.submission_files || s.files || [],
+          })),
+        };
+      });
+
+      return assignments;
     }
 
     // Demo mode: Return joined assignments
@@ -1068,21 +1089,37 @@ export const dataService = {
       try {
         const students = await this.getStudents();
         if (Array.isArray(students) && students.length > 0) {
-          const notifs = students.map((st) => ({
-            id: 'notif-' + Math.random().toString(36).substring(2, 11),
-            user_id: st.id,
-            title: `📢 ${title}`,
-            message,
-            notification_type: 'announcement',
-            is_read: false,
-            created_at: new Date().toISOString(),
-          }));
-          await supabase.from('notifications').insert(notifs);
+          const validStudentIds = students
+            .map((st) => st.id)
+            .filter((id) => isValidUUID(id));
+
+          if (validStudentIds.length > 0) {
+            const notifs = validStudentIds.map((stId) => ({
+              id: generateUUID(),
+              user_id: stId,
+              title: `📢 ${title}`,
+              message,
+              notification_type: 'announcement',
+              is_read: false,
+              created_at: new Date().toISOString(),
+            }));
+            await supabase.from('notifications').insert(notifs);
+          }
         }
       } catch (e) {
-        console.warn('Broadcast notification to student feed error:', e);
+        console.warn('Broadcast notification to student feed caught:', e.message);
       }
     }
+
+    localNotifications.unshift({
+      id: generateUUID(),
+      title: `📢 ${title}`,
+      message,
+      notification_type: 'announcement',
+      is_read: false,
+      created_at: new Date().toISOString(),
+    });
+    this.notifyLocalChange('NOTIFICATION_RECEIVED', ann);
 
     return ann;
   },
@@ -1104,6 +1141,9 @@ export const dataService = {
   // NOTIFICATIONS
   // =========================================================================
   async getNotifications(userId) {
+    let combined = [];
+
+    // 1. Fetch student notifications from Supabase
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -1112,15 +1152,52 @@ export const dataService = {
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
         if (!error && Array.isArray(data)) {
-          return data;
+          combined = [...data];
         }
       } catch (err) {
         console.warn('Supabase getNotifications notice:', err);
       }
     }
-    return localNotifications
-      .filter((n) => n.user_id === userId)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    // 2. Fetch all campus announcements and merge into the student feed
+    try {
+      const announcements = await this.getAnnouncements();
+      if (Array.isArray(announcements)) {
+        const annNotifs = announcements.map((a) => ({
+          id: 'ann-' + a.id,
+          user_id: userId,
+          title: `📢 ${a.title}`,
+          message: a.message || a.content || '',
+          notification_type: 'announcement',
+          priority: a.priority || 'Normal',
+          is_read: false,
+          created_at: a.published_at || a.created_at || new Date().toISOString(),
+        }));
+        combined = [...combined, ...annNotifs];
+      }
+    } catch (e) {}
+
+    // Deduplicate by ID
+    const seen = new Set();
+    const unique = [];
+    for (const n of combined) {
+      if (!seen.has(n.id)) {
+        seen.add(n.id);
+        unique.push(n);
+      }
+    }
+
+    // Include local notifications
+    localNotifications
+      .filter((n) => !n.user_id || n.user_id === userId)
+      .forEach((n) => {
+        if (!seen.has(n.id)) {
+          seen.add(n.id);
+          unique.push(n);
+        }
+      });
+
+    return unique.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   },
 
   async markNotificationRead(id) {

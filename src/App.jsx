@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, useAuth, getTabTargetRole, getRoleStorageKey } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -39,59 +39,15 @@ import { NotFound } from './pages/NotFound';
 
 // Smart Home Redirector based on user role
 const RootRedirector = () => {
-  const { user, isAdmin, isSuperAdmin, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
-  if (isSuperAdmin) return <Navigate to="/superadmin" replace />;
-  return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
-};
-
-// Smart Admin Gateway: /admin
-// If not authenticated as admin, renders AdminLogin directly; if authenticated, renders AdminDashboard inside Layout.
-const AdminPortalGate = () => {
-  const { user, profile, isAdmin, isSuperAdmin, loading, switchPortalSession } = useAuth();
-
-  React.useEffect(() => {
-    if (profile && profile.role !== 'admin' && profile.role !== 'superadmin') {
-      switchPortalSession('admin');
-    }
-  }, [profile]);
-
-  if (loading) return null;
-  if (!user || (!isAdmin && !isSuperAdmin)) {
-    return <AdminLogin />;
+  const role = getTabTargetRole();
+  const key = getRoleStorageKey(role);
+  const session = sessionStorage.getItem(key) || localStorage.getItem(key);
+  if (session) {
+    if (role === 'superadmin') return <Navigate to="/superadmin" replace />;
+    if (role === 'admin') return <Navigate to="/admin" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
-  return (
-    <ProtectedRoute allowedRole="admin">
-      <ErrorBoundary>
-        <Layout>
-          <AdminDashboard />
-        </Layout>
-      </ErrorBoundary>
-    </ProtectedRoute>
-  );
-};
-
-// Smart Super Admin Gateway: /superadmin and /superAdmin
-// If not authenticated as superadmin, renders SuperAdminLogin directly; if authenticated, renders SuperAdminDashboard directly.
-const SuperAdminPortalGate = () => {
-  const { user, profile, isSuperAdmin, loading, switchPortalSession } = useAuth();
-
-  React.useEffect(() => {
-    if (profile && profile.role !== 'superadmin') {
-      switchPortalSession('superadmin');
-    }
-  }, [profile]);
-
-  if (loading) return null;
-  if (!user || !isSuperAdmin) {
-    return <SuperAdminLogin />;
-  }
-  return (
-    <ErrorBoundary>
-      <SuperAdminDashboard />
-    </ErrorBoundary>
-  );
+  return <Navigate to="/login" replace />;
 };
 
 export const App = () => {
@@ -105,37 +61,28 @@ export const App = () => {
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* Direct Login Routes */}
+            {/* Direct Admin & SuperAdmin Login Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/Admin/login" element={<AdminLogin />} />
+            <Route path="/ADMIN/login" element={<AdminLogin />} />
             <Route path="/superadmin/login" element={<SuperAdminLogin />} />
             <Route path="/superAdmin/login" element={<SuperAdminLogin />} />
             <Route path="/SuperAdmin/login" element={<SuperAdminLogin />} />
+            <Route path="/Superadmin/login" element={<SuperAdminLogin />} />
 
-            {/* Smart Root & Portal Gates */}
+            {/* Smart Root */}
             <Route path="/" element={<RootRedirector />} />
-            <Route path="/admin" element={<AdminPortalGate />} />
-            <Route path="/Admin" element={<AdminPortalGate />} />
-            <Route path="/ADMIN" element={<AdminPortalGate />} />
-            <Route path="/admin/dashboard" element={<AdminPortalGate />} />
-            <Route path="/superadmin" element={<SuperAdminPortalGate />} />
-            <Route path="/superAdmin" element={<SuperAdminPortalGate />} />
-            <Route path="/SuperAdmin" element={<SuperAdminPortalGate />} />
-            <Route path="/Superadmin" element={<SuperAdminPortalGate />} />
-            <Route path="/superadmin/dashboard" element={<SuperAdminPortalGate />} />
-            <Route path="/superAdmin/dashboard" element={<SuperAdminPortalGate />} />
 
-            {/* Protected Application Routes */}
+            {/* Student Protected Portal */}
             <Route
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRole="student">
                   <ErrorBoundary>
                     <Layout />
                   </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
-              {/* Student Routes */}
               <Route path="/dashboard" element={<StudentDashboard />} />
               <Route path="/todos" element={<StudentTodoList />} />
               <Route path="/tasks" element={<StudentTasks />} />
@@ -143,59 +90,83 @@ export const App = () => {
               <Route path="/submissions" element={<StudentSubmissions />} />
               <Route path="/notifications" element={<StudentNotifications />} />
               <Route path="/profile" element={<StudentProfile />} />
-
-              {/* Admin Routes */}
-              <Route
-                path="/admin/tasks"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminTasks />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/submissions"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminSubmissions />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/subjects"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminSubjects />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/students"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminStudents />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/reports"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminReports />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/announcements"
-                element={
-                  <ProtectedRoute allowedRole="admin">
-                    <AdminAnnouncements />
-                  </ProtectedRoute>
-                }
-              />
             </Route>
 
-            {/* 404 Route placed at root level */}
+            {/* Admin Protected Portal */}
+            <Route
+              element={
+                <ProtectedRoute allowedRole="admin">
+                  <ErrorBoundary>
+                    <Layout />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/Admin" element={<AdminDashboard />} />
+              <Route path="/ADMIN" element={<AdminDashboard />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/tasks" element={<AdminTasks />} />
+              <Route path="/admin/submissions" element={<AdminSubmissions />} />
+              <Route path="/admin/subjects" element={<AdminSubjects />} />
+              <Route path="/admin/students" element={<AdminStudents />} />
+              <Route path="/admin/reports" element={<AdminReports />} />
+              <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            </Route>
+
+            {/* Super Admin Protected Portal */}
+            <Route
+              path="/superadmin"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <ErrorBoundary>
+                    <SuperAdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/superAdmin"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <ErrorBoundary>
+                    <SuperAdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/SuperAdmin"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <ErrorBoundary>
+                    <SuperAdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Superadmin"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <ErrorBoundary>
+                    <SuperAdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/superadmin/dashboard"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <ErrorBoundary>
+                    <SuperAdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ToastProvider>

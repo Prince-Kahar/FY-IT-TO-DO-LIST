@@ -175,7 +175,8 @@ button {
   .sidebar {
     transform: translateX(-100%);
     box-shadow: none;
-    z-index: 100;
+    z-index: 1050;
+    pointer-events: auto;
   }
   .sidebar.open {
     transform: translateX(0);
@@ -188,7 +189,8 @@ button {
   inset: 0;
   background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(3px);
-  z-index: 95;
+  z-index: 1040;
+  pointer-events: auto;
 }
 
 .sidebar-close-btn {

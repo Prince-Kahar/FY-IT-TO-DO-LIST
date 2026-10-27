@@ -10,14 +10,12 @@ export const ADMIN_SESSION_KEY = 'fy_it_admin_session';
 export const SUPERADMIN_SESSION_KEY = 'fy_it_superadmin_session';
 export const TAB_ROLE_KEY = 'fy_it_tab_role';
 
-// Determine which role context applies to this browser tab
+// Determine which role context applies to this browser tab (Pathname has absolute priority)
 export const getTabTargetRole = () => {
   if (typeof window === 'undefined') return 'student';
   const path = window.location.pathname.toLowerCase();
   if (path.startsWith('/superadmin')) return 'superadmin';
   if (path.startsWith('/admin')) return 'admin';
-  const tabRole = sessionStorage.getItem(TAB_ROLE_KEY);
-  if (tabRole) return tabRole;
   return 'student';
 };
 
@@ -33,7 +31,7 @@ export const getInitialSession = () => {
     const role = getTabTargetRole();
     const key = getRoleStorageKey(role);
 
-    // 1. Check tab-isolated sessionStorage first (Unique per browser tab!)
+    // 1. Check tab-isolated sessionStorage first (Unique per browser tab)
     const sessionVal = sessionStorage.getItem(key);
     if (sessionVal) {
       const parsed = JSON.parse(sessionVal);
@@ -50,18 +48,6 @@ export const getInitialSession = () => {
       if (parsed && parsed.id) {
         sessionStorage.setItem(key, localVal);
         sessionStorage.setItem(TAB_ROLE_KEY, role);
-        return parsed;
-      }
-    }
-
-    // 3. Fallback: check legacy fy_it_user_session if role matches
-    const legacy = localStorage.getItem('fy_it_user_session');
-    if (legacy) {
-      const parsed = JSON.parse(legacy);
-      if (parsed && (parsed.role === role || (role === 'admin' && parsed.role === 'admin'))) {
-        sessionStorage.setItem(key, legacy);
-        sessionStorage.setItem(TAB_ROLE_KEY, role);
-        localStorage.setItem(key, legacy);
         return parsed;
       }
     }
@@ -243,7 +229,6 @@ export const AuthProvider = ({ children }) => {
             sessionStorage.setItem(TAB_ROLE_KEY, 'student');
             sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(studentProfile));
             localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(studentProfile));
-            localStorage.setItem('fy_it_user_session', JSON.stringify(studentProfile));
             return { user: studentProfile, profile: studentProfile };
           }
         } catch (supaError) {
@@ -284,7 +269,6 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.setItem(TAB_ROLE_KEY, 'student');
       sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
       localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify({ ...matchedStudent, role: 'student' }));
-      localStorage.setItem('fy_it_user_session', JSON.stringify({ ...matchedStudent, role: 'student' }));
       return { user: studentUser, profile: { ...matchedStudent, role: 'student' } };
     }
 
@@ -498,31 +482,26 @@ export const AuthProvider = ({ children }) => {
     sessionStorage.setItem(TAB_ROLE_KEY, 'student');
     sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(newStudent));
     localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(newStudent));
-    localStorage.setItem('fy_it_user_session', JSON.stringify(newStudent));
     return { user: newStudent, profile: newStudent };
   };
 
-  // Sign Out (Only signs out the current tab's active role, leaving other tabs intact!)
-  const logout = async () => {
-    const role = profile?.role || getTabTargetRole();
+  // Sign Out (Strict role isolation: Only signs out the targeted role)
+  const logout = async (forcedRole = null) => {
+    const role = forcedRole || profile?.role || getTabTargetRole();
     const key = getRoleStorageKey(role);
 
-    sessionStorage.removeItem(TAB_ROLE_KEY);
     sessionStorage.removeItem(key);
     localStorage.removeItem(key);
 
     if (role === 'student') {
-      localStorage.removeItem('fy_it_user_session');
       sessionStorage.removeItem('fy_it_demo_user');
-      if (isSupabaseConfigured()) {
-        try {
-          await supabase.auth.signOut();
-        } catch (err) {}
-      }
+      localStorage.removeItem('fy_it_user_session');
     }
 
-    setUser(null);
-    setProfile(null);
+    if (!forcedRole || profile?.role === forcedRole) {
+      setUser(null);
+      setProfile(null);
+    }
   };
 
   // Password Reset

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, ADMIN_SESSION_KEY, SUPERADMIN_SESSION_KEY, STUDENT_SESSION_KEY } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export const ProtectedRoute = ({ children, allowedRole = null }) => {
-  const { user, profile, loading, isAdmin, isSuperAdmin, switchPortalSession } = useAuth();
+  const { user, profile, loading, switchPortalSession } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -28,35 +28,61 @@ export const ProtectedRoute = ({ children, allowedRole = null }) => {
     );
   }
 
-  // If not logged in, redirect to respective login page with return path
-  if (!user) {
-    if (location.pathname.startsWith('/admin')) {
-      return <Navigate to="/admin" state={{ from: location }} replace />;
+  // 1. ADMIN ROUTE PROTECTION (/admin/*)
+  if (allowedRole === 'admin') {
+    if (profile?.role === 'admin' || profile?.role === 'superadmin') {
+      return children;
     }
-    if (location.pathname.toLowerCase().startsWith('/superadmin')) {
-      return <Navigate to="/superadmin" state={{ from: location }} replace />;
+    const storedAdmin =
+      sessionStorage.getItem(ADMIN_SESSION_KEY) || localStorage.getItem(ADMIN_SESSION_KEY);
+    if (storedAdmin) {
+      try {
+        const parsed = JSON.parse(storedAdmin);
+        if (parsed?.id) {
+          switchPortalSession('admin');
+          return children;
+        }
+      } catch (e) {}
+    }
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+
+  // 2. SUPER ADMIN ROUTE PROTECTION (/superadmin/*)
+  if (allowedRole === 'superadmin') {
+    if (profile?.role === 'superadmin') {
+      return children;
+    }
+    const storedSuper =
+      sessionStorage.getItem(SUPERADMIN_SESSION_KEY) || localStorage.getItem(SUPERADMIN_SESSION_KEY);
+    if (storedSuper) {
+      try {
+        const parsed = JSON.parse(storedSuper);
+        if (parsed?.id) {
+          switchPortalSession('superadmin');
+          return children;
+        }
+      } catch (e) {}
+    }
+    return <Navigate to="/superadmin/login" state={{ from: location }} replace />;
+  }
+
+  // 3. STUDENT ROUTE PROTECTION (/dashboard, /todos, /tasks, /subjects, etc.)
+  if (allowedRole === 'student' || !allowedRole) {
+    if (profile?.role === 'student') {
+      return children;
+    }
+    const storedStudent =
+      sessionStorage.getItem(STUDENT_SESSION_KEY) || localStorage.getItem(STUDENT_SESSION_KEY);
+    if (storedStudent) {
+      try {
+        const parsed = JSON.parse(storedStudent);
+        if (parsed?.id) {
+          switchPortalSession('student');
+          return children;
+        }
+      } catch (e) {}
     }
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // Check role authorization for Super Admin
-  if (allowedRole === 'superadmin' && profile?.role !== 'superadmin') {
-    return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
-  }
-
-  // Check role authorization for Admin
-  if (allowedRole === 'admin' && !isAdmin && !isSuperAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // If student route (allowedRole is null), but active profile is an admin or superadmin:
-  if (!allowedRole && (profile?.role === 'admin' || profile?.role === 'superadmin')) {
-    const studentSession = sessionStorage.getItem('fy_it_student_session') || localStorage.getItem('fy_it_student_session');
-    if (studentSession) {
-      switchPortalSession('student');
-    } else {
-      return <Navigate to={isAdmin ? '/admin' : '/superadmin'} replace />;
-    }
   }
 
   return children;
