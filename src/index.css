@@ -173,24 +173,30 @@ button {
 
 @media (max-width: 1024px) {
   .sidebar {
+    width: min(300px, 85vw);
+    max-width: 320px;
     transform: translateX(-100%);
     box-shadow: none;
     z-index: 1050;
     pointer-events: auto;
+    will-change: transform;
   }
   .sidebar.open {
     transform: translateX(0);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
   }
 }
 
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(3px);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1040;
   pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .sidebar-close-btn {

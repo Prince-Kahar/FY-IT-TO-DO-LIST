@@ -1,5 +1,5 @@
-import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useRef, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -26,10 +26,47 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleNavClick = (to) => {
-    navigate(to);
-    if (onClose) {
+  const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+
+  // Auto-close drawer on location change
+  useEffect(() => {
+    if (isOpen && onClose) {
       onClose();
+    }
+  }, [location.pathname]);
+
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches[0]) {
+      touchStartY.current = e.touches[0].clientY;
+      touchStartX.current = e.touches[0].clientX;
+    }
+  };
+
+  const handleNavClick = (to, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    navigate(to);
+    setTimeout(() => {
+      if (onClose) {
+        onClose();
+      }
+    }, 100);
+  };
+
+  const handleTouchEnd = (to, e) => {
+    if (e.changedTouches && e.changedTouches[0]) {
+      const touch = e.changedTouches[0];
+      const diffY = Math.abs(touch.clientY - touchStartY.current);
+      const diffX = Math.abs(touch.clientX - touchStartX.current);
+      // Clean tap detection (< 10px movement)
+      if (diffY < 10 && diffX < 10) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleNavClick(to);
+      }
     }
   };
 
@@ -86,7 +123,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
   return (
     <>
       {/* Mobile Backdrop */}
-      {isOpen && <div className="sidebar-backdrop" onClick={onClose} />}
+      {isOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={onClose}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            if (onClose) onClose();
+          }}
+        />
+      )}
 
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         {/* Brand Header */}
@@ -120,6 +166,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
             type="button"
             className="sidebar-close-btn"
             onClick={onClose}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              if (onClose) onClose();
+            }}
             aria-label="Close sidebar navigation"
           >
             <X size={18} />
@@ -146,11 +196,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 location.pathname.startsWith(item.to));
 
             return (
-              <button
+              <Link
                 key={item.to}
-                type="button"
+                to={item.to}
                 className={`nav-link ${isActive ? 'active' : ''}`}
-                onClick={() => handleNavClick(item.to)}
+                onClick={(e) => handleNavClick(item.to, e)}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={(e) => handleTouchEnd(item.to, e)}
                 style={{
                   width: '100%',
                   textAlign: 'left',
@@ -161,17 +213,24 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  padding: '10px 14px',
+                  padding: '11px 14px',
                   borderRadius: 'var(--radius-md)',
                   color: isActive ? '#FFFFFF' : 'var(--text-muted)',
                   fontWeight: isActive ? 600 : 500,
-                  fontSize: '0.9rem',
+                  fontSize: '0.925rem',
+                  textDecoration: 'none',
                   touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  boxSizing: 'border-box',
                 }}
               >
-                <Icon size={18} color={isActive ? '#FFFFFF' : 'currentColor'} />
-                <span>{item.label}</span>
-              </button>
+                <Icon
+                  size={18}
+                  color={isActive ? '#FFFFFF' : 'currentColor'}
+                  style={{ pointerEvents: 'none', flexShrink: 0 }}
+                />
+                <span style={{ pointerEvents: 'none' }}>{item.label}</span>
+              </Link>
             );
           })}
         </nav>

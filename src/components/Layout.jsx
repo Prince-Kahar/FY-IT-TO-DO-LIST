@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 
 export const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  // Auto-close mobile drawer when route changes
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -30,4 +36,3 @@ export const Layout = ({ children }) => {
     </div>
   );
 };
-
