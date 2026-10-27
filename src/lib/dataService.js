@@ -340,6 +340,11 @@ export const dataService = {
   // TASKS & ASSIGNMENTS
   // =========================================================================
   async getTasks() {
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+    } catch (e) {}
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -347,9 +352,21 @@ export const dataService = {
           .select('*, subjects(name, subject_code), topics(name)')
           .order('created_at', { ascending: false });
         if (!error && Array.isArray(data)) {
-          localTasks = data;
-          saveCache('tasks', data);
-          return data;
+          const merged = data.map((t) => {
+            const ov = overrides[t.id];
+            if (ov) {
+              return {
+                ...t,
+                ...ov,
+                publication_status: ov.publication_status !== undefined ? ov.publication_status : t.publication_status,
+                scheduled_at: ov.scheduled_at !== undefined ? ov.scheduled_at : t.scheduled_at,
+              };
+            }
+            return t;
+          });
+          localTasks = merged;
+          saveCache('tasks', merged);
+          return merged;
         }
       } catch (err) {
         console.warn('Supabase getTasks notice:', err);
@@ -358,8 +375,10 @@ export const dataService = {
     return localTasks.map((t) => {
       const sub = localSubjects.find((s) => s.id === t.subject_id);
       const top = localTopics.find((tp) => tp.id === t.topic_id);
+      const ov = overrides[t.id];
       return {
         ...t,
+        ...(ov || {}),
         subjects: sub ? { name: sub.name, subject_code: sub.subject_code } : null,
         topics: top ? { name: top.name } : null,
       };
@@ -486,26 +505,93 @@ export const dataService = {
   },
 
   async updateTask(id, taskData) {
-    const { subjects, topics, submissions, task_assignments, ...cleanTaskUpdates } = taskData;
+    // 1. Persist in local storage overrides so polling never resets the user's status
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+      overrides[id] = {
+        ...(overrides[id] || {}),
+        ...taskData,
+        publication_status: taskData.publication_status,
+        scheduled_at: taskData.scheduled_at,
+        updated_at: new Date().toISOString(),
+      };
+      localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
+    // 2. Prepare clean payload for Supabase tasks table
+    // (Strip non-existent columns like scheduled_at, relations, etc.)
+    const supabasePayload = {
+      updated_at: new Date().toISOString(),
+    };
+    if (taskData.title !== undefined) supabasePayload.title = taskData.title.trim();
+    if (taskData.description !== undefined) supabasePayload.description = taskData.description;
+    if (taskData.subject_id !== undefined) supabasePayload.subject_id = isValidUUID(taskData.subject_id) ? taskData.subject_id : null;
+    if (taskData.topic_id !== undefined) supabasePayload.topic_id = isValidUUID(taskData.topic_id) ? taskData.topic_id : null;
+    if (taskData.task_type !== undefined) supabasePayload.task_type = taskData.task_type;
+    if (taskData.priority !== undefined) supabasePayload.priority = taskData.priority;
+    if (taskData.due_at !== undefined) supabasePayload.due_at = taskData.due_at;
+    if (taskData.max_marks !== undefined) supabasePayload.max_marks = taskData.max_marks;
+    if (taskData.assignment_target !== undefined) supabasePayload.assignment_target = taskData.assignment_target;
+
+    // Handle publication_status safely for Supabase check constraints
+    if (taskData.publication_status !== undefined) {
+      supabasePayload.publication_status =
+        taskData.publication_status === 'Scheduled' ? 'Draft' : taskData.publication_status;
+    }
+
+    let remoteUpdated = null;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('tasks')
-          .update(cleanTaskUpdates)
+          .update(supabasePayload)
           .eq('id', id)
-          .select()
+          .select('*, subjects(name, subject_code), topics(name)')
           .single();
         if (!error && data) {
-          localTasks = localTasks.map((t) => (t.id === id ? { ...t, ...data } : t));
-          this.notifyLocalChange('TASK_UPDATED', data);
-          return data;
+          remoteUpdated = data;
+        } else if (error) {
+          console.warn('Supabase updateTask error:', error.message);
         }
       } catch (err) {
         console.warn('Supabase updateTask notice:', err);
       }
     }
-    localTasks = localTasks.map((t) => (t.id === id ? { ...t, ...taskData } : t));
-    const updated = localTasks.find((t) => t.id === id);
+
+    // 3. Update local in-memory tasks and cache immediately
+    localTasks = localTasks.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            ...(remoteUpdated || {}),
+            ...taskData,
+            publication_status: taskData.publication_status,
+            scheduled_at: taskData.scheduled_at,
+          }
+        : t
+    );
+    saveCache('tasks', localTasks);
+
+    // 4. If status changed to Published, ensure student assignments are generated
+    if (taskData.publication_status === 'Published') {
+      const existing = localAssignments.filter((a) => a.task_id === id);
+      if (existing.length === 0) {
+        localStudents.filter((s) => s.is_active).forEach((st) => {
+          localAssignments.push({
+            id: 'asg-' + id + '-' + st.id,
+            task_id: id,
+            student_id: st.id,
+            status: 'Assigned',
+            assigned_at: new Date().toISOString(),
+            started_at: null,
+            completed_at: null,
+            is_late: false,
+          });
+        });
+      }
+    }
+
+    const updated = localTasks.find((t) => t.id === id) || { id, ...taskData };
     this.notifyLocalChange('TASK_UPDATED', updated);
     return updated;
   },
