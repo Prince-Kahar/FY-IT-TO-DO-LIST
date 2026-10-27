@@ -85,14 +85,30 @@ export const dataService = {
     try {
       overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
     } catch (e) {}
-    return (Array.isArray(mem) ? mem : []).map((t) => (overrides[t.id] ? { ...t, ...overrides[t.id] } : t));
+    const subjects = this.getCachedSubjects();
+    return (Array.isArray(mem) ? mem : []).map((t) => {
+      const ov = overrides[t.id];
+      const taskObj = ov ? { ...t, ...ov } : { ...t };
+      if (!taskObj.subjects && taskObj.subject_id) {
+        const sub = subjects.find((s) => s.id === taskObj.subject_id);
+        if (sub) {
+          taskObj.subjects = { name: sub.name, subject_code: sub.subject_code };
+        }
+      }
+      return taskObj;
+    });
   },
   getCachedStudents() {
     const mem = localStudents && localStudents.length > 0 ? localStudents : loadCache('students');
     return Array.isArray(mem) ? mem : [];
   },
   getCachedSubmissions() {
-    const mem = localSubmissions && localSubmissions.length > 0 ? localSubmissions : loadCache('submissions');
+    let allSubs = [];
+    try {
+      const localStored = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      allSubs = [...localStored, ...(localSubmissions || [])];
+    } catch (e) {}
+    const mem = allSubs.length > 0 ? allSubs : (localSubmissions && localSubmissions.length > 0 ? localSubmissions : loadCache('submissions'));
     return Array.isArray(mem) ? mem : [];
   },
   getCachedAnnouncements() {
@@ -298,6 +314,15 @@ export const dataService = {
   },
 
   async createTopic(topicData) {
+    // Check if topic with same name already exists for this subject
+    const existing = await this.getTopicsBySubject(topicData.subject_id);
+    const isDup = (existing || []).some(
+      (t) => (t.name || '').trim().toLowerCase() === (topicData.name || '').trim().toLowerCase()
+    );
+    if (isDup) {
+      throw new Error(`Topic "${topicData.name}" already exists for this subject.`);
+    }
+
     const topicId = (topicData.id && isValidUUID(topicData.id)) ? topicData.id : generateUUID();
     const newTopic = {
       ...topicData,
@@ -305,6 +330,19 @@ export const dataService = {
       created_at: new Date().toISOString(),
     };
     localTopics.push(newTopic);
+    saveCache('topics', localTopics);
+
+    // Sync topics inside localSubjects
+    const subIdx = localSubjects.findIndex((s) => s.id === topicData.subject_id);
+    if (subIdx !== -1) {
+      if (!Array.isArray(localSubjects[subIdx].topics)) {
+        localSubjects[subIdx].topics = [];
+      }
+      if (!localSubjects[subIdx].topics.some((t) => t.id === newTopic.id)) {
+        localSubjects[subIdx].topics.push(newTopic);
+      }
+      saveCache('subjects', localSubjects);
+    }
 
     if (isSupabaseConfigured()) {
       try {
@@ -329,6 +367,14 @@ export const dataService = {
 
   async deleteTopic(id) {
     localTopics = localTopics.filter((t) => t.id !== id);
+    saveCache('topics', localTopics);
+    localSubjects = localSubjects.map((s) => {
+      if (Array.isArray(s.topics)) {
+        return { ...s, topics: s.topics.filter((t) => t.id !== id) };
+      }
+      return s;
+    });
+    saveCache('subjects', localSubjects);
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('topics').delete().eq('id', id);
@@ -356,17 +402,25 @@ export const dataService = {
           .select('*, subjects(name, subject_code), topics(name)')
           .order('created_at', { ascending: false });
         if (!error && Array.isArray(data)) {
+          const subjects = this.getCachedSubjects();
           const merged = data.map((t) => {
             const ov = overrides[t.id];
+            const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
+            const top = t.topics || localTopics.find((tp) => tp.id === t.topic_id);
+            const taskItem = {
+              ...t,
+              subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
+              topics: top ? (top.name ? top : { name: top.name }) : null,
+            };
             if (ov) {
               return {
-                ...t,
+                ...taskItem,
                 ...ov,
-                publication_status: ov.publication_status !== undefined ? ov.publication_status : t.publication_status,
-                scheduled_at: ov.scheduled_at !== undefined ? ov.scheduled_at : t.scheduled_at,
+                publication_status: ov.publication_status !== undefined ? ov.publication_status : taskItem.publication_status,
+                scheduled_at: ov.scheduled_at !== undefined ? ov.scheduled_at : taskItem.scheduled_at,
               };
             }
-            return t;
+            return taskItem;
           });
           localTasks = merged;
           saveCache('tasks', merged);
@@ -376,15 +430,16 @@ export const dataService = {
         console.warn('Supabase getTasks notice:', err);
       }
     }
+    const subjects = this.getCachedSubjects();
     return localTasks.map((t) => {
-      const sub = localSubjects.find((s) => s.id === t.subject_id);
-      const top = localTopics.find((tp) => tp.id === t.topic_id);
+      const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
+      const top = t.topics || localTopics.find((tp) => tp.id === t.topic_id);
       const ov = overrides[t.id];
       return {
         ...t,
         ...(ov || {}),
-        subjects: sub ? { name: sub.name, subject_code: sub.subject_code } : null,
-        topics: top ? { name: top.name } : null,
+        subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
+        topics: top ? (top.name ? top : { name: top.name }) : null,
       };
     });
   },
@@ -1080,6 +1135,10 @@ export const dataService = {
   // =========================================================================
   // ADMIN REVIEW & FEEDBACK
   // =========================================================================
+  async getSubmissions() {
+    return this.getAllSubmissions();
+  },
+
   async getAllSubmissions() {
     let allSubs = [];
     try {

@@ -13,8 +13,22 @@ export const TopicModal = ({ subject, onClose, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) {
+    const cleanName = name.trim();
+    if (!cleanName) {
       setErrorMsg('Topic name is required.');
+      return;
+    }
+
+    // 1. Client-side fast check against currently loaded topics for this subject
+    const existingTopics = Array.isArray(subject?.topics) ? subject.topics : [];
+    const isDuplicate = existingTopics.some(
+      (t) => (t.name || '').trim().toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      const msg = `⚠️ Topic "${cleanName}" already exists for ${subject?.name || 'this subject'}!`;
+      setErrorMsg(msg);
+      addToast(msg, 'warning');
       return;
     }
 
@@ -22,18 +36,35 @@ export const TopicModal = ({ subject, onClose, onSuccess }) => {
     setErrorMsg('');
 
     try {
+      // 2. Fresh asynchronous check from database/cache
+      if (subject?.id) {
+        const freshTopics = await dataService.getTopicsBySubject(subject.id);
+        const isDuplicateDb = (freshTopics || []).some(
+          (t) => (t.name || '').trim().toLowerCase() === cleanName.toLowerCase()
+        );
+        if (isDuplicateDb) {
+          const msg = `⚠️ Topic "${cleanName}" already exists for ${subject?.name || 'this subject'}!`;
+          setErrorMsg(msg);
+          addToast(msg, 'warning');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       await dataService.createTopic({
         subject_id: subject.id,
-        name: name.trim(),
+        name: cleanName,
         description: description.trim() || null,
       });
 
-      addToast(`Topic added under ${subject.name}`, 'success');
+      addToast(`Topic "${cleanName}" added under ${subject.name}`, 'success');
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       console.error('Topic creation error:', err);
-      setErrorMsg(err.message || 'Failed to add topic.');
+      const msg = err.message || 'Failed to add topic.';
+      setErrorMsg(msg);
+      addToast(msg, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -59,16 +90,21 @@ export const TopicModal = ({ subject, onClose, onSuccess }) => {
             {errorMsg && (
               <div
                 style={{
-                  background: 'var(--danger-bg)',
-                  color: 'var(--danger-text)',
-                  padding: '10px 14px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  color: '#991B1B',
+                  padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
                   marginBottom: '16px',
-                  fontSize: '0.85rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                 }}
               >
-                <AlertCircle size={16} style={{ display: 'inline', marginRight: 6 }} />
-                {errorMsg}
+                <AlertCircle size={18} style={{ flexShrink: 0, color: '#DC2626' }} />
+                <span>{errorMsg}</span>
               </div>
             )}
 
@@ -79,7 +115,10 @@ export const TopicModal = ({ subject, onClose, onSuccess }) => {
                 className="form-control"
                 placeholder="e.g. Relational Calculus & Normalization"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (errorMsg) setErrorMsg('');
+                }}
                 required
               />
             </div>

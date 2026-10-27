@@ -97,15 +97,26 @@ export const Sidebar = ({ isOpen, onClose }) => {
       const a = dataService.getCachedAnnouncements();
 
       const isAllSubjects =
+        isSuperAdmin ||
         !profile?.assigned_subjects ||
         profile.assigned_subjects.includes('ALL') ||
         profile.assigned_subjects.length === 0;
 
+      const effectiveSubjects = isAllSubjects
+        ? (sb || [])
+        : (sb || []).filter(
+            (s) =>
+              profile.assigned_subjects.includes(s.name) ||
+              profile.assigned_subjects.includes(s.id)
+          );
+
       const visibleAdminTasks = isAllSubjects
         ? t
         : (t || []).filter((task) => {
+            if (!task) return false;
             const subName = task.subjects?.name;
             return (
+              effectiveSubjects.some((s) => s.id === task.subject_id || (subName && s.name === subName)) ||
               profile.assigned_subjects.includes(task.subject_id) ||
               (subName && profile.assigned_subjects.includes(subName))
             );
@@ -152,15 +163,26 @@ export const Sidebar = ({ isOpen, onClose }) => {
           const announcements = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : dataService.getCachedAnnouncements();
 
           const isAllSubjects =
+            isSuperAdmin ||
             !profile?.assigned_subjects ||
             profile.assigned_subjects.includes('ALL') ||
             profile.assigned_subjects.length === 0;
 
+          const effectiveSubjects = isAllSubjects
+            ? (subjects || [])
+            : (subjects || []).filter(
+                (s) =>
+                  profile.assigned_subjects.includes(s.name) ||
+                  profile.assigned_subjects.includes(s.id)
+              );
+
           const visibleAdminTasks = isAllSubjects
             ? tasks
             : (tasks || []).filter((task) => {
+                if (!task) return false;
                 const subName = task.subjects?.name;
                 return (
+                  effectiveSubjects.some((s) => s.id === task.subject_id || (subName && s.name === subName)) ||
                   profile.assigned_subjects.includes(task.subject_id) ||
                   (subName && profile.assigned_subjects.includes(subName))
                 );
