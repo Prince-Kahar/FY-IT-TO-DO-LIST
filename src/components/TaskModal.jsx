@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
 
@@ -31,6 +31,20 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
   const [publicationStatus, setPublicationStatus] = useState(
     taskToEdit?.publication_status || 'Published'
   );
+
+  // Format initial scheduled release date (default tomorrow 9:00 AM)
+  const getFormattedScheduledDate = () => {
+    if (taskToEdit?.scheduled_at) {
+      const d = new Date(taskToEdit.scheduled_at);
+      return d.toISOString().slice(0, 16);
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  };
+
+  const [scheduledAt, setScheduledAt] = useState(getFormattedScheduledDate());
   const [assignmentTarget, setAssignmentTarget] = useState(
     taskToEdit?.assignment_target || 'all'
   );
@@ -95,6 +109,14 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
       setErrorMsg('Please select a due date.');
       return;
     }
+    if (publicationStatus === 'Scheduled' && !scheduledAt) {
+      setErrorMsg('Please select a scheduled release date and time.');
+      return;
+    }
+    if (publicationStatus === 'Scheduled' && new Date(scheduledAt) >= new Date(dueAt)) {
+      setErrorMsg('Scheduled release date & time must be earlier than the submission deadline.');
+      return;
+    }
     if (assignmentTarget === 'selected' && selectedStudentIds.length === 0) {
       setErrorMsg('Please select at least one student or choose "All Students".');
       return;
@@ -114,6 +136,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
         due_at: new Date(dueAt).toISOString(),
         max_marks: maxMarks ? parseFloat(maxMarks) : null,
         publication_status: publicationStatus,
+        scheduled_at: publicationStatus === 'Scheduled' ? new Date(scheduledAt).toISOString() : null,
         assignment_target: assignmentTarget,
       };
 
@@ -125,6 +148,8 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
         addToast(
           publicationStatus === 'Published'
             ? 'Task created and assigned to students!'
+            : publicationStatus === 'Scheduled'
+            ? `Task scheduled for release on ${new Date(scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}!`
             : 'Task saved as Draft.',
           'success'
         );
@@ -349,6 +374,60 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                 </select>
               </div>
             </div>
+
+            {/* Scheduled Date & Time Picker (Displayed when Scheduled is selected) */}
+            {publicationStatus === 'Scheduled' && (
+              <div
+                style={{
+                  background: '#EEF2FF',
+                  border: '1.5px solid #818CF8',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 16px',
+                  marginBottom: '16px',
+                  boxShadow: '0 2px 8px rgba(79, 70, 229, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Calendar size={17} color="var(--primary-600)" />
+                  <label
+                    className="form-label"
+                    style={{ color: 'var(--primary-700)', fontWeight: 700, margin: 0, fontSize: '0.875rem' }}
+                  >
+                    Specify Release Date & Time *
+                  </label>
+                </div>
+
+                <input
+                  type="datetime-local"
+                  className="form-control"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  required
+                  style={{
+                    background: '#FFFFFF',
+                    borderColor: '#6366F1',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                  }}
+                />
+
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--primary-700)',
+                    marginTop: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Clock size={13} style={{ flexShrink: 0 }} />
+                  <span>
+                    Students will automatically receive the notification and assignment on this exact date & time.
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Selected Students Checkboxes (if target == selected) */}
             {assignmentTarget === 'selected' && (

@@ -386,7 +386,7 @@ export const dataService = {
       priority: taskData.priority || 'Medium',
       due_at: taskData.due_at || new Date(Date.now() + 86400000 * 7).toISOString(),
       max_marks: taskData.max_marks || null,
-      publication_status: taskData.publication_status || 'Published',
+      publication_status: taskData.publication_status === 'Scheduled' ? 'Draft' : (taskData.publication_status || 'Published'),
       assignment_target: taskData.assignment_target || 'all',
       reference_url: taskData.reference_url || null,
       created_by: (taskData.created_by && isValidUUID(taskData.created_by)) ? taskData.created_by : null,
@@ -413,8 +413,13 @@ export const dataService = {
       }
     }
 
-    const newTask = taskResult || cleanTask;
+    const newTask = {
+      ...(taskResult || cleanTask),
+      publication_status: taskData.publication_status || 'Published',
+      scheduled_at: taskData.scheduled_at || null,
+    };
     localTasks.unshift(newTask);
+    saveCache('tasks', localTasks);
 
     if (newTask.publication_status === 'Published') {
       const studentsToAssign =
@@ -534,9 +539,14 @@ export const dataService = {
           .order('created_at', { ascending: false });
 
         if (!tasksError && Array.isArray(remoteTasks)) {
-          allTasks = remoteTasks.filter(
-            (t) => !t.publication_status || t.publication_status.toLowerCase() === 'published'
-          );
+          allTasks = remoteTasks.filter((t) => {
+            const status = (t.publication_status || 'published').toLowerCase();
+            if (status === 'published') return true;
+            if (status === 'scheduled') {
+              return t.scheduled_at ? new Date() >= new Date(t.scheduled_at) : false;
+            }
+            return false;
+          });
         }
       } catch (err) {
         console.warn('Supabase getStudentAssignments notice:', err);
@@ -547,7 +557,14 @@ export const dataService = {
     if (Array.isArray(localTasks) && localTasks.length > 0) {
       const seenTaskIds = new Set(allTasks.map((t) => t.id));
       localTasks
-        .filter((t) => !t.publication_status || t.publication_status.toLowerCase() === 'published')
+        .filter((t) => {
+          const status = (t.publication_status || 'published').toLowerCase();
+          if (status === 'published') return true;
+          if (status === 'scheduled') {
+            return t.scheduled_at ? new Date() >= new Date(t.scheduled_at) : false;
+          }
+          return false;
+        })
         .forEach((lt) => {
           if (!seenTaskIds.has(lt.id)) {
             allTasks.push(lt);

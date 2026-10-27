@@ -405,12 +405,16 @@ export const AdminTasks = () => {
                         background:
                           t.publication_status === 'Published'
                             ? 'var(--success-bg)'
+                            : t.publication_status === 'Scheduled'
+                            ? '#EEF2FF'
                             : t.publication_status === 'Draft'
                             ? 'var(--warning-bg)'
                             : 'var(--bg-subtle)',
                         color:
                           t.publication_status === 'Published'
                             ? 'var(--success-text)'
+                            : t.publication_status === 'Scheduled'
+                            ? 'var(--primary-700)'
                             : t.publication_status === 'Draft'
                             ? 'var(--warning-text)'
                             : 'var(--text-muted)',
@@ -418,10 +422,16 @@ export const AdminTasks = () => {
                         borderRadius: 'var(--radius-full)',
                         fontSize: '0.75rem',
                         fontWeight: 600,
+                        border: t.publication_status === 'Scheduled' ? '1px solid #C7D2FE' : 'none',
                       }}
                     >
-                      {t.publication_status}
+                      {t.publication_status === 'Scheduled' ? '⏳ Scheduled' : t.publication_status}
                     </span>
+                    {t.publication_status === 'Scheduled' && t.scheduled_at && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--primary-600)', marginTop: '3px', fontWeight: 500 }}>
+                        {new Date(t.scheduled_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(t.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
