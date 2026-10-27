@@ -81,7 +81,11 @@ export const dataService = {
   },
   getCachedTasks() {
     const mem = localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks');
-    return Array.isArray(mem) ? mem : [];
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+    } catch (e) {}
+    return (Array.isArray(mem) ? mem : []).map((t) => (overrides[t.id] ? { ...t, ...overrides[t.id] } : t));
   },
   getCachedStudents() {
     const mem = localStudents && localStudents.length > 0 ? localStudents : loadCache('students');
@@ -437,6 +441,17 @@ export const dataService = {
       publication_status: taskData.publication_status || 'Published',
       scheduled_at: taskData.scheduled_at || null,
     };
+
+    // Persist in overrides immediately so Scheduled status is never overwritten by DB polling
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+      overrides[newTask.id] = {
+        publication_status: taskData.publication_status || 'Published',
+        scheduled_at: taskData.scheduled_at || null,
+      };
+      localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
     localTasks.unshift(newTask);
     saveCache('tasks', localTasks);
 
@@ -2076,9 +2091,10 @@ export const dataService = {
       });
     }
 
-    // Ping all other open browser tabs instantly
+    // Ping all listeners and tabs instantly
     if (typeof window !== 'undefined') {
       try {
+        window.dispatchEvent(new CustomEvent('fy_data_change', { detail: { type, detail } }));
         localStorage.setItem('fy_it_live_sync_ping', Date.now().toString());
       } catch (e) {}
     }

@@ -121,27 +121,40 @@ export const Sidebar = ({ isOpen, onClose }) => {
     const fetchCounts = async () => {
       try {
         if (isAdmin || isSuperAdmin) {
-          const [tasks, submissions, subjects, students, announcements] = await Promise.all([
+          const [tasksRes, subsRes, subjectsRes, studentsRes, notifsRes] = await Promise.allSettled([
             dataService.getTasks(),
             dataService.getSubmissions(),
             dataService.getSubjects(),
             dataService.getStudents(),
             dataService.getAnnouncements(),
           ]);
+
+          const tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : dataService.getCachedTasks();
+          const submissions = subsRes.status === 'fulfilled' && Array.isArray(subsRes.value) ? subsRes.value : dataService.getCachedSubmissions();
+          const subjects = subjectsRes.status === 'fulfilled' && Array.isArray(subjectsRes.value) ? subjectsRes.value : dataService.getCachedSubjects();
+          const students = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : dataService.getCachedStudents();
+          const announcements = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : dataService.getCachedAnnouncements();
+
           setCounts({
             adminTasks: tasks?.length || 0,
-            pendingSubmissions: submissions?.filter((s) => s.status === 'Submitted')?.length || 0,
+            pendingSubmissions: submissions?.filter((s) => ['Submitted', 'Under Review'].includes(s?.status))?.length || 0,
             subjects: subjects?.length || 0,
             students: students?.length || 0,
             announcements: announcements?.length || 0,
           });
         } else if (user) {
-          const [todos, assignments, subjects, notifs] = await Promise.all([
+          const [todosRes, asgsRes, subjectsRes, notifsRes] = await Promise.allSettled([
             dataService.getTodos(user.id),
             dataService.getStudentAssignments(user.id),
             dataService.getSubjects(),
             dataService.getNotifications(user.id),
           ]);
+
+          const todos = todosRes.status === 'fulfilled' && Array.isArray(todosRes.value) ? todosRes.value : dataService.getCachedTodos(user.id);
+          const assignments = asgsRes.status === 'fulfilled' && Array.isArray(asgsRes.value) ? asgsRes.value : dataService.getCachedStudentAssignments(user.id);
+          const subjects = subjectsRes.status === 'fulfilled' && Array.isArray(subjectsRes.value) ? subjectsRes.value : dataService.getCachedSubjects();
+          const notifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
+
           const unreadNotifs = notifs?.filter((n) => !n.is_read)?.length;
           setCounts({
             todos: todos?.filter((t) => t.status !== 'Completed')?.length || 0,
@@ -155,13 +168,22 @@ export const Sidebar = ({ isOpen, onClose }) => {
     };
 
     fetchCounts();
-    const interval = setInterval(fetchCounts, 1500);
+    const interval = setInterval(fetchCounts, 1000);
     const unsub = dataService.subscribeRealtime(fetchCounts);
+
+    const handleSync = () => fetchCounts();
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+
     return () => {
       clearInterval(interval);
       if (unsub) unsub();
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
-  }, [user, isAdmin, isSuperAdmin]);
+  }, [user, isAdmin, isSuperAdmin, location.pathname]);
 
   const studentLinks = [
     { to: '/dashboard', label: 'Student Dashboard', icon: LayoutDashboard },
