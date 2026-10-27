@@ -88,10 +88,10 @@ export const StudentTodoList = () => {
   useEffect(() => {
     loadTodoData();
 
-    // 1. Continuous Live Polling every 12 seconds from Supabase
+    // 1. Continuous Live Polling every 1 second from Supabase
     const pollInterval = setInterval(() => {
       loadTodoData(true);
-    }, 12000);
+    }, 1000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadTodoData(true);

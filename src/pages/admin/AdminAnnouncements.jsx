@@ -25,10 +25,10 @@ export const AdminAnnouncements = () => {
   useEffect(() => {
     loadAnnouncements();
 
-    // 1. Continuous Live Polling every 12 seconds from Supabase
+    // 1. Continuous Live Polling every 1 second from Supabase
     const pollInterval = setInterval(() => {
       loadAnnouncements(true);
-    }, 12000);
+    }, 1000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadAnnouncements(true);

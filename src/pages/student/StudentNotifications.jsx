@@ -41,21 +41,36 @@ export const StudentNotifications = () => {
     }
   };
 
-  const loadNotifications = async () => {
+  const loadNotifications = async (isBackground = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const data = await dataService.getNotifications(user.id);
       setNotifications(data);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadNotifications();
+
+    // 1. Continuous live polling every 1 second
+    const pollInterval = setInterval(() => {
+      loadNotifications(true);
+    }, 1000);
+
+    // 2. Realtime listener
+    const unsub = dataService.subscribeRealtime(() => {
+      loadNotifications(true);
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      if (unsub) unsub();
+    };
   }, [user]);
 
   const handleMarkAsRead = async (id) => {

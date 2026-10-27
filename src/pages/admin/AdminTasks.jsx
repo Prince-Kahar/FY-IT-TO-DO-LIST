@@ -75,10 +75,10 @@ export const AdminTasks = () => {
   useEffect(() => {
     loadTasksData();
 
-    // 1. Continuous Live Polling from Supabase
+    // 1. Continuous Live Polling from Supabase (every 1 second)
     const pollInterval = setInterval(() => {
       loadTasksData(true);
-    }, 12000);
+    }, 1000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadTasksData(true);

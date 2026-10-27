@@ -1499,13 +1499,26 @@ export const dataService = {
 
   // =========================================================================
   // CONTINUOUS LIVE REALTIME SUBSCRIPTION
-  // Automatically refetches data whenever Supabase database tables change
+  // Refetches data immediately on local mutations, cross-tab events, and Supabase changes
   // =========================================================================
   subscribeRealtime(callback) {
     if (!realtimeListeners) {
       realtimeListeners = new Set();
     }
     realtimeListeners.add(callback);
+
+    // Cross-tab Instant Sync via window storage event
+    const handleStorageEvent = (e) => {
+      if (e.key === 'fy_it_live_sync_ping') {
+        try {
+          callback({ eventType: 'CROSS_TAB_SYNC', timestamp: e.newValue });
+        } catch (err) {}
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageEvent);
+    }
 
     if (isSupabaseConfigured() && !realtimeChannel) {
       try {
@@ -1515,7 +1528,6 @@ export const dataService = {
             'postgres_changes',
             { event: '*', schema: 'public' },
             (payload) => {
-              console.log('⚡ Realtime Supabase change received:', payload.table, payload.eventType);
               realtimeListeners.forEach((cb) => {
                 try {
                   cb(payload);
@@ -1535,6 +1547,9 @@ export const dataService = {
       if (realtimeListeners) {
         realtimeListeners.delete(callback);
       }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorageEvent);
+      }
     };
   },
 
@@ -1545,6 +1560,13 @@ export const dataService = {
           cb({ eventType: type, detail });
         } catch (e) {}
       });
+    }
+
+    // Ping all other open browser tabs instantly
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('fy_it_live_sync_ping', Date.now().toString());
+      } catch (e) {}
     }
   },
 };

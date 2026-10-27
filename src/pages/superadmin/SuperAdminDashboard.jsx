@@ -92,10 +92,10 @@ export const SuperAdminDashboard = () => {
   useEffect(() => {
     loadData();
 
-    // 1. Live polling every 10 seconds
+    // 1. Live polling every 1 second
     const interval = setInterval(() => {
       loadData(true);
-    }, 10000);
+    }, 1000);
 
     // 2. Realtime subscription
     const unsub = dataService.subscribeRealtime(() => {

@@ -33,10 +33,10 @@ export const StudentSubjects = () => {
   useEffect(() => {
     loadCurriculum();
 
-    // 1. Polling every 10 seconds
+    // 1. Polling every 1 second
     const interval = setInterval(() => {
       loadCurriculum(true);
-    }, 10000);
+    }, 1000);
 
     // 2. Window focus refetch
     const handleFocus = () => loadCurriculum(true);

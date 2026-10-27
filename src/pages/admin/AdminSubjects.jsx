@@ -45,10 +45,10 @@ export const AdminSubjects = () => {
   useEffect(() => {
     loadSubjects();
 
-    // 1. Continuous Live Polling every 15 seconds
+    // 1. Continuous Live Polling every 1 second
     const pollInterval = setInterval(() => {
       loadSubjects(true);
-    }, 15000);
+    }, 1000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadSubjects(true);
