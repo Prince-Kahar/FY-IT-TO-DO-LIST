@@ -199,7 +199,7 @@ export const AuthProvider = ({ children }) => {
     if (portalType === 'student') {
       if (isSuperAdminMatch) {
         throw new Error(
-          'Super Admin credentials detected. Please use the Super Admin Master Console (/superadmin).'
+          'Student account not found with this Roll Number, Mobile, or Email. Please register your account first.'
         );
       }
 

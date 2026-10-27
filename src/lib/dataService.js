@@ -47,6 +47,28 @@ export const isValidUUID = (str) => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 };
 
+// Announcement attachment serialization & parsing helpers
+export const parseAnnouncementAttachment = (text) => {
+  if (!text || typeof text !== 'string') return { message: text || '', attachment: null };
+  const match = text.match(/\[\[ATTACHMENT:([\s\S]*?)\]\]/);
+  if (match) {
+    try {
+      const attachment = JSON.parse(match[1]);
+      const cleanMessage = text.replace(/\[\[ATTACHMENT:[\s\S]*?\]\]/, '').trim();
+      return { message: cleanMessage, attachment };
+    } catch (e) {
+      console.warn('Failed to parse announcement attachment JSON:', e);
+    }
+  }
+  return { message: text.trim(), attachment: null };
+};
+
+export const formatAnnouncementWithAttachment = (message, attachment) => {
+  const cleanMsg = (message || '').trim();
+  if (!attachment) return cleanMsg;
+  return `${cleanMsg}\n\n[[ATTACHMENT:${JSON.stringify(attachment)}]]`;
+};
+
 // Realtime sync channels and listener bus
 let realtimeChannel = null;
 let realtimeListeners = new Set();
@@ -71,7 +93,17 @@ export const dataService = {
   },
   getCachedAnnouncements() {
     const mem = localAnnouncements && localAnnouncements.length > 0 ? localAnnouncements : loadCache('announcements');
-    return Array.isArray(mem) ? mem : [];
+    return Array.isArray(mem)
+      ? mem.map((item) => {
+          const parsed = parseAnnouncementAttachment(item.message || item.content || '');
+          return {
+            ...item,
+            message: parsed.message,
+            content: parsed.message,
+            attachment: parsed.attachment || item.attachment || null,
+          };
+        })
+      : [];
   },
   getCachedStudentAssignments(studentId) {
     if (!studentId) return [];
@@ -405,7 +437,7 @@ export const dataService = {
         localNotifications.unshift({
           id: 'notif-' + Date.now() + '-' + st.id,
           user_id: st.id,
-          title: 'New Task Assigned: ' + newTask.title,
+          title: '📝 New Task Assigned: ' + newTask.title,
           message: `Due on ${new Date(newTask.due_at).toLocaleDateString()}. Check instructions and submit before deadline.`,
           notification_type: 'task_assigned',
           related_task_id: newTask.id,
@@ -413,6 +445,35 @@ export const dataService = {
           created_at: new Date().toISOString(),
         });
       });
+
+      // AUTO-BROADCAST TO STUDENTS: Immediately deliver task notification to all students
+      try {
+        const sub = localSubjects.find((s) => s.id === newTask.subject_id);
+        const subName = sub ? (sub.subject_code ? `${sub.subject_code} - ${sub.name}` : sub.name) : 'Academic Course';
+        const formattedDueDate = newTask.due_at
+          ? new Date(newTask.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : 'No deadline';
+
+        // 1. Create an announcement so every student gets it in their Notification list and Navbar bell
+        this.createAnnouncement({
+          title: `📝 New Task: ${newTask.title}`,
+          message: `A new practical task has been assigned for ${subName}. Due Date: ${formattedDueDate}. Please check details and submit your journal on time.`,
+          content: `A new practical task has been assigned for ${subName}. Due Date: ${formattedDueDate}. Please check details and submit your journal on time.`,
+          author_name: 'Academic Faculty',
+          priority: 'High',
+          target_audience: 'All',
+        }).catch((err) => console.warn('Auto task announcement notice:', err));
+
+        // 2. Send instant desktop/mobile browser push notification
+        if (pushService && typeof pushService.sendNotification === 'function') {
+          pushService.sendNotification(`📝 New Task: ${newTask.title}`, {
+            body: `Subject: ${subName} | Due: ${formattedDueDate}`,
+            tag: `task-${newTask.id}`,
+          });
+        }
+      } catch (autoErr) {
+        console.warn('Auto task notification error:', autoErr);
+      }
     }
 
     this.notifyLocalChange('TASK_CREATED', newTask);
@@ -1117,9 +1178,72 @@ export const dataService = {
   },
 
   // =========================================================================
-  // ANNOUNCEMENTS
+  // ANNOUNCEMENTS & ATTACHMENTS
   // =========================================================================
+  async uploadAnnouncementAttachment(file) {
+    if (!file) return null;
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `announcements/${Date.now()}_${cleanFileName}`;
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('task-submissions')
+          .upload(storagePath, file, { cacheControl: '3600', upsert: true });
+
+        if (!error && data) {
+          const { data: pubData } = supabase.storage
+            .from('task-submissions')
+            .getPublicUrl(storagePath);
+
+          let finalUrl = pubData?.publicUrl;
+          if (!finalUrl) {
+            const { data: signedData } = await supabase.storage
+              .from('task-submissions')
+              .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+            finalUrl = signedData?.signedUrl;
+          }
+
+          if (finalUrl) {
+            return {
+              name: file.name,
+              url: finalUrl,
+              storage_path: storagePath,
+              size: file.size,
+              type: file.type || 'application/octet-stream',
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase storage upload error for announcement, using Data URL fallback:', err);
+      }
+    }
+
+    // High-reliability Data URL fallback (works 100% reliably in all environments)
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({
+          name: file.name,
+          url: reader.result,
+          size: file.size,
+          type: file.type || 'application/octet-stream',
+        });
+      };
+      reader.onerror = () => {
+        resolve({
+          name: file.name,
+          url: URL.createObjectURL(file),
+          size: file.size,
+          type: file.type || 'application/octet-stream',
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
   async getAnnouncements() {
+    let rawList = [];
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -1127,29 +1251,48 @@ export const dataService = {
           .select('*')
           .order('published_at', { ascending: false });
         if (!error && Array.isArray(data)) {
-          localAnnouncements = data;
-          saveCache('announcements', data);
-          return data;
+          rawList = data;
         }
       } catch (err) {
         console.warn('Supabase getAnnouncements notice:', err);
       }
     }
-    return [...localAnnouncements].sort(
-      (a, b) => new Date(b.published_at) - new Date(a.published_at)
-    );
+
+    if (rawList.length === 0) {
+      rawList = [...localAnnouncements];
+    }
+
+    const parsedList = rawList
+      .map((item) => {
+        const parsed = parseAnnouncementAttachment(item.message || item.content || '');
+        return {
+          ...item,
+          message: parsed.message,
+          content: parsed.message,
+          attachment: parsed.attachment || item.attachment || null,
+        };
+      })
+      .sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at));
+
+    localAnnouncements = parsedList;
+    saveCache('announcements', parsedList);
+    return parsedList;
   },
 
   async createAnnouncement(annData) {
     let annResult = null;
     const annId = (annData.id && isValidUUID(annData.id)) ? annData.id : generateUUID();
+    const rawMessage = formatAnnouncementWithAttachment(
+      annData.message || annData.content || '',
+      annData.attachment || null
+    );
 
     // Supabase strict schema payload (only columns that exist in public.announcements table)
     const supaPayload = {
       id: annId,
       title: (annData.title || 'Campus Announcement').trim(),
-      message: (annData.message || annData.content || '').trim(),
-      content: (annData.content || annData.message || '').trim(),
+      message: rawMessage,
+      content: rawMessage,
       created_by: null, // Set to null to prevent foreign key violations with profiles
       published_at: annData.published_at || new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -1174,22 +1317,28 @@ export const dataService = {
       }
     }
 
+    const parsed = parseAnnouncementAttachment(rawMessage);
     const fullAnn = {
       ...(annResult || supaPayload),
+      title: supaPayload.title,
+      message: parsed.message,
+      content: parsed.message,
+      attachment: parsed.attachment || annData.attachment || null,
       author_name: annData.author_name || 'Administrator',
       priority: annData.priority || 'Medium',
       target_audience: annData.target_audience || 'All',
     };
 
     localAnnouncements.unshift(fullAnn);
+    saveCache('announcements', localAnnouncements);
     this.notifyLocalChange('ANNOUNCEMENT_CREATED', fullAnn);
     return fullAnn;
   },
 
-  async broadcastNotification({ title, message, priority = 'Medium', targetAudience = 'All', sendPush = true }) {
+  async broadcastNotification({ title, message, priority = 'Medium', targetAudience = 'All', attachment = null, sendPush = true }) {
     if (sendPush && pushService.isEnabled()) {
       pushService.sendNotification(`📢 ${title}`, {
-        body: message,
+        body: message + (attachment ? ` (📎 Attachment: ${attachment.name})` : ''),
         tag: `broadcast-${Date.now()}`,
       });
     }
@@ -1198,6 +1347,7 @@ export const dataService = {
       title,
       message,
       content: message,
+      attachment,
       author_name: 'Super Administrator',
       priority,
       target_audience: targetAudience,
@@ -1207,6 +1357,7 @@ export const dataService = {
       id: generateUUID(),
       title: `📢 ${title}`,
       message,
+      attachment,
       notification_type: 'announcement',
       priority,
       is_read: false,
@@ -1226,6 +1377,7 @@ export const dataService = {
       }
     }
     localAnnouncements = localAnnouncements.filter((a) => a.id !== id);
+    saveCache('announcements', localAnnouncements);
     this.notifyLocalChange('ANNOUNCEMENT_DELETED', { id });
     return true;
   },
@@ -1256,16 +1408,20 @@ export const dataService = {
     try {
       const announcements = await this.getAnnouncements();
       if (Array.isArray(announcements)) {
-        const annNotifs = announcements.map((a) => ({
-          id: 'ann-' + a.id,
-          user_id: userId,
-          title: `📢 ${a.title}`,
-          message: a.message || a.content || '',
-          notification_type: 'announcement',
-          priority: a.priority || 'Normal',
-          is_read: false,
-          created_at: a.published_at || a.created_at || new Date().toISOString(),
-        }));
+        const annNotifs = announcements.map((a) => {
+          const hasEmoji = a.title?.startsWith('📝') || a.title?.startsWith('📢') || a.title?.startsWith('🚨') || a.title?.startsWith('⚠️');
+          return {
+            id: 'ann-' + a.id,
+            user_id: userId,
+            title: hasEmoji ? a.title : `📢 ${a.title}`,
+            message: a.message || a.content || '',
+            attachment: a.attachment || null,
+            notification_type: a.title?.includes('Task') ? 'task_assigned' : 'announcement',
+            priority: a.priority || 'Normal',
+            is_read: false,
+            created_at: a.published_at || a.created_at || new Date().toISOString(),
+          };
+        });
         combined = [...combined, ...annNotifs];
       }
     } catch (e) {}

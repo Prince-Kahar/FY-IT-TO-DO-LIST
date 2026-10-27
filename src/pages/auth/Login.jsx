@@ -9,7 +9,6 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -24,7 +23,6 @@ export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isAdminDetected, setIsAdminDetected] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,7 +33,6 @@ export const Login = () => {
 
     setIsLoading(true);
     setErrorMsg('');
-    setIsAdminDetected(false);
 
     try {
       const { profile } = await login(identifier, password, 'student');
@@ -43,10 +40,12 @@ export const Login = () => {
       navigate('/dashboard');
     } catch (err) {
       console.error('Student login error:', err);
-      const msg = err.message || 'Invalid credentials. Please verify and try again.';
-      setErrorMsg(msg);
-      if (msg.includes('Admin credentials detected')) {
-        setIsAdminDetected(true);
+      const msg = err.message || 'Invalid credentials. Please verify your student details and try again.';
+      // Never reveal any admin/superadmin info on the student login page
+      if (msg.toLowerCase().includes('admin')) {
+        setErrorMsg('Invalid student credentials. Please verify your Roll Number / Mobile / Email and password.');
+      } else {
+        setErrorMsg(msg);
       }
     } finally {
       setIsLoading(false);
@@ -145,37 +144,20 @@ export const Login = () => {
         {errorMsg && (
           <div
             style={{
-              background: isAdminDetected ? '#FEF3C7' : 'var(--danger-bg)',
-              color: isAdminDetected ? '#92400E' : 'var(--danger-text)',
-              border: `1px solid ${isAdminDetected ? '#FDE68A' : 'var(--danger-border)'}`,
+              background: 'var(--danger-bg)',
+              color: 'var(--danger-text)',
+              border: '1px solid var(--danger-border)',
               padding: '12px 14px',
               borderRadius: 'var(--radius-md)',
               marginBottom: '18px',
               display: 'flex',
-              flexDirection: 'column',
+              alignItems: 'center',
               gap: '8px',
               fontSize: '0.85rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{errorMsg}</span>
-            </div>
-            {isAdminDetected && (
-              <Link
-                to="/admin"
-                className="btn btn-secondary btn-sm"
-                style={{
-                  alignSelf: 'flex-start',
-                  marginTop: '4px',
-                  background: '#FFFFFF',
-                  fontWeight: 600,
-                }}
-              >
-                <Shield size={14} />
-                <span>Go to Teacher & Admin Portal (/admin)</span>
-              </Link>
-            )}
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{errorMsg}</span>
           </div>
         )}
 
@@ -275,23 +257,7 @@ export const Login = () => {
           </Link>
         </div>
 
-        {/* Subtle Admin Link */}
-        <div style={{ textAlign: 'center', marginTop: '14px' }}>
-          <Link
-            to="/admin"
-            style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-subtle)',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <Shield size={12} />
-            <span>Faculty & Admin Portal</span>
-          </Link>
-        </div>
+
       </div>
     </div>
   );

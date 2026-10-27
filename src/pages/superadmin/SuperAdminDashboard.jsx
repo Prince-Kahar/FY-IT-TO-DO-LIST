@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
@@ -27,6 +27,10 @@ import {
   Layers,
   GraduationCap,
   Info,
+  Paperclip,
+  ExternalLink,
+  FileText,
+  File,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -1345,6 +1349,35 @@ export const SuperAdminDashboard = () => {
                           {ann.message || ann.content}
                         </p>
 
+                        {ann.attachment && (
+                          <div style={{ marginTop: '10px' }}>
+                            <a
+                              href={ann.attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              download={ann.attachment.name}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: '#F8FAFC',
+                                color: '#1E293B',
+                                border: '1px solid #CBD5E1',
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.775rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <Paperclip size={13} color="#4F46E5" />
+                              <span>📎 {ann.attachment.name}</span>
+                              <ExternalLink size={12} color="#64748B" />
+                            </a>
+                          </div>
+                        )}
+
                         <div style={{ fontSize: '0.725rem', color: '#64748B', marginTop: '10px' }}>
                           Published by: <strong>{ann.author_name || 'Super Administrator'}</strong>
                         </div>
@@ -2098,14 +2131,55 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
 // =========================================================================
 // SUB-COMPONENT: SUPER ADMIN BROADCAST NOTIFICATION MODAL (Crisp Light Mode)
 // =========================================================================
+// 8. BROADCAST NOTICE MODAL (SUPER ADMIN) WITH ATTACHMENT
+// =========================================================================
 const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
+  const fileInputRef = useRef(null);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [priority, setPriority] = useState('High');
   const [targetAudience, setTargetAudience] = useState('All');
   const [sendPush, setSendPush] = useState(true);
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 20 * 1024 * 1024) {
+      setError('File exceeds 20MB limit. Please attach a smaller file.');
+      return;
+    }
+
+    setAttachmentFile(file);
+    setError('');
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => setFilePreview(reader.result);
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachmentFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -2118,12 +2192,18 @@ const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
     setError('');
 
     try {
+      let uploadedAttachment = null;
+      if (attachmentFile) {
+        uploadedAttachment = await dataService.uploadAnnouncementAttachment(attachmentFile);
+      }
+
       await onBroadcast({
         title: title.trim(),
         message: message.trim(),
         priority,
         targetAudience,
         sendPush,
+        attachment: uploadedAttachment,
       });
     } catch (err) {
       setError(err.message || 'Failed to broadcast announcement.');
@@ -2151,7 +2231,7 @@ const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
               Broadcast Campus Notice & Alert
             </h3>
             <p style={{ fontSize: '0.775rem', color: '#64748B', margin: '2px 0 0 0' }}>
-              Broadcast notices to students and faculty, with optional push notifications
+              Broadcast notices to students and faculty, with optional attachments and push notifications
             </p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
@@ -2227,7 +2307,7 @@ const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
               </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '16px' }}>
+            <div className="form-group" style={{ marginBottom: '14px' }}>
               <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
                 Notice Message & Details *
               </label>
@@ -2240,6 +2320,107 @@ const SuperBroadcastModal = ({ onClose, onBroadcast }) => {
                 required
                 style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}
               />
+            </div>
+
+            {/* File Attachment Section */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Paperclip size={14} color="#4F46E5" />
+                <span>Notice Attachment (Optional)</span>
+                <span style={{ fontSize: '0.725rem', color: '#64748B', fontWeight: 400 }}>
+                  PDF, Document, Image, etc.
+                </span>
+              </label>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+
+              {!attachmentFile ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px dashed #CBD5E1',
+                    borderRadius: '8px',
+                    background: '#F8FAFC',
+                    color: '#4F46E5',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <Paperclip size={16} />
+                  <span>Attach Document, PDF, or Photo</span>
+                </button>
+              ) : (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                    {filePreview ? (
+                      <img
+                        src={filePreview}
+                        alt="Preview"
+                        style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: '4px' }}
+                      />
+                    ) : (
+                      <FileText size={24} color="#166534" />
+                    )}
+                    <div style={{ overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          fontSize: '0.825rem',
+                          fontWeight: 600,
+                          color: '#166534',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                          overflow: 'hidden',
+                          maxWidth: '300px',
+                        }}
+                      >
+                        {attachmentFile.name}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#15803D' }}>
+                        {formatFileSize(attachmentFile.size)} • Ready to broadcast
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachment}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#DC2626',
+                      cursor: 'pointer',
+                      padding: '4px',
+                    }}
+                    title="Remove attachment"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div

@@ -16,6 +16,8 @@ import {
   Flame,
   Circle,
   Plus,
+  Paperclip,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -494,6 +496,35 @@ export const StudentDashboard = () => {
                   >
                     {ann.message}
                   </p>
+
+                  {ann.attachment && (
+                    <div style={{ marginTop: '8px' }}>
+                      <a
+                        href={ann.attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={ann.attachment.name}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: '#F0FDFA',
+                          border: '1px solid #99F6E4',
+                          color: '#0F766E',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        <Paperclip size={12} color="#0D9488" />
+                        <span>📎 {ann.attachment.name}</span>
+                        <Download size={11} />
+                      </a>
+                    </div>
+                  )}
+
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', marginTop: '6px' }}>
                     {new Date(ann.published_at).toLocaleDateString()}
                   </div>
