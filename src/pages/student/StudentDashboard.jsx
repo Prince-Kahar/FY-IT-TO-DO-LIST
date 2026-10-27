@@ -27,12 +27,12 @@ export const StudentDashboard = () => {
   const { user, profile } = useAuth();
   const { addToast, triggerConfetti } = useToast();
 
-  const [assignments, setAssignments] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [todos, setTodos] = useState([]);
+  const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [announcements, setAnnouncements] = useState(() => dataService.getCachedAnnouncements());
+  const [todos, setTodos] = useState(() => dataService.getCachedTodos(user?.id));
   const [quickTodoTitle, setQuickTodoTitle] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Modal state
   const [activeSubmitModal, setActiveSubmitModal] = useState(null);

@@ -3,16 +3,32 @@
 
 import { supabase, isSupabaseConfigured, uploadSubmissionPhoto, getSubmissionPhotoUrl } from './supabaseClient';
 import { pushService } from './pushNotificationService';
-// Clean in-memory caches for live sync & offline resilience (zero hardcoded mock data)
-let localSubjects = [];
-let localTopics = [];
-let localStudents = [];
-let localTasks = [];
-let localAssignments = [];
-let localSubmissions = [];
-let localAnnouncements = [];
-let localNotifications = [];
-let localTodos = [];
+// Persistent instant cache helpers for zero-delay (0ms) instantaneous rendering
+const loadCache = (key, fallback = []) => {
+  try {
+    const val = localStorage.getItem('fy_cache_' + key);
+    return val ? JSON.parse(val) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+const saveCache = (key, val) => {
+  try {
+    localStorage.setItem('fy_cache_' + key, JSON.stringify(val));
+  } catch (e) {}
+};
+
+// Clean in-memory caches populated immediately from persistent cache
+let localSubjects = loadCache('subjects');
+let localTopics = loadCache('topics');
+let localStudents = loadCache('students');
+let localTasks = loadCache('tasks');
+let localAssignments = loadCache('assignments');
+let localSubmissions = loadCache('submissions');
+let localAnnouncements = loadCache('announcements');
+let localNotifications = loadCache('notifications');
+let localTodos = loadCache('todos');
 
 // RFC4122 v4 UUID helpers for Supabase PostgreSQL compatibility
 export const generateUUID = () => {
@@ -36,6 +52,39 @@ let realtimeChannel = null;
 let realtimeListeners = new Set();
 
 export const dataService = {
+  // Synchronous getters for 0ms instantaneous rendering on initial page mount
+  getCachedSubjects() {
+    const mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
+    return Array.isArray(mem) ? mem : [];
+  },
+  getCachedTasks() {
+    const mem = localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks');
+    return Array.isArray(mem) ? mem : [];
+  },
+  getCachedStudents() {
+    const mem = localStudents && localStudents.length > 0 ? localStudents : loadCache('students');
+    return Array.isArray(mem) ? mem : [];
+  },
+  getCachedSubmissions() {
+    const mem = localSubmissions && localSubmissions.length > 0 ? localSubmissions : loadCache('submissions');
+    return Array.isArray(mem) ? mem : [];
+  },
+  getCachedAnnouncements() {
+    const mem = localAnnouncements && localAnnouncements.length > 0 ? localAnnouncements : loadCache('announcements');
+    return Array.isArray(mem) ? mem : [];
+  },
+  getCachedStudentAssignments(studentId) {
+    if (!studentId) return [];
+    return loadCache('assignments_' + studentId, []);
+  },
+  getCachedTodos(userId) {
+    if (!userId) return [];
+    return loadCache('todos_' + userId, []);
+  },
+  getCachedAdmins() {
+    return this.getAdmins();
+  },
+
   // =========================================================================
   // SUBJECTS & TOPICS
   // =========================================================================
@@ -58,10 +107,13 @@ export const dataService = {
         }
 
         if (Array.isArray(data)) {
-          return data.map((s) => ({
+          const mapped = data.map((s) => ({
             ...s,
             topics: Array.isArray(s.topics) ? s.topics : [],
           }));
+          localSubjects = mapped;
+          saveCache('subjects', mapped);
+          return mapped;
         }
       } catch (err) {
         console.warn('Error fetching subjects from Supabase:', err);
@@ -262,7 +314,11 @@ export const dataService = {
           .from('tasks')
           .select('*, subjects(name, subject_code), topics(name)')
           .order('created_at', { ascending: false });
-        if (!error && Array.isArray(data)) return data;
+        if (!error && Array.isArray(data)) {
+          localTasks = data;
+          saveCache('tasks', data);
+          return data;
+        }
       } catch (err) {
         console.warn('Supabase getTasks notice:', err);
       }
@@ -490,6 +546,7 @@ export const dataService = {
         };
       });
 
+      saveCache('assignments_' + studentId, assignments);
       return assignments;
     }
 
@@ -724,6 +781,8 @@ export const dataService = {
 
         if (!error && Array.isArray(data) && data.length > 0) {
           allSubs = [...data, ...allSubs];
+          localSubmissions = allSubs;
+          saveCache('submissions', allSubs);
         }
       } catch (err) {
         console.warn('Supabase getAllSubmissions notice:', err);
@@ -853,6 +912,8 @@ export const dataService = {
           .order('roll_number', { ascending: true });
 
         if (!error && Array.isArray(data)) {
+          localStudents = data;
+          saveCache('students', data);
           return data.map((st) => ({
             ...st,
             task_assignments: localAssignments.filter((a) => a.student_id === st.id),
@@ -1066,6 +1127,8 @@ export const dataService = {
           .select('*')
           .order('published_at', { ascending: false });
         if (!error && Array.isArray(data)) {
+          localAnnouncements = data;
+          saveCache('announcements', data);
           return data;
         }
       } catch (err) {
@@ -1308,6 +1371,9 @@ export const dataService = {
             ...t,
             subjects: localSubjects.find((s) => s.id === t.subject_id) || null,
           }));
+      }
+      if (Array.isArray(data)) {
+        saveCache('todos_' + userId, data);
       }
       return data || [];
     }

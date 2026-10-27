@@ -23,12 +23,12 @@ import { SubjectModal } from '../../components/SubjectModal';
 import { AnnouncementModal } from '../../components/AnnouncementModal';
 
 export const AdminDashboard = () => {
-  const [students, setStudents] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState(() => dataService.getCachedStudents());
+  const [tasks, setTasks] = useState(() => dataService.getCachedTasks());
+  const [submissions, setSubmissions] = useState(() => dataService.getCachedSubmissions());
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [announcements, setAnnouncements] = useState(() => dataService.getCachedAnnouncements());
+  const [loading, setLoading] = useState(false);
 
   // Modals
   const [reviewModalSub, setReviewModalSub] = useState(null);

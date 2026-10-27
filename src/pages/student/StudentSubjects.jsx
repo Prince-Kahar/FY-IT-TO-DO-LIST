@@ -6,10 +6,13 @@ import { StatusBadge } from '../../components/StatusBadge';
 
 export const StudentSubjects = () => {
   const { user } = useAuth();
-  const [subjects, setSubjects] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [expandedSubjectId, setExpandedSubjectId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
+  const [expandedSubjectId, setExpandedSubjectId] = useState(() => {
+    const cached = dataService.getCachedSubjects();
+    return cached.length > 0 ? cached[0].id : null;
+  });
+  const [loading, setLoading] = useState(false);
 
   const loadCurriculum = async (isBackground = false) => {
     if (!isBackground) setLoading(true);

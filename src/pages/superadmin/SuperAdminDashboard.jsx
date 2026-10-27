@@ -42,12 +42,12 @@ export const SuperAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('admins');
 
   // Core Data States
-  const [admins, setAdmins] = useState([]);
-  const [availableSubjects, setAvailableSubjects] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [studentsCount, setStudentsCount] = useState(0);
-  const [tasksCount, setTasksCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [admins, setAdmins] = useState(() => dataService.getCachedAdmins());
+  const [availableSubjects, setAvailableSubjects] = useState(() => dataService.getCachedSubjects());
+  const [announcements, setAnnouncements] = useState(() => dataService.getCachedAnnouncements());
+  const [studentsCount, setStudentsCount] = useState(() => dataService.getCachedStudents()?.length || 0);
+  const [tasksCount, setTasksCount] = useState(() => dataService.getCachedTasks()?.length || 0);
+  const [loading, setLoading] = useState(false);
 
   // Password visibility & clipboard state
   const [showAllPasswords, setShowAllPasswords] = useState(false);

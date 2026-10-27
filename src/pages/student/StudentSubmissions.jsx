@@ -8,8 +8,11 @@ import { SubmitWorkModal } from '../../components/SubmitWorkModal';
 
 export const StudentSubmissions = () => {
   const { user } = useAuth();
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState(() => {
+    const cached = dataService.getCachedStudentAssignments(user?.id);
+    return cached.filter((a) => a.submissions && a.submissions.length > 0);
+  });
+  const [loading, setLoading] = useState(false);
 
   // Modals
   const [lightboxPhotos, setLightboxPhotos] = useState(null);

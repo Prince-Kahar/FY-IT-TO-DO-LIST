@@ -24,9 +24,9 @@ export const AdminTasks = () => {
   const { addToast } = useToast();
   const { profile } = useAuth();
 
-  const [tasks, setTasks] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState(() => dataService.getCachedTasks());
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [loading, setLoading] = useState(false);
 
   // Determine authorized subjects assigned by Super Admin
   const isAllSubjects =

@@ -33,10 +33,10 @@ export const StudentTodoList = () => {
   const { user } = useAuth();
   const { addToast, triggerConfetti } = useToast();
 
-  const [todos, setTodos] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [todos, setTodos] = useState(() => dataService.getCachedTodos(user?.id));
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
+  const [loading, setLoading] = useState(false);
 
   // Quick Add State
   const [quickTitle, setQuickTitle] = useState('');

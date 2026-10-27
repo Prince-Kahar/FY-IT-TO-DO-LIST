@@ -6,8 +6,8 @@ import { AnnouncementModal } from '../../components/AnnouncementModal';
 
 export const AdminAnnouncements = () => {
   const { addToast } = useToast();
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState(() => dataService.getCachedAnnouncements());
+  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadAnnouncements = async (isBackground = false) => {

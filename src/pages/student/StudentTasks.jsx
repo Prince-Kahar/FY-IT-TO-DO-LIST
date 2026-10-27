@@ -22,9 +22,9 @@ export const StudentTasks = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
 
-  const [assignments, setAssignments] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('ALL');

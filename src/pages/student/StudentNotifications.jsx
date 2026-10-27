@@ -9,8 +9,19 @@ export const StudentNotifications = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
 
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(() => {
+    const cached = dataService.getCachedAnnouncements();
+    return cached.map((a) => ({
+      id: 'ann-' + a.id,
+      title: `📢 ${a.title}`,
+      message: a.message || a.content || '',
+      notification_type: 'announcement',
+      priority: a.priority || 'Normal',
+      is_read: false,
+      created_at: a.published_at || a.created_at || new Date().toISOString(),
+    }));
+  });
+  const [loading, setLoading] = useState(false);
   const [pushStatus, setPushStatus] = useState(pushService.getPermission());
   const [isPushEnabled, setIsPushEnabled] = useState(pushService.isEnabled());
 

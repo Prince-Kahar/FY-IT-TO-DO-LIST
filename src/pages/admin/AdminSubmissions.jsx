@@ -15,9 +15,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ReviewModal } from '../../components/ReviewModal';
 
 export const AdminSubmissions = () => {
-  const [submissions, setSubmissions] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [submissions, setSubmissions] = useState(() => dataService.getCachedSubmissions());
+  const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');

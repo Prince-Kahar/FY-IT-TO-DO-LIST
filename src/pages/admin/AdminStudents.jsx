@@ -28,8 +28,8 @@ import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 export const AdminStudents = () => {
   const { addToast } = useToast();
 
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState(() => dataService.getCachedStudents());
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
