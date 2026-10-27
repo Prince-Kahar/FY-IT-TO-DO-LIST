@@ -133,15 +133,62 @@ export const dataService = {
   },
 
   async deleteSubject(id) {
-    localSubjects = localSubjects.filter((s) => s.id !== id);
-    localTopics = localTopics.filter((t) => t.subject_id !== id);
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('subjects').delete().eq('id', id);
+        // 1. Find all tasks linked to this subject
+        const { data: relatedTasks } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('subject_id', id);
+
+        const taskIds = (relatedTasks || []).map((t) => t.id);
+
+        if (taskIds.length > 0) {
+          // Find submissions for these tasks
+          const { data: subs } = await supabase
+            .from('submissions')
+            .select('id')
+            .in('task_id', taskIds);
+
+          const subIds = (subs || []).map((s) => s.id);
+          if (subIds.length > 0) {
+            try {
+              await supabase.from('submission_files').delete().in('submission_id', subIds);
+            } catch (e) {}
+            try {
+              await supabase.from('submissions').delete().in('id', subIds);
+            } catch (e) {}
+          }
+
+          try {
+            await supabase.from('task_assignments').delete().in('task_id', taskIds);
+          } catch (e) {}
+
+          // Delete the tasks
+          const { error: tErr } = await supabase.from('tasks').delete().in('id', taskIds);
+          if (tErr) console.warn('Delete tasks error:', tErr.message);
+        }
+
+        // 2. Delete all topics for this subject
+        try {
+          await supabase.from('topics').delete().eq('subject_id', id);
+        } catch (e) {}
+
+        // 3. Delete the subject itself
+        const { error: sErr } = await supabase.from('subjects').delete().eq('id', id);
+        if (sErr) {
+          console.error('Supabase deleteSubject error:', sErr.message);
+          throw new Error(sErr.message || 'Failed to delete subject from database');
+        }
       } catch (err) {
-        console.warn('Supabase deleteSubject notice:', err);
+        console.error('Supabase deleteSubject notice:', err);
+        throw err;
       }
     }
+
+    localSubjects = localSubjects.filter((s) => s.id !== id);
+    localTopics = localTopics.filter((t) => t.subject_id !== id);
+    localTasks = localTasks.filter((t) => t.subject_id !== id);
     this.notifyLocalChange('SUBJECT_DELETED', { id });
     return true;
   },

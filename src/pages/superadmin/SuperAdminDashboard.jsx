@@ -166,13 +166,17 @@ export const SuperAdminDashboard = () => {
 
   const handleDeleteSubject = async () => {
     if (!subjectToDelete) return;
+    const targetId = subjectToDelete.id;
+    const targetName = subjectToDelete.name;
     try {
-      await dataService.deleteSubject(subjectToDelete.id);
-      addToast(`Subject "${subjectToDelete.name}" removed from curriculum.`, 'info');
+      setAvailableSubjects((prev) => prev.filter((s) => s.id !== targetId));
+      await dataService.deleteSubject(targetId);
+      addToast(`Subject "${targetName}" removed from curriculum.`, 'info');
       setSubjectToDelete(null);
-      loadData(true);
+      await loadData(false);
     } catch (err) {
       addToast(err.message || 'Failed to delete subject', 'error');
+      loadData(false);
     }
   };
 
