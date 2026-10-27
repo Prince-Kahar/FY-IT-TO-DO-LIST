@@ -1080,16 +1080,14 @@ export const dataService = {
   async createAnnouncement(annData) {
     let annResult = null;
     const annId = (annData.id && isValidUUID(annData.id)) ? annData.id : generateUUID();
-    const cleanPayload = {
-      ...annData,
+
+    // Supabase strict schema payload (only columns that exist in public.announcements table)
+    const supaPayload = {
       id: annId,
-      title: annData.title || 'Campus Announcement',
-      message: annData.message || annData.content || '',
-      content: annData.content || annData.message || '',
-      author_id: (annData.author_id && isValidUUID(annData.author_id)) ? annData.author_id : null,
-      author_name: annData.author_name || 'Super Administrator',
-      priority: annData.priority || 'Medium',
-      target_audience: annData.target_audience || 'All',
+      title: (annData.title || 'Campus Announcement').trim(),
+      message: (annData.message || annData.content || '').trim(),
+      content: (annData.content || annData.message || '').trim(),
+      created_by: null, // Set to null to prevent foreign key violations with profiles
       published_at: annData.published_at || new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
@@ -1098,21 +1096,31 @@ export const dataService = {
       try {
         const { data, error } = await supabase
           .from('announcements')
-          .insert([cleanPayload])
+          .insert([supaPayload])
           .select()
           .single();
-        if (!error && data) annResult = data;
-        else if (error) {
+        if (!error && data) {
+          annResult = data;
+        } else if (error) {
           console.error('Supabase createAnnouncement error:', error.message);
+          throw new Error(error.message);
         }
       } catch (err) {
         console.error('Supabase createAnnouncement notice:', err);
+        throw err;
       }
     }
-    const newAnn = annResult || cleanPayload;
-    localAnnouncements.unshift(newAnn);
-    this.notifyLocalChange('ANNOUNCEMENT_CREATED', newAnn);
-    return newAnn;
+
+    const fullAnn = {
+      ...(annResult || supaPayload),
+      author_name: annData.author_name || 'Administrator',
+      priority: annData.priority || 'Medium',
+      target_audience: annData.target_audience || 'All',
+    };
+
+    localAnnouncements.unshift(fullAnn);
+    this.notifyLocalChange('ANNOUNCEMENT_CREATED', fullAnn);
+    return fullAnn;
   },
 
   async broadcastNotification({ title, message, priority = 'Medium', targetAudience = 'All', sendPush = true }) {
@@ -1132,37 +1140,12 @@ export const dataService = {
       target_audience: targetAudience,
     });
 
-    if (isSupabaseConfigured()) {
-      try {
-        const students = await this.getStudents();
-        if (Array.isArray(students) && students.length > 0) {
-          const validStudentIds = students
-            .map((st) => st.id)
-            .filter((id) => isValidUUID(id));
-
-          if (validStudentIds.length > 0) {
-            const notifs = validStudentIds.map((stId) => ({
-              id: generateUUID(),
-              user_id: stId,
-              title: `📢 ${title}`,
-              message,
-              notification_type: 'announcement',
-              is_read: false,
-              created_at: new Date().toISOString(),
-            }));
-            await supabase.from('notifications').insert(notifs);
-          }
-        }
-      } catch (e) {
-        console.warn('Broadcast notification to student feed caught:', e.message);
-      }
-    }
-
     localNotifications.unshift({
       id: generateUUID(),
       title: `📢 ${title}`,
       message,
       notification_type: 'announcement',
+      priority,
       is_read: false,
       created_at: new Date().toISOString(),
     });
