@@ -614,13 +614,38 @@ export const dataService = {
   async deleteTask(id) {
     if (isSupabaseConfigured()) {
       try {
+        // Delete related assignments and submissions first to satisfy FK constraints
+        const { data: asgs } = await supabase.from('task_assignments').select('id').eq('task_id', id);
+        if (asgs && asgs.length > 0) {
+          const asgIds = asgs.map((a) => a.id);
+          const { data: subs } = await supabase.from('submissions').select('id').in('task_assignment_id', asgIds);
+          if (subs && subs.length > 0) {
+            const subIds = subs.map((s) => s.id);
+            await supabase.from('submission_files').delete().in('submission_id', subIds);
+            await supabase.from('submissions').delete().in('id', subIds);
+          }
+          await supabase.from('task_assignments').delete().eq('task_id', id);
+        }
         await supabase.from('tasks').delete().eq('id', id);
       } catch (err) {
         console.warn('Supabase deleteTask notice:', err);
       }
     }
+
     localTasks = localTasks.filter((t) => t.id !== id);
+    saveCache('tasks', localTasks);
+
     localAssignments = localAssignments.filter((a) => a.task_id !== id);
+    saveCache('assignments', localAssignments);
+
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+      if (overrides[id]) {
+        delete overrides[id];
+        localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
+      }
+    } catch (e) {}
+
     this.notifyLocalChange('TASK_DELETED', { id });
     return true;
   },

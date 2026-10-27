@@ -95,9 +95,25 @@ export const Sidebar = ({ isOpen, onClose }) => {
       const sb = dataService.getCachedSubjects();
       const st = dataService.getCachedStudents();
       const a = dataService.getCachedAnnouncements();
+
+      const isAllSubjects =
+        !profile?.assigned_subjects ||
+        profile.assigned_subjects.includes('ALL') ||
+        profile.assigned_subjects.length === 0;
+
+      const visibleAdminTasks = isAllSubjects
+        ? t
+        : (t || []).filter((task) => {
+            const subName = task.subjects?.name;
+            return (
+              profile.assigned_subjects.includes(task.subject_id) ||
+              (subName && profile.assigned_subjects.includes(subName))
+            );
+          });
+
       return {
-        adminTasks: t?.length || 0,
-        pendingSubmissions: s?.filter((sub) => sub.status === 'Submitted')?.length || 0,
+        adminTasks: visibleAdminTasks?.length || 0,
+        pendingSubmissions: s?.filter((sub) => ['Submitted', 'Under Review'].includes(sub.status))?.length || 0,
         subjects: sb?.length || 0,
         students: st?.length || 0,
         announcements: a?.length || 0,
@@ -109,7 +125,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       const notifs = dataService.getCachedAnnouncements();
       return {
         todos: td?.filter((item) => item.status !== 'Completed')?.length || 0,
-        tasks: asg?.filter((item) => ['Assigned', 'In Progress', 'Overdue'].includes(item.status))?.length || 0,
+        tasks: asg?.length || 0,
         subjects: sb?.length || 0,
         submissions: asg?.filter((item) => ['Submitted', 'Approved', 'Needs Revision'].includes(item.status))?.length || 0,
         notifications: notifs?.length || 0,
@@ -135,8 +151,23 @@ export const Sidebar = ({ isOpen, onClose }) => {
           const students = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : dataService.getCachedStudents();
           const announcements = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : dataService.getCachedAnnouncements();
 
+          const isAllSubjects =
+            !profile?.assigned_subjects ||
+            profile.assigned_subjects.includes('ALL') ||
+            profile.assigned_subjects.length === 0;
+
+          const visibleAdminTasks = isAllSubjects
+            ? tasks
+            : (tasks || []).filter((task) => {
+                const subName = task.subjects?.name;
+                return (
+                  profile.assigned_subjects.includes(task.subject_id) ||
+                  (subName && profile.assigned_subjects.includes(subName))
+                );
+              });
+
           setCounts({
-            adminTasks: tasks?.length || 0,
+            adminTasks: visibleAdminTasks?.length || 0,
             pendingSubmissions: submissions?.filter((s) => ['Submitted', 'Under Review'].includes(s?.status))?.length || 0,
             subjects: subjects?.length || 0,
             students: students?.length || 0,
@@ -158,7 +189,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
           const unreadNotifs = notifs?.filter((n) => !n.is_read)?.length;
           setCounts({
             todos: todos?.filter((t) => t.status !== 'Completed')?.length || 0,
-            tasks: assignments?.filter((a) => ['Assigned', 'In Progress', 'Overdue'].includes(a.status))?.length || 0,
+            tasks: assignments?.length || 0,
             subjects: subjects?.length || 0,
             submissions: assignments?.filter((a) => ['Submitted', 'Approved', 'Needs Revision'].includes(a.status))?.length || 0,
             notifications: (unreadNotifs != null && unreadNotifs > 0) ? unreadNotifs : (notifs?.length || 0),
