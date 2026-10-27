@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   ShieldCheck,
+  Edit,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -76,6 +77,73 @@ export const AdminStudents = () => {
     password: 'student@123',
   });
   const [submittingStudent, setSubmittingStudent] = useState(false);
+
+  // Edit Student Modal State
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editStudentForm, setEditStudentForm] = useState({
+    full_name: '',
+    roll_number: '',
+    mobile_number: '',
+    email: '',
+    class_name: 'FY B.Sc. IT',
+    division: 'A',
+    password: '',
+    is_active: true,
+  });
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+
+  const handleOpenEditModal = (student) => {
+    setEditingStudent(student);
+    setEditStudentForm({
+      full_name: student.full_name || '',
+      roll_number: student.roll_number || '',
+      mobile_number: student.mobile_number || student.mobile || student.phone || '',
+      email: student.email || '',
+      class_name: student.class_name || 'FY B.Sc. IT',
+      division: student.division || 'A',
+      password: student.password || 'student@123',
+      is_active: student.is_active !== undefined ? student.is_active : true,
+    });
+  };
+
+  const handleEditStudentSubmit = async (e) => {
+    e.preventDefault();
+    if (
+      !editStudentForm.full_name.trim() ||
+      !editStudentForm.roll_number.trim() ||
+      !editStudentForm.mobile_number.trim()
+    ) {
+      addToast('Please enter Student Name, Roll Number, and Mobile Number.', 'warning');
+      return;
+    }
+    setSubmittingEdit(true);
+    try {
+      const updated = await dataService.updateStudent(editingStudent.id, {
+        full_name: editStudentForm.full_name.trim(),
+        roll_number: editStudentForm.roll_number.trim().toUpperCase(),
+        mobile_number: editStudentForm.mobile_number.trim(),
+        email:
+          editStudentForm.email.trim() ||
+          `${editStudentForm.roll_number.trim().toLowerCase()}@college.edu`,
+        class_name: editStudentForm.class_name || 'FY B.Sc. IT',
+        division: editStudentForm.division || 'A',
+        password: editStudentForm.password || 'student@123',
+        is_active: editStudentForm.is_active,
+      });
+
+      addToast(`Student "${updated.full_name || 'record'}" updated successfully!`, 'success');
+      setEditingStudent(null);
+      if (selectedStudent && selectedStudent.id === editingStudent.id) {
+        setSelectedStudent({ ...selectedStudent, ...updated });
+      }
+      loadStudents();
+    } catch (err) {
+      console.error('Error updating student:', err);
+      addToast(err.message || 'Error updating student details.', 'error');
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
 
   const loadStudents = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -411,6 +479,17 @@ export const AdminStudents = () => {
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenEditModal(st)}
+                          title="Edit Student Details"
+                          style={{ color: 'var(--primary-700)', fontWeight: 600 }}
+                        >
+                          <Edit size={14} />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
                           onClick={() => handleToggleStatus(st)}
                           title={st.is_active ? 'Deactivate Student' : 'Activate Student'}
                           style={{
@@ -440,13 +519,25 @@ export const AdminStudents = () => {
                   Roll: {selectedStudent.roll_number} • Class: {selectedStudent.class_name} (Div {selectedStudent.division})
                 </p>
               </div>
-              <button
-                className="photo-remove-btn"
-                onClick={() => setSelectedStudent(null)}
-                style={{ position: 'static' }}
-              >
-                <X size={16} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleOpenEditModal(selectedStudent)}
+                  title="Edit Student Details"
+                  style={{ color: 'var(--primary-700)', fontWeight: 600 }}
+                >
+                  <Edit size={14} />
+                  <span>Edit Details</span>
+                </button>
+                <button
+                  className="photo-remove-btn"
+                  onClick={() => setSelectedStudent(null)}
+                  style={{ position: 'static' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="modal-body">
@@ -620,6 +711,12 @@ export const AdminStudents = () => {
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                               Due: {new Date(task?.due_at).toLocaleDateString()}
                             </div>
+                            {asg.status === 'In Progress' && (
+                              <div style={{ fontSize: '0.75rem', color: '#D97706', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                <Clock size={12} />
+                                <span>Task In Progress {asg.started_at ? `(Started: ${new Date(asg.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})` : ''}</span>
+                              </div>
+                            )}
                           </div>
 
                           <StatusBadge status={asg.status} />
@@ -809,6 +906,158 @@ export const AdminStudents = () => {
                   disabled={submittingStudent}
                 >
                   {submittingStudent ? 'Registering...' : 'Add Student'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="modal-overlay" onClick={() => setEditingStudent(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'var(--primary-50)', padding: '8px', borderRadius: '10px', color: 'var(--primary-600)' }}>
+                  <Edit size={20} />
+                </div>
+                <div>
+                  <h3 className="modal-title">Edit Student Details</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Update credentials & profile information for {editingStudent.full_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="photo-remove-btn"
+                onClick={() => setEditingStudent(null)}
+                style={{ position: 'static' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditStudentSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div className="form-group">
+                  <label className="form-label">Full Name *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    value={editStudentForm.full_name}
+                    onChange={(e) => setEditStudentForm({ ...editStudentForm, full_name: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Roll Number *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      required
+                      placeholder="e.g. FYIT-101"
+                      value={editStudentForm.roll_number}
+                      onChange={(e) => setEditStudentForm({ ...editStudentForm, roll_number: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Mobile Number *</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={editStudentForm.mobile_number}
+                      onChange={(e) => setEditStudentForm({ ...editStudentForm, mobile_number: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Official Email Address</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    placeholder="e.g. student@college.edu"
+                    value={editStudentForm.email}
+                    onChange={(e) => setEditStudentForm({ ...editStudentForm, email: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Class</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editStudentForm.class_name}
+                      onChange={(e) => setEditStudentForm({ ...editStudentForm, class_name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Division</label>
+                    <select
+                      className="form-control"
+                      value={editStudentForm.division}
+                      onChange={(e) => setEditStudentForm({ ...editStudentForm, division: e.target.value })}
+                    >
+                      <option value="A">Division A</option>
+                      <option value="B">Division B</option>
+                      <option value="C">Division C</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Account Password</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Enter password"
+                    value={editStudentForm.password}
+                    onChange={(e) => setEditStudentForm({ ...editStudentForm, password: e.target.value })}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Student logs in using their Roll Number / Mobile and this password.
+                  </span>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                  <input
+                    type="checkbox"
+                    id="edit_student_active"
+                    checked={editStudentForm.is_active}
+                    onChange={(e) => setEditStudentForm({ ...editStudentForm, is_active: e.target.checked })}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary-600)', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="edit_student_active" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', margin: 0 }}>
+                    Active Student Account (Able to login & submit tasks)
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingStudent(null)}
+                  disabled={submittingEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={submittingEdit}
+                >
+                  {submittingEdit ? 'Saving Changes...' : 'Save Changes'}
                 </button>
               </div>
             </form>

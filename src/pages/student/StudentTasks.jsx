@@ -80,13 +80,22 @@ export const StudentTasks = () => {
     };
   }, [user]);
 
-  const handleStartTask = async (assignmentId) => {
+  const handleStartTask = async (assignmentId, taskId) => {
     try {
-      await dataService.startTask(assignmentId);
-      addToast('Task marked as In Progress!', 'info');
+      // Optimistic instant UI update
+      setAssignments((prev) =>
+        (prev || []).map((a) =>
+          a.id === assignmentId || (taskId && a.task_id === taskId)
+            ? { ...a, status: 'In Progress', started_at: new Date().toISOString() }
+            : a
+        )
+      );
+      addToast('Task started! Marked as In Progress.', 'success');
+      await dataService.startTask(assignmentId, user?.id, taskId);
       loadTasks();
     } catch (err) {
       console.error('Error starting task:', err);
+      addToast('Failed to start task.', 'error');
     }
   };
 
@@ -444,7 +453,7 @@ export const StudentTasks = () => {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        onClick={() => handleStartTask(asg.id)}
+                        onClick={() => handleStartTask(asg.id, asg.task_id)}
                       >
                         <Play size={14} />
                         <span>Start Task</span>

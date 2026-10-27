@@ -593,6 +593,12 @@ export const dataService = {
         } catch (e) {}
       }
 
+      // Retrieve persistent task progress
+      let progressMap = {};
+      try {
+        progressMap = JSON.parse(localStorage.getItem('fy_task_progress') || '{}');
+      } catch (e) {}
+
       // Map each published task into an assignment object
       const assignments = allTasks.map((task) => {
         const taskSubs = studentSubmissions.filter(
@@ -600,9 +606,19 @@ export const dataService = {
         );
         const latestSub = taskSubs[0] || null;
 
+        const pData =
+          progressMap['asg-' + task.id + '-' + studentId] ||
+          progressMap[`${task.id}_${studentId}`] ||
+          progressMap[`task_${task.id}_student_${studentId}`] ||
+          null;
+
         let status = 'Assigned';
+        let startedAt = pData?.started_at || null;
+
         if (latestSub) {
           status = latestSub.status || 'Submitted';
+        } else if (pData && pData.status === 'In Progress') {
+          status = 'In Progress';
         } else if (task.due_at && new Date(task.due_at) < new Date()) {
           status = 'Overdue';
         }
@@ -613,7 +629,7 @@ export const dataService = {
           student_id: studentId,
           status: status,
           assigned_at: task.created_at || new Date().toISOString(),
-          started_at: null,
+          started_at: startedAt,
           completed_at: latestSub?.submitted_at || null,
           is_late: task.due_at ? new Date() > new Date(task.due_at) : false,
           tasks: task,
@@ -629,6 +645,11 @@ export const dataService = {
     }
 
     // Demo mode: Return joined assignments
+    let demoProgressMap = {};
+    try {
+      demoProgressMap = JSON.parse(localStorage.getItem('fy_task_progress') || '{}');
+    } catch (e) {}
+
     return localAssignments
       .filter((a) => a.student_id === studentId)
       .map((a) => {
@@ -637,9 +658,13 @@ export const dataService = {
         const top = task ? localTopics.find((tp) => tp.id === task.topic_id) : null;
         const subs = localSubmissions.filter((sm) => sm.task_assignment_id === a.id);
 
-        // Check if overdue
+        const pData = demoProgressMap[a.id] || demoProgressMap[`${a.task_id}_${a.student_id}`];
         let currentStatus = a.status;
-        if (
+        let startedAt = a.started_at || pData?.started_at || null;
+
+        if (pData && pData.status === 'In Progress' && !['Submitted', 'Under Review', 'Approved'].includes(currentStatus)) {
+          currentStatus = 'In Progress';
+        } else if (
           task &&
           new Date(task.due_at) < new Date() &&
           ['Assigned', 'In Progress'].includes(currentStatus)
@@ -650,6 +675,7 @@ export const dataService = {
         return {
           ...a,
           status: currentStatus,
+          started_at: startedAt,
           tasks: task
             ? {
                 ...task,
@@ -665,7 +691,53 @@ export const dataService = {
       });
   },
 
-  async startTask(assignmentId) {
+  async startTask(assignmentId, studentId = null, taskId = null) {
+    let tId = taskId;
+    let sId = studentId;
+
+    if (assignmentId && assignmentId.startsWith('asg-')) {
+      const raw = assignmentId.replace('asg-', '');
+      if (!tId || !sId) {
+        const foundTask = localTasks.find((t) => raw.startsWith(t.id));
+        if (foundTask) {
+          tId = foundTask.id;
+          sId = raw.replace(foundTask.id + '-', '');
+        }
+      }
+    }
+
+    const now = new Date().toISOString();
+
+    // 1. Save persistent task progress in localStorage
+    try {
+      const progressMap = JSON.parse(localStorage.getItem('fy_task_progress') || '{}');
+      const progressRecord = {
+        status: 'In Progress',
+        started_at: now,
+        assignment_id: assignmentId,
+        task_id: tId,
+        student_id: sId,
+      };
+
+      if (assignmentId) progressMap[assignmentId] = progressRecord;
+      if (tId && sId) {
+        progressMap[`${tId}_${sId}`] = progressRecord;
+        progressMap[`asg-${tId}-${sId}`] = progressRecord;
+      }
+      localStorage.setItem('fy_task_progress', JSON.stringify(progressMap));
+    } catch (e) {
+      console.warn('Error saving fy_task_progress:', e);
+    }
+
+    // 2. Update local in-memory assignments
+    localAssignments = localAssignments.map((a) => {
+      if (a.id === assignmentId || (tId && sId && a.task_id === tId && a.student_id === sId)) {
+        return { ...a, status: 'In Progress', started_at: now };
+      }
+      return a;
+    });
+
+    // 3. Update Supabase if configured
     let updated = null;
     if (isSupabaseConfigured()) {
       try {
@@ -673,24 +745,81 @@ export const dataService = {
           .from('task_assignments')
           .update({
             status: 'In Progress',
-            started_at: new Date().toISOString(),
+            started_at: now,
           })
           .eq('id', assignmentId)
           .select()
           .single();
         if (!error && data) updated = data;
       } catch (err) {
-        console.warn('Supabase startTask notice:', err);
+        if (tId && sId) {
+          try {
+            const { data } = await supabase
+              .from('task_assignments')
+              .update({
+                status: 'In Progress',
+                started_at: now,
+              })
+              .eq('task_id', tId)
+              .eq('student_id', sId)
+              .select()
+              .single();
+            if (data) updated = data;
+          } catch (e) {}
+        }
       }
     }
-    localAssignments = localAssignments.map((a) =>
-      a.id === assignmentId
-        ? { ...a, status: 'In Progress', started_at: new Date().toISOString() }
-        : a
-    );
-    const res = updated || localAssignments.find((a) => a.id === assignmentId);
+
+    const res = updated || {
+      id: assignmentId,
+      task_id: tId,
+      student_id: sId,
+      status: 'In Progress',
+      started_at: now,
+    };
+
     this.notifyLocalChange('ASSIGNMENT_UPDATED', res);
+    this.notifyLocalChange('TASK_STARTED', res);
     return res;
+  },
+
+  async getTaskStudentProgress(taskId) {
+    const students = await this.getStudents();
+    const submissions = await this.getSubmissions();
+    let progressMap = {};
+    try {
+      progressMap = JSON.parse(localStorage.getItem('fy_task_progress') || '{}');
+    } catch (e) {}
+
+    return (students || []).map((student) => {
+      const studentSubs = (submissions || []).filter(
+        (s) =>
+          (s.task_id === taskId || s.task_assignments?.task_id === taskId) &&
+          (s.student_id === student.id || s.task_assignments?.student_id === student.id)
+      );
+      const latestSub = studentSubs[0] || null;
+
+      const pData =
+        progressMap[`asg-${taskId}-${student.id}`] ||
+        progressMap[`${taskId}_${student.id}`] ||
+        null;
+
+      let status = 'Assigned';
+      let startedAt = pData?.started_at || null;
+
+      if (latestSub) {
+        status = latestSub.status || 'Submitted';
+      } else if (pData && pData.status === 'In Progress') {
+        status = 'In Progress';
+      }
+
+      return {
+        student,
+        status,
+        started_at: startedAt,
+        latestSubmission: latestSub,
+      };
+    });
   },
 
   // =========================================================================
@@ -1010,15 +1139,25 @@ export const dataService = {
   },
 
   async toggleStudentActive(studentId, currentStatus) {
+    const newStatus = !currentStatus;
     localStudents = localStudents.map((s) =>
-      s.id === studentId ? { ...s, is_active: !currentStatus } : s
+      s.id === studentId ? { ...s, is_active: newStatus } : s
     );
+
+    try {
+      const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+      const updatedLocal = localRegistered.map((s) =>
+        s.id === studentId ? { ...s, is_active: newStatus } : s
+      );
+      localStorage.setItem('fy_registered_students', JSON.stringify(updatedLocal));
+    } catch (e) {}
+
     let updatedStudent = null;
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('students')
-          .update({ is_active: !currentStatus })
+          .update({ is_active: newStatus })
           .eq('id', studentId)
           .select()
           .single();
@@ -1028,6 +1167,73 @@ export const dataService = {
       }
     }
     const res = updatedStudent || localStudents.find((s) => s.id === studentId);
+    this.notifyLocalChange('STUDENT_UPDATED', res);
+    return res;
+  },
+
+  async updateStudent(studentId, updates) {
+    // 1. Update in local memory
+    localStudents = localStudents.map((s) =>
+      s.id === studentId ? { ...s, ...updates } : s
+    );
+
+    // 2. Update persistent fy_registered_students in localStorage
+    try {
+      const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+      const index = localRegistered.findIndex((s) => s.id === studentId);
+      if (index !== -1) {
+        localRegistered[index] = { ...localRegistered[index], ...updates };
+      } else {
+        const match = localStudents.find((s) => s.id === studentId);
+        if (match) localRegistered.push({ ...match, ...updates });
+      }
+      localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
+    } catch (e) {
+      console.warn('Error updating local registered students:', e);
+    }
+
+    // 3. Update cache
+    const cachedStudents = getCache('students');
+    if (cachedStudents && Array.isArray(cachedStudents)) {
+      saveCache(
+        'students',
+        cachedStudents.map((s) => (s.id === studentId ? { ...s, ...updates } : s))
+      );
+    }
+
+    // 4. Update Supabase if configured
+    let updatedStudent = null;
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {};
+        if (updates.full_name !== undefined) payload.full_name = updates.full_name;
+        if (updates.roll_number !== undefined) payload.roll_number = updates.roll_number;
+        if (updates.mobile_number !== undefined) payload.mobile_number = updates.mobile_number;
+        if (updates.email !== undefined) payload.email = updates.email;
+        if (updates.class_name !== undefined) payload.class_name = updates.class_name;
+        if (updates.division !== undefined) payload.division = updates.division;
+        if (updates.password !== undefined) payload.password = updates.password;
+        if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+
+        const { data, error } = await supabase
+          .from('students')
+          .update(payload)
+          .eq('id', studentId)
+          .select()
+          .single();
+
+        if (!error && data) {
+          updatedStudent = data;
+        } else if (error) {
+          console.warn('Supabase updateStudent error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase updateStudent exception:', err);
+      }
+    }
+
+    const res =
+      updatedStudent || localStudents.find((s) => s.id === studentId) || { id: studentId, ...updates };
     this.notifyLocalChange('STUDENT_UPDATED', res);
     return res;
   },

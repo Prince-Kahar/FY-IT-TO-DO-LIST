@@ -13,11 +13,12 @@ import {
   AlertTriangle,
   CalendarDays,
   BookOpen,
+  X,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { PriorityBadge } from '../../components/StatusBadge';
+import { PriorityBadge, StatusBadge } from '../../components/StatusBadge';
 import { TaskModal } from '../../components/TaskModal';
 
 export const AdminTasks = () => {
@@ -27,6 +28,32 @@ export const AdminTasks = () => {
   const [tasks, setTasks] = useState(() => dataService.getCachedTasks());
   const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
   const [loading, setLoading] = useState(false);
+
+  // Task Student Progress State
+  const [progressTask, setProgressTask] = useState(null);
+  const [taskProgressList, setTaskProgressList] = useState([]);
+  const [loadingProgress, setLoadingProgress] = useState(false);
+
+  const handleOpenProgress = async (task) => {
+    setProgressTask(task);
+    setLoadingProgress(true);
+    try {
+      const list = await dataService.getTaskStudentProgress(task.id);
+      setTaskProgressList(list);
+    } catch (err) {
+      console.error('Error fetching task progress:', err);
+      addToast('Error fetching student progress.', 'error');
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  const refreshProgress = async (taskId) => {
+    try {
+      const list = await dataService.getTaskStudentProgress(taskId);
+      setTaskProgressList(list);
+    } catch (e) {}
+  };
 
   // Determine authorized subjects assigned by Super Admin
   const isAllSubjects =
@@ -438,6 +465,16 @@ export const AdminTasks = () => {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
+                        onClick={() => handleOpenProgress(t)}
+                        title="View Student Progress & Status"
+                        style={{ color: 'var(--primary-700)', fontWeight: 600 }}
+                      >
+                        <Users size={14} />
+                        <span>Students</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
                         onClick={() => {
                           setTaskToEdit(t);
                           setIsTaskModalOpen(true);
@@ -521,6 +558,135 @@ export const AdminTasks = () => {
                 disabled={isDeleting}
               >
                 {isDeleting ? 'Deleting...' : 'Delete Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Progress Modal */}
+      {progressTask && (
+        <div className="modal-overlay" onClick={() => setProgressTask(null)}>
+          <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'var(--primary-50)', padding: '8px', borderRadius: '10px', color: 'var(--primary-600)' }}>
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 className="modal-title">Student Progress: {progressTask.title}</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Track which students have started or submitted this task
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="photo-remove-btn"
+                onClick={() => setProgressTask(null)}
+                style={{ position: 'static' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Quick KPI stats */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '10px',
+                  marginBottom: '16px',
+                }}
+              >
+                <div style={{ background: 'var(--bg-subtle)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Students</div>
+                  <strong style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>{taskProgressList.length}</strong>
+                </div>
+                <div style={{ background: '#EFF6FF', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--primary-700)' }}>In Progress</div>
+                  <strong style={{ fontSize: '1.2rem', color: 'var(--primary-700)' }}>
+                    {taskProgressList.filter((p) => p.status === 'In Progress').length}
+                  </strong>
+                </div>
+                <div style={{ background: 'var(--success-bg)', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--success-text)' }}>Submitted</div>
+                  <strong style={{ fontSize: '1.2rem', color: 'var(--success-text)' }}>
+                    {taskProgressList.filter((p) => ['Submitted', 'Under Review', 'Approved'].includes(p.status)).length}
+                  </strong>
+                </div>
+                <div style={{ background: '#FFFBEB', padding: '10px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#B45309' }}>Not Started</div>
+                  <strong style={{ fontSize: '1.2rem', color: '#B45309' }}>
+                    {taskProgressList.filter((p) => p.status === 'Assigned' || p.status === 'Overdue').length}
+                  </strong>
+                </div>
+              </div>
+
+              {loadingProgress ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
+                  Loading student progress...
+                </div>
+              ) : taskProgressList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
+                  No students registered yet.
+                </div>
+              ) : (
+                <div className="table-responsive" style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Roll No</th>
+                        <th>Div</th>
+                        <th>Status</th>
+                        <th>Activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {taskProgressList.map((item) => (
+                        <tr key={item.student.id}>
+                          <td>
+                            <strong>{item.student.full_name}</strong>
+                          </td>
+                          <td>
+                            <code>{item.student.roll_number}</code>
+                          </td>
+                          <td>{item.student.division || 'A'}</td>
+                          <td>
+                            <StatusBadge status={item.status} />
+                          </td>
+                          <td>
+                            {item.status === 'In Progress' && item.started_at ? (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--primary-700)', fontWeight: 600 }}>
+                                ⏳ Started: {new Date(item.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            ) : item.latestSubmission ? (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 600 }}>
+                                📤 Submitted: {new Date(item.latestSubmission.submitted_at).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Not started yet
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setProgressTask(null)}
+              >
+                Close
               </button>
             </div>
           </div>
