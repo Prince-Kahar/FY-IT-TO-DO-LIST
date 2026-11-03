@@ -64,7 +64,7 @@ export const StudentSubjects = () => {
     // 1. Polling every 5 seconds
     const interval = setInterval(() => {
       loadCurriculum(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Window focus refetch
     const handleFocus = () => loadCurriculum(true);

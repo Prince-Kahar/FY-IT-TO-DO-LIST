@@ -89,7 +89,7 @@ export const StudentNotifications = () => {
     // 1. Continuous live polling every 5 seconds
     const pollInterval = setInterval(() => {
       loadNotifications(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Realtime listener
     const unsub = dataService.subscribeRealtime(() => {

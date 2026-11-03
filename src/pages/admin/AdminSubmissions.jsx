@@ -73,7 +73,7 @@ export const AdminSubmissions = () => {
     // 1. Continuous Live Polling every 5 seconds for incoming student submissions
     const pollInterval = setInterval(() => {
       loadSubmissions(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadSubmissions(true);

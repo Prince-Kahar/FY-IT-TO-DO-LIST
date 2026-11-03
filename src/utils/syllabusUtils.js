@@ -126,3 +126,4 @@ export const formatSubtopicsToString = (hierarchy) => {
     .filter(Boolean)
     .join(', ');
 };
+

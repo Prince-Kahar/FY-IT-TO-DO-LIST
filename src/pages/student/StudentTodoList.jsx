@@ -120,7 +120,7 @@ export const StudentTodoList = () => {
     // 1. Continuous Live Polling every 5 seconds from Supabase
     const pollInterval = setInterval(() => {
       loadTodoData(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadTodoData(true);

@@ -329,11 +329,13 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
         }
       }
 
+      const matchedTopic = (availableTopics || []).find((t) => t.id === topicId);
       const taskPayload = {
         title: title.trim(),
         description: description.trim(),
         subject_id: subjectId,
         topic_id: topicId || null,
+        topic_name: matchedTopic?.title || matchedTopic?.name || null,
         task_type: taskType,
         priority: priority, // Maintained for database schema without showing in form
         due_at: new Date(dueAt).toISOString(),

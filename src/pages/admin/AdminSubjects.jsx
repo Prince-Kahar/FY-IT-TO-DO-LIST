@@ -83,7 +83,7 @@ export const AdminSubjects = () => {
     // 1. Continuous Live Polling every 5 seconds
     const pollInterval = setInterval(() => {
       loadSubjects(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadSubjects(true);

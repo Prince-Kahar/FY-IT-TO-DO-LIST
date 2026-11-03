@@ -155,6 +155,7 @@ export const formatAnnouncementWithAttachment = (message, attachment) => {
 // Realtime sync channels and listener bus
 let realtimeChannel = null;
 let realtimeListeners = new Set();
+let lastTasksFetchTime = 0;
 
 export const dataService = {
   // Strict stream & semester isolation validator
@@ -416,7 +417,24 @@ export const dataService = {
   },
   getCachedStudentAssignments(studentId) {
     if (!studentId) return [];
-    return loadCache('assignments_' + studentId, []);
+    const cached = loadCache('assignments_' + studentId, []);
+    if (cached && cached.length > 0) return cached;
+    const tasks = this.getCachedTasks().filter((t) => (t.publication_status || 'published').toLowerCase() === 'published');
+    if (tasks.length > 0) {
+      return tasks.map((task) => ({
+        id: 'asg-' + task.id + '-' + studentId,
+        task_id: task.id,
+        student_id: studentId,
+        status: 'Assigned',
+        assigned_at: task.created_at || new Date().toISOString(),
+        started_at: null,
+        completed_at: null,
+        is_late: task.due_at ? new Date() > new Date(task.due_at) : false,
+        tasks: task,
+        submissions: [],
+      }));
+    }
+    return [];
   },
   getCachedTodos(userId) {
     if (!userId) return [];
@@ -1139,11 +1157,16 @@ export const dataService = {
   // =========================================================================
   // TASKS & ASSIGNMENTS
   // =========================================================================
-  async getTasks() {
+  async getTasks(forceRefresh = false) {
     let overrides = {};
     try {
       overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
     } catch (e) {}
+
+    // Throttle duplicate queries within 3 seconds to preserve Supabase Disk IO Budget
+    if (!forceRefresh && localTasks && localTasks.length > 0 && Date.now() - lastTasksFetchTime < 3000) {
+      return this.checkAndAutoPublishScheduledTasks(localTasks);
+    }
 
     if (isSupabaseConfigured()) {
       try {
@@ -1158,7 +1181,9 @@ export const dataService = {
 
         const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
         if (!error && Array.isArray(data)) {
+          lastTasksFetchTime = Date.now();
           const subjects = this.getCachedSubjects();
+          const remoteIds = new Set(data.map((t) => t.id));
           const merged = data.map((t) => {
             const ov = overrides[t.id];
             const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
@@ -1166,9 +1191,10 @@ export const dataService = {
             const taskItem = {
               ...t,
               subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
-              topics: top ? (top.name ? top : { name: top.name }) : null,
-              unit_name: ov?.unit_name || top?.unit_name || null,
-              subtopic: ov?.subtopic || top?.subtopic || null,
+              topics: top ? (top.name ? top : { name: top.name }) : (ov?.topic_name ? { name: ov.topic_name } : null),
+              unit_name: ov?.unit_name || top?.unit_name || t.unit_name || null,
+              subtopic: ov?.subtopic || top?.subtopic || t.subtopic || null,
+              stream: ov?.stream || t.stream || sub?.stream || null,
             };
             if (ov) {
               return {
@@ -1180,6 +1206,21 @@ export const dataService = {
             }
             return taskItem;
           });
+
+          // PRESERVE ANY LOCAL TASKS THAT HAVE NOT YET BEEN RETURNED BY SUPABASE
+          let deletedTaskIds = new Set();
+          try {
+            const rawDel = JSON.parse(localStorage.getItem('fy_deleted_task_ids') || '[]');
+            deletedTaskIds = new Set(rawDel.map((x) => String(x)));
+          } catch (e) {}
+
+          (localTasks || []).forEach((lt) => {
+            if (lt && lt.id && !remoteIds.has(lt.id) && !deletedTaskIds.has(String(lt.id))) {
+              merged.push(lt);
+              remoteIds.add(lt.id);
+            }
+          });
+
           localTasks = merged;
           saveCache('tasks', merged);
           return this.checkAndAutoPublishScheduledTasks(merged);
@@ -1189,23 +1230,33 @@ export const dataService = {
       }
     }
     const subjects = this.getCachedSubjects();
-    const localResult = localTasks.map((t) => {
-      const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
-      const top = t.topics || localTopics.find((tp) => tp.id === t.topic_id);
-      const ov = overrides[t.id];
-      return {
-        ...t,
-        ...(ov || {}),
-        subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
-        topics: top ? (top.name ? top : { name: top.name }) : null,
-        unit_name: ov?.unit_name || top?.unit_name || null,
-        subtopic: ov?.subtopic || top?.subtopic || null,
-      };
-    });
+    let deletedTaskIds = new Set();
+    try {
+      const rawDel = JSON.parse(localStorage.getItem('fy_deleted_task_ids') || '[]');
+      deletedTaskIds = new Set(rawDel.map((x) => String(x)));
+    } catch (e) {}
+
+    const localResult = (localTasks || [])
+      .filter((t) => t && t.id && !deletedTaskIds.has(String(t.id)))
+      .map((t) => {
+        const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
+        const top = t.topics || localTopics.find((tp) => tp.id === t.topic_id);
+        const ov = overrides[t.id];
+        return {
+          ...t,
+          ...(ov || {}),
+          subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
+          topics: top ? (top.name ? top : { name: top.name }) : (ov?.topic_name ? { name: ov.topic_name } : null),
+          unit_name: ov?.unit_name || top?.unit_name || t.unit_name || null,
+          subtopic: ov?.subtopic || top?.subtopic || t.subtopic || null,
+          stream: ov?.stream || t.stream || sub?.stream || null,
+        };
+      });
     return this.checkAndAutoPublishScheduledTasks(localResult);
   },
 
   async createTask(taskData, targetStudentIds = []) {
+    lastTasksFetchTime = 0;
     let resolvedSubjectId = (taskData.subject_id && isValidUUID(taskData.subject_id)) ? taskData.subject_id : null;
     if (!resolvedSubjectId) {
       const subs = await this.getSubjects();
@@ -1228,7 +1279,7 @@ export const dataService = {
       publication_status: taskData.publication_status === 'Scheduled' ? 'Draft' : (taskData.publication_status || 'Published'),
       assignment_target: taskData.assignment_target || 'all',
       reference_url: taskData.reference_url || null,
-      created_by: (taskData.created_by && isValidUUID(taskData.created_by)) ? taskData.created_by : null,
+      created_by: null, // Always null because client is anonymous and non-auth UUID causes foreign key violation
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -1236,11 +1287,26 @@ export const dataService = {
     let taskResult = null;
     if (isSupabaseConfigured()) {
       try {
-        const { data: task, error } = await supabase
+        let { data: task, error } = await supabase
           .from('tasks')
           .insert([cleanTask])
           .select('*, subjects(name, subject_code), topics(name)')
-          .single();
+          .maybeSingle();
+
+        // Foreign key retry: if topic_id is invalid or local-only in Supabase, retry with topic_id = null
+        if (error && cleanTask.topic_id && (error.code === '23503' || (error.message && error.message.includes('foreign key')))) {
+          console.warn('Supabase topic FK constraint triggered, retrying with topic_id = null...');
+          cleanTask.topic_id = null;
+          const retryRes = await supabase
+            .from('tasks')
+            .insert([cleanTask])
+            .select('*, subjects(name, subject_code), topics(name)')
+            .maybeSingle();
+          if (!retryRes.error && retryRes.data) {
+            task = retryRes.data;
+            error = null;
+          }
+        }
 
         if (!error && task) {
           taskResult = task;
@@ -1252,13 +1318,23 @@ export const dataService = {
       }
     }
 
+    const cachedSubjects = this.getCachedSubjects();
+    const sub = (cachedSubjects || []).find((s) => s.id === cleanTask.subject_id) || (localSubjects || []).find((s) => s.id === cleanTask.subject_id);
+    const top = (localTopics || []).find((tp) => tp.id === cleanTask.topic_id);
+
     const newTask = {
       ...(taskResult || cleanTask),
+      subjects: taskResult?.subjects || (sub ? { name: sub.name, subject_code: sub.subject_code } : null),
+      topics: taskResult?.topics || (top ? { name: top.name } : (taskData.topic_name ? { name: taskData.topic_name } : null)),
       publication_status: taskData.publication_status || 'Published',
       scheduled_at: taskData.scheduled_at || null,
+      unit_name: taskData.unit_name || null,
+      subtopic: taskData.subtopic || null,
+      stream: taskData.stream || sub?.stream || (sub?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'),
+      topic_name: taskData.topic_name || null,
     };
 
-    // Persist in overrides immediately so Scheduled status is never overwritten by DB polling
+    // Persist in overrides immediately so Scheduled status, stream, and topic metadata are never lost
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
       overrides[newTask.id] = {
@@ -1266,13 +1342,31 @@ export const dataService = {
         scheduled_at: taskData.scheduled_at || null,
         unit_name: taskData.unit_name || null,
         subtopic: taskData.subtopic || null,
-        stream: taskData.stream || null,
+        stream: newTask.stream,
+        topic_name: taskData.topic_name || null,
       };
       localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
-    localTasks.unshift(newTask);
+    // Make sure it is not in deleted set
+    try {
+      const rawDel = JSON.parse(localStorage.getItem('fy_deleted_task_ids') || '[]');
+      const filteredDel = rawDel.filter((id) => id !== newTask.id);
+      localStorage.setItem('fy_deleted_task_ids', JSON.stringify(filteredDel));
+    } catch (e) {}
+
+    const existingIdx = (localTasks || []).findIndex((t) => t.id === newTask.id);
+    if (existingIdx >= 0) {
+      localTasks[existingIdx] = newTask;
+    } else {
+      localTasks.unshift(newTask);
+    }
     saveCache('tasks', localTasks);
+
+    // Notify all active listeners
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
 
     if (newTask.publication_status === 'Published') {
       const sub = (localSubjects || []).find((s) => s.id === newTask.subject_id);
@@ -1350,6 +1444,7 @@ export const dataService = {
   },
 
   async updateTask(id, taskData) {
+    lastTasksFetchTime = 0;
     // 1. Persist in local storage overrides so polling never resets the user's status
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
@@ -1358,6 +1453,10 @@ export const dataService = {
         ...taskData,
         publication_status: taskData.publication_status,
         scheduled_at: taskData.scheduled_at,
+        unit_name: taskData.unit_name || overrides[id]?.unit_name || null,
+        subtopic: taskData.subtopic || overrides[id]?.subtopic || null,
+        stream: taskData.stream || overrides[id]?.stream || null,
+        topic_name: taskData.topic_name || overrides[id]?.topic_name || null,
         updated_at: new Date().toISOString(),
       };
       localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
@@ -1387,12 +1486,29 @@ export const dataService = {
     let remoteUpdated = null;
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('tasks')
           .update(supabasePayload)
           .eq('id', id)
           .select('*, subjects(name, subject_code), topics(name)')
-          .single();
+          .maybeSingle();
+
+        // Foreign key retry
+        if (error && supabasePayload.topic_id && (error.code === '23503' || (error.message && error.message.includes('foreign key')))) {
+          console.warn('Supabase updateTask topic FK constraint triggered, retrying with topic_id = null...');
+          supabasePayload.topic_id = null;
+          const retryRes = await supabase
+            .from('tasks')
+            .update(supabasePayload)
+            .eq('id', id)
+            .select('*, subjects(name, subject_code), topics(name)')
+            .maybeSingle();
+          if (!retryRes.error && retryRes.data) {
+            data = retryRes.data;
+            error = null;
+          }
+        }
+
         if (!error && data) {
           remoteUpdated = data;
         } else if (error) {
@@ -1404,7 +1520,7 @@ export const dataService = {
     }
 
     // 3. Update local in-memory tasks and cache immediately
-    localTasks = localTasks.map((t) =>
+    localTasks = (localTasks || []).map((t) =>
       t.id === id
         ? {
             ...t,
@@ -1419,9 +1535,9 @@ export const dataService = {
 
     // 4. If status changed to Published, ensure student assignments are generated
     if (taskData.publication_status === 'Published') {
-      const existing = localAssignments.filter((a) => a.task_id === id);
+      const existing = (localAssignments || []).filter((a) => a.task_id === id);
       if (existing.length === 0) {
-        localStudents.filter((s) => s.is_active).forEach((st) => {
+        (localStudents || []).filter((s) => s.is_active).forEach((st) => {
           localAssignments.push({
             id: 'asg-' + id + '-' + st.id,
             task_id: id,
@@ -1436,12 +1552,24 @@ export const dataService = {
       }
     }
 
-    const updated = localTasks.find((t) => t.id === id) || { id, ...taskData };
+    const updated = (localTasks || []).find((t) => t.id === id) || { id, ...taskData };
     this.notifyLocalChange('TASK_UPDATED', updated);
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
     return updated;
   },
 
   async deleteTask(id) {
+    lastTasksFetchTime = 0;
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('fy_deleted_task_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('fy_deleted_task_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
     if (isSupabaseConfigured()) {
       try {
         // Delete related assignments and submissions first to satisfy FK constraints
@@ -1462,10 +1590,10 @@ export const dataService = {
       }
     }
 
-    localTasks = localTasks.filter((t) => t.id !== id);
+    localTasks = (localTasks || []).filter((t) => t.id !== id);
     saveCache('tasks', localTasks);
 
-    localAssignments = localAssignments.filter((a) => a.task_id !== id);
+    localAssignments = (localAssignments || []).filter((a) => a.task_id !== id);
     saveCache('assignments', localAssignments);
 
     try {
@@ -1477,6 +1605,9 @@ export const dataService = {
     } catch (e) {}
 
     this.notifyLocalChange('TASK_DELETED', { id });
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
     return true;
   },
 
@@ -1510,10 +1641,17 @@ export const dataService = {
     }
 
     // 2. Merge with any local tasks created recently
+    let deletedTaskIds = new Set();
+    try {
+      const rawDel = JSON.parse(localStorage.getItem('fy_deleted_task_ids') || '[]');
+      deletedTaskIds = new Set(rawDel.map((x) => String(x)));
+    } catch (e) {}
+
+    const seenTaskIds = new Set(allTasks.map((t) => t.id));
     if (Array.isArray(localTasks) && localTasks.length > 0) {
-      const seenTaskIds = new Set(allTasks.map((t) => t.id));
       localTasks
         .filter((t) => {
+          if (!t || !t.id || deletedTaskIds.has(String(t.id))) return false;
           const status = (t.publication_status || 'published').toLowerCase();
           if (status === 'published') return true;
           if (status === 'scheduled') {
@@ -1528,6 +1666,28 @@ export const dataService = {
           }
         });
     }
+
+    // Enrich all tasks with overrides, subjects, and topics
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+    } catch (e) {}
+    const cachedSubjects = this.getCachedSubjects();
+
+    allTasks = allTasks.map((t) => {
+      const ov = overrides[t.id] || {};
+      const sub = t.subjects || cachedSubjects.find((s) => s.id === t.subject_id) || (localSubjects || []).find((s) => s.id === t.subject_id);
+      const top = t.topics || (localTopics || []).find((tp) => tp.id === t.topic_id);
+      return {
+        ...t,
+        ...ov,
+        subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
+        topics: top ? (top.name ? top : { name: top.name }) : (ov.topic_name ? { name: ov.topic_name } : null),
+        unit_name: ov.unit_name || top?.unit_name || t.unit_name || null,
+        subtopic: ov.subtopic || top?.subtopic || t.subtopic || null,
+        stream: ov.stream || t.stream || sub?.stream || (sub?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'),
+      };
+    });
 
     if (allTasks.length > 0) {
       const localStoredSubs = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');

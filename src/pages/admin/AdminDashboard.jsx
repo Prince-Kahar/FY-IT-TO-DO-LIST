@@ -61,10 +61,10 @@ export const AdminDashboard = () => {
   useEffect(() => {
     loadAdminData();
 
-    // 1. Continuous Live Polling from Supabase every 5 seconds
+    // 1. Continuous Live Polling from Supabase every 20 seconds
     const pollInterval = setInterval(() => {
       loadAdminData(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch when user switches to tab or window gains focus
     const handleFocus = () => loadAdminData(true);

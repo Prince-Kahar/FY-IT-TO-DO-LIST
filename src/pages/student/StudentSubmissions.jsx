@@ -39,7 +39,7 @@ export const StudentSubmissions = () => {
     // 1. Continuous Live Polling every 5 seconds from Supabase
     const pollInterval = setInterval(() => {
       loadSubmissions(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadSubmissions(true);

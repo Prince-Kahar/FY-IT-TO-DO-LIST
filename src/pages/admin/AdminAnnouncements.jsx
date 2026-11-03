@@ -29,7 +29,7 @@ export const AdminAnnouncements = () => {
     // 1. Continuous Live Polling every 5 seconds from Supabase
     const pollInterval = setInterval(() => {
       loadAnnouncements(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadAnnouncements(true);

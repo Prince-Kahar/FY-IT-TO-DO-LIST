@@ -100,7 +100,7 @@ export const SuperAdminDashboard = () => {
     // 1. Live polling every 5 seconds
     const interval = setInterval(() => {
       loadData(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Realtime subscription & cross-tab sync
     const unsub = dataService.subscribeRealtime(() => {

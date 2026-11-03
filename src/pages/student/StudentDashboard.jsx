@@ -64,10 +64,10 @@ export const StudentDashboard = () => {
   useEffect(() => {
     loadData();
 
-    // 1. Continuous Live Polling every 5 seconds from Supabase
+    // 1. Continuous Live Polling every 20 seconds from Supabase
     const pollInterval = setInterval(() => {
       loadData(true);
-    }, 5000);
+    }, 20000);
 
     // 2. Auto refetch on focus / visibility change
     const handleFocus = () => loadData(true);
@@ -140,9 +140,22 @@ export const StudentDashboard = () => {
 
   const visibleSubjectIds = new Set(visibleSubjects.map((s) => s.id));
   const visibleAssignments = (assignments || []).filter((a) => {
-    if (!a?.tasks) return false;
-    if (a.tasks.subject_id) {
-      return visibleSubjectIds.has(a.tasks.subject_id);
+    const task = a?.tasks;
+    if (!task) return false;
+
+    const taskStream = (task.stream || '').toUpperCase();
+    if (taskStream && taskStream !== 'ALL' && taskStream !== 'BOTH') {
+      if (taskStream !== studentStream?.toUpperCase()) return false;
+    }
+
+    if (task.subject_id) {
+      if (visibleSubjectIds.size === 0) return true;
+      if (visibleSubjectIds.has(task.subject_id)) return true;
+      const sub = (subjects || []).find((s) => s.id === task.subject_id);
+      if (sub && dataService.isSubjectForStudent(sub, studentStream, studentSemester)) return true;
+      const code = (task.subjects?.subject_code || sub?.subject_code || '').toUpperCase();
+      if (code && code.startsWith(studentStream?.toUpperCase())) return true;
+      return false;
     }
     return true;
   });
