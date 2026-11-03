@@ -505,6 +505,15 @@ export const AuthProvider = ({ children }) => {
     localRegistered.push(newStudent);
     localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
 
+    // Clear tombstone in case this roll number / ID was previously deleted
+    try {
+      const deleted = JSON.parse(localStorage.getItem('fy_deleted_student_ids') || '[]');
+      const filtered = deleted.filter(
+        (x) => x.toLowerCase() !== newStudent.id.toLowerCase() && x.toLowerCase() !== newStudent.roll_number?.toLowerCase()
+      );
+      localStorage.setItem('fy_deleted_student_ids', JSON.stringify(filtered));
+    } catch (e) {}
+
     // Save directly to dedicated public.students table in Supabase with guard timeout
     if (isSupabaseConfigured()) {
       try {

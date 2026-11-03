@@ -99,6 +99,10 @@ export const AdminStudents = () => {
   });
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
+  // Delete Student Confirmation State
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [deletingStudent, setDeletingStudent] = useState(false);
+
   const handleOpenEditModal = (student) => {
     const isDS = student.stream === 'DS' || (student.class_name || '').toUpperCase().includes('DS');
     setEditingStudent(student);
@@ -221,27 +225,34 @@ export const AdminStudents = () => {
     }
   };
 
-  const handleDeleteStudent = async (student) => {
+  const handleDeleteStudent = (student, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     if (!student) return;
-    if (
-      !window.confirm(
-        `Are you sure you want to permanently delete student "${student.full_name}" (${student.roll_number || 'N/A'})? This will erase all their assignment progress and account records.`
-      )
-    ) {
-      return;
-    }
+    setStudentToDelete(student);
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    const target = studentToDelete;
+    setDeletingStudent(true);
     try {
-      // Instant 0ms optimistic UI update
-      setStudents((prev) => prev.filter((s) => s.id !== student.id));
-      if (selectedStudent && selectedStudent.id === student.id) {
+      // Instant 0ms optimistic UI removal
+      setStudents((prev) =>
+        prev.filter((s) => s.id !== target.id && s.roll_number !== target.roll_number)
+      );
+      if (selectedStudent && (selectedStudent.id === target.id || selectedStudent.roll_number === target.roll_number)) {
         setSelectedStudent(null);
       }
-      await dataService.deleteStudent(student.id);
-      addToast(`Student "${student.full_name}" deleted successfully.`, 'info');
-      loadStudents(true);
+      setStudentToDelete(null);
+
+      await dataService.deleteStudent(target.id, target.roll_number);
+      addToast(`Student "${target.full_name}" deleted successfully.`, 'info');
+      await loadStudents(true);
     } catch (err) {
       console.error('Failed to delete student:', err);
       addToast(err.message || 'Error deleting student.', 'error');
+    } finally {
+      setDeletingStudent(false);
     }
   };
 
@@ -664,7 +675,7 @@ export const AdminStudents = () => {
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
-                          onClick={() => handleDeleteStudent(st)}
+                          onClick={(e) => handleDeleteStudent(st, e)}
                           title="Delete Student Record"
                           style={{
                             color: '#DC2626',
@@ -750,7 +761,7 @@ export const AdminStudents = () => {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={() => handleDeleteStudent(selectedStudent)}
+                  onClick={(e) => handleDeleteStudent(selectedStudent, e)}
                   title="Delete Student"
                   style={{ color: '#DC2626', fontWeight: 600, borderColor: '#FECACA' }}
                 >
@@ -1432,6 +1443,78 @@ export const AdminStudents = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Student Confirmation Modal */}
+      {studentToDelete && (
+        <div className="modal-overlay" onClick={() => !deletingStudent && setStudentToDelete(null)}>
+          <div
+            className="modal-content"
+            style={{ maxWidth: '440px', textAlign: 'center', padding: '28px 24px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: '#FEE2E2',
+                color: '#DC2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}
+            >
+              <Trash2 size={28} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
+              Delete Student Account?
+            </h3>
+
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '20px' }}>
+              Are you sure you want to permanently delete{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{studentToDelete.full_name}</strong>{' '}
+              (Roll No: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{studentToDelete.roll_number || 'N/A'}</span>)?
+              <br />
+              This will remove their profile and assignments permanently.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setStudentToDelete(null)}
+                disabled={deletingStudent}
+                style={{ flex: 1, padding: '10px 16px', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDeleteStudent}
+                disabled={deletingStudent}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  fontWeight: 700,
+                  background: '#DC2626',
+                  borderColor: '#DC2626',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <Trash2 size={16} />
+                <span>{deletingStudent ? 'Deleting...' : 'Yes, Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -19,259 +19,81 @@ const saveCache = (key, val) => {
   } catch (e) {}
 };
 
-// Built-in foundational academic curriculum for FY B.Sc. IT and FY B.Sc. DS
-export const DEFAULT_SUBJECTS = [
-  // FY B.Sc. IT (Sem 1)
-  {
-    id: 'sub-it-101',
-    name: 'Imperative Programming',
-    subject_code: 'IT-101',
-    stream: 'IT',
-    semester: 'Sem 1',
-    teacher_name: 'Prof. Sharma',
-    is_active: true,
-    description: 'C programming, memory control, pointers and procedural algorithms.',
-    topics: [
-      { id: 'top-it-101-1', subject_id: 'sub-it-101', name: 'Variables & Data Types', description: 'Primitive types and operators' },
-      { id: 'top-it-101-2', subject_id: 'sub-it-101', name: 'Control Structures & Loops', description: 'if-else, switch, while, for' },
-      { id: 'top-it-101-3', subject_id: 'sub-it-101', name: 'Pointers & Dynamic Memory', description: 'Pointer arithmetic, malloc and free' },
-      { id: 'top-it-101-4', subject_id: 'sub-it-101', name: 'Arrays & Strings', description: '1D/2D arrays, string library functions' },
-      { id: 'top-it-101-5', subject_id: 'sub-it-101', name: 'Functions & Recursion', description: 'Call by value, call by reference' },
-    ],
-  },
-  {
-    id: 'sub-it-102',
-    name: 'Digital Electronics',
-    subject_code: 'IT-102',
-    stream: 'IT',
-    semester: 'Sem 1',
-    teacher_name: 'Dr. Patel',
-    is_active: true,
-    description: 'Logic gates, Boolean algebra, flip-flops, and sequential circuit design.',
-    topics: [
-      { id: 'top-it-102-1', subject_id: 'sub-it-102', name: 'Number Systems & Binary Codes', description: 'Binary, octal, hex conversions' },
-      { id: 'top-it-102-2', subject_id: 'sub-it-102', name: 'Logic Gates & Boolean Algebra', description: 'AND, OR, NOT, NAND, NOR, XOR' },
-      { id: 'top-it-102-3', subject_id: 'sub-it-102', name: 'Karnaugh Maps (K-Maps)', description: 'Minimization of boolean expressions' },
-      { id: 'top-it-102-4', subject_id: 'sub-it-102', name: 'Flip-Flops & Registers', description: 'SR, JK, D, T flip-flops' },
-    ],
-  },
-  {
-    id: 'sub-it-103',
-    name: 'Operating Systems',
-    subject_code: 'IT-103',
-    stream: 'IT',
-    semester: 'Sem 1',
-    teacher_name: 'Prof. Kulkarni',
-    is_active: true,
-    description: 'Process management, CPU scheduling, memory management, and file systems.',
-    topics: [
-      { id: 'top-it-103-1', subject_id: 'sub-it-103', name: 'Process Scheduling Algorithms', description: 'FCFS, SJF, Round Robin' },
-      { id: 'top-it-103-2', subject_id: 'sub-it-103', name: 'Deadlocks & Resource Allocation', description: 'Bankers algorithm and prevention' },
-      { id: 'top-it-103-3', subject_id: 'sub-it-103', name: 'Virtual Memory & Paging', description: 'Page replacement algorithms' },
-      { id: 'top-it-103-4', subject_id: 'sub-it-103', name: 'File Systems & Security', description: 'Directory structure and access permissions' },
-    ],
-  },
-  {
-    id: 'sub-it-104',
-    name: 'Discrete Mathematics',
-    subject_code: 'IT-104',
-    stream: 'IT',
-    semester: 'Sem 1',
-    teacher_name: 'Dr. Roy',
-    is_active: true,
-    description: 'Set theory, propositional logic, relations, and recurrence relations.',
-    topics: [
-      { id: 'top-it-104-1', subject_id: 'sub-it-104', name: 'Set Theory & Venn Diagrams', description: 'Union, intersection, cartesian product' },
-      { id: 'top-it-104-2', subject_id: 'sub-it-104', name: 'Propositional Logic', description: 'Truth tables, tautologies, predicates' },
-      { id: 'top-it-104-3', subject_id: 'sub-it-104', name: 'Relations & Functions', description: 'Equivalence relations, partial order' },
-      { id: 'top-it-104-4', subject_id: 'sub-it-104', name: 'Recurrence Relations', description: 'Generating functions and solutions' },
-    ],
-  },
-  {
-    id: 'sub-it-105',
-    name: 'Communication Skills',
-    subject_code: 'IT-105',
-    stream: 'IT',
-    semester: 'Sem 1',
-    teacher_name: 'Prof. Fernandes',
-    is_active: true,
-    description: 'Professional correspondence, presentation skills, technical report writing.',
-    topics: [
-      { id: 'top-it-105-1', subject_id: 'sub-it-105', name: 'Technical Report Writing', description: 'Structure, citations, and abstracts' },
-      { id: 'top-it-105-2', subject_id: 'sub-it-105', name: 'Professional Email & Letter Writing', description: 'Formal inquiry, proposal letters' },
-      { id: 'top-it-105-3', subject_id: 'sub-it-105', name: 'Oral Presentations & Seminars', description: 'Slide preparation and delivery' },
-    ],
-  },
+// Built-in foundational academic curriculum (Empty: real subjects created by admin)
+export const DEFAULT_SUBJECTS = [];
 
-  // FY B.Sc. IT (Sem 2)
-  {
-    id: 'sub-it-201',
-    name: 'Object Oriented Programming with C++',
-    subject_code: 'IT-201',
-    stream: 'IT',
-    semester: 'Sem 2',
-    teacher_name: 'Prof. Sharma',
-    is_active: true,
-    description: 'OOP concepts, encapsulation, inheritance, polymorphism, and templates in C++.',
-    topics: [
-      { id: 'top-it-201-1', subject_id: 'sub-it-201', name: 'Classes & Objects', description: 'Access specifiers, constructors and destructors' },
-      { id: 'top-it-201-2', subject_id: 'sub-it-201', name: 'Inheritance & Polymorphism', description: 'Virtual functions, method overriding' },
-      { id: 'top-it-201-3', subject_id: 'sub-it-201', name: 'Operator Overloading', description: 'Unary & binary operator overloading' },
-      { id: 'top-it-201-4', subject_id: 'sub-it-201', name: 'Templates & Exception Handling', description: 'Function/class templates, try-catch' },
-    ],
-  },
-  {
-    id: 'sub-it-202',
-    name: 'Microprocessor Architecture',
-    subject_code: 'IT-202',
-    stream: 'IT',
-    semester: 'Sem 2',
-    teacher_name: 'Dr. Patel',
-    is_active: true,
-    description: '8085 microprocessor hardware architecture, instruction sets, and assembly code.',
-    topics: [
-      { id: 'top-it-202-1', subject_id: 'sub-it-202', name: '8085 Architecture & Pinout', description: 'ALU, registers, bus timing diagrams' },
-      { id: 'top-it-202-2', subject_id: 'sub-it-202', name: 'Instruction Set & Addressing Modes', description: 'Data transfer, arithmetic, branching' },
-      { id: 'top-it-202-3', subject_id: 'sub-it-202', name: 'Assembly Language Programs', description: 'Looping, 16-bit addition, sorting' },
-      { id: 'top-it-202-4', subject_id: 'sub-it-202', name: 'Interrupts & Peripheral Interfacing', description: '8255 PPI, timer interfacing' },
-    ],
-  },
-  {
-    id: 'sub-it-203',
-    name: 'Web Programming',
-    subject_code: 'IT-203',
-    stream: 'IT',
-    semester: 'Sem 2',
-    teacher_name: 'Prof. Kulkarni',
-    is_active: true,
-    description: 'HTML5, modern CSS3 styling, responsive layouts, and JavaScript dynamic web apps.',
-    topics: [
-      { id: 'top-it-203-1', subject_id: 'sub-it-203', name: 'HTML5 Semantic Markup', description: 'Forms, audio/video, canvas' },
-      { id: 'top-it-203-2', subject_id: 'sub-it-203', name: 'CSS3 Flexbox & Grid', description: 'Responsive layouts and media queries' },
-      { id: 'top-it-203-3', subject_id: 'sub-it-203', name: 'JavaScript DOM Manipulation', description: 'Event listeners, dynamic UI updates' },
-      { id: 'top-it-203-4', subject_id: 'sub-it-203', name: 'AJAX & Fetch API', description: 'Asynchronous HTTP data requests' },
-    ],
-  },
+// Helper to identify and purge dummy/legacy subjects
+const DUMMY_SUBJECT_IDS = new Set([
+  'sub-it-101', 'sub-it-102', 'sub-it-103', 'sub-it-104', 'sub-it-105',
+  'sub-it-201', 'sub-it-202', 'sub-it-203',
+  'sub-ds-101', 'sub-ds-102', 'sub-ds-103',
+  'sub-ds-201', 'sub-ds-202', 'sub-ds-203',
+]);
+const DUMMY_SUBJECT_NAMES = new Set([
+  'imperative programming', 'digital electronics', 'operating systems',
+  'discrete mathematics', 'communication skills', 'object oriented programming with c++',
+  'microprocessor architecture', 'web programming', 'foundations of data science',
+  'python for data science', 'linear algebra & calculus', 'data structures & algorithms',
+  'database management systems & sql', 'probability & applied statistics'
+]);
+export const isDummySubject = (s) => {
+  if (!s) return false;
+  if (s.id && (DUMMY_SUBJECT_IDS.has(s.id) || s.id.startsWith('sub-it-') || s.id.startsWith('sub-ds-'))) return true;
+  if (s.name && DUMMY_SUBJECT_NAMES.has((s.name || '').trim().toLowerCase())) return true;
+  return false;
+};
 
-  // FY B.Sc. DS (Sem 1)
-  {
-    id: 'sub-ds-101',
-    name: 'Foundations of Data Science',
-    subject_code: 'DS-101',
-    stream: 'DS',
-    semester: 'Sem 1',
-    teacher_name: 'Dr. Mehta',
-    is_active: true,
-    description: 'Data science lifecycle, data exploration, cleaning, and statistical fundamentals.',
-    topics: [
-      { id: 'top-ds-101-1', subject_id: 'sub-ds-101', name: 'Data Science Lifecycle', description: 'Problem definition, collection, deployment' },
-      { id: 'top-ds-101-2', subject_id: 'sub-ds-101', name: 'Data Cleaning & Preprocessing', description: 'Handling null values, outliers, normalization' },
-      { id: 'top-ds-101-3', subject_id: 'sub-ds-101', name: 'Exploratory Data Analysis (EDA)', description: 'Correlation, distributions, scatter matrices' },
-      { id: 'top-ds-101-4', subject_id: 'sub-ds-101', name: 'Data Visualization Techniques', description: 'Heatmaps, histograms, box plots' },
-    ],
-  },
-  {
-    id: 'sub-ds-102',
-    name: 'Python for Data Science',
-    subject_code: 'DS-102',
-    stream: 'DS',
-    semester: 'Sem 1',
-    teacher_name: 'Prof. Deshmukh',
-    is_active: true,
-    description: 'Python programming, NumPy arrays, Pandas DataFrames, and scientific computing.',
-    topics: [
-      { id: 'top-ds-102-1', subject_id: 'sub-ds-102', name: 'Python Fundamentals & Data Structures', description: 'Lists, dictionaries, sets, comprehensions' },
-      { id: 'top-ds-102-2', subject_id: 'sub-ds-102', name: 'NumPy Array Computing', description: 'Broadcasting, indexing, vector operations' },
-      { id: 'top-ds-102-3', subject_id: 'sub-ds-102', name: 'Pandas DataFrames & Series', description: 'Data filtering, group by, merge/join' },
-      { id: 'top-ds-102-4', subject_id: 'sub-ds-102', name: 'Data Visualization with Matplotlib & Seaborn', description: 'Statistical plotting and customization' },
-    ],
-  },
-  {
-    id: 'sub-ds-103',
-    name: 'Linear Algebra & Calculus',
-    subject_code: 'DS-103',
-    stream: 'DS',
-    semester: 'Sem 1',
-    teacher_name: 'Dr. Roy',
-    is_active: true,
-    description: 'Vectors, matrices, eigenvalues, gradients, and optimization in machine learning.',
-    topics: [
-      { id: 'top-ds-103-1', subject_id: 'sub-ds-103', name: 'Vectors & Vector Spaces', description: 'Dot product, vector norms, orthogonal basis' },
-      { id: 'top-ds-103-2', subject_id: 'sub-ds-103', name: 'Matrices, Determinants & Inverse', description: 'Matrix operations and rank' },
-      { id: 'top-ds-103-3', subject_id: 'sub-ds-103', name: 'Eigenvalues & Eigenvectors', description: 'Diagonalization and PCA foundation' },
-      { id: 'top-ds-103-4', subject_id: 'sub-ds-103', name: 'Differential Calculus & Gradient Descent', description: 'Partial derivatives and cost optimization' },
-    ],
-  },
+// Immediately purge any dummy subjects cached previously in localStorage
+try {
+  const cachedSubs = loadCache('subjects', []);
+  const cleanSubs = (Array.isArray(cachedSubs) ? cachedSubs : []).filter((s) => !isDummySubject(s));
+  saveCache('subjects', cleanSubs);
 
-  // FY B.Sc. DS (Sem 2)
-  {
-    id: 'sub-ds-201',
-    name: 'Data Structures & Algorithms',
-    subject_code: 'DS-201',
-    stream: 'DS',
-    semester: 'Sem 2',
-    teacher_name: 'Prof. Deshmukh',
-    is_active: true,
-    description: 'Stacks, queues, trees, graphs, sorting, and complexity analysis for data science.',
-    topics: [
-      { id: 'top-ds-201-1', subject_id: 'sub-ds-201', name: 'Stacks, Queues & Linked Lists', description: 'LIFO, FIFO and dynamic nodes' },
-      { id: 'top-ds-201-2', subject_id: 'sub-ds-201', name: 'Binary Trees & Binary Search Trees (BST)', description: 'Tree traversals, insertion, searching' },
-      { id: 'top-ds-201-3', subject_id: 'sub-ds-201', name: 'Graph Algorithms', description: 'BFS, DFS, Dijkstra shortest path' },
-      { id: 'top-ds-201-4', subject_id: 'sub-ds-201', name: 'Sorting & Searching Algorithms', description: 'QuickSort, MergeSort, Binary Search' },
-    ],
-  },
-  {
-    id: 'sub-ds-202',
-    name: 'Database Management Systems & SQL',
-    subject_code: 'DS-202',
-    stream: 'DS',
-    semester: 'Sem 2',
-    teacher_name: 'Dr. Mehta',
-    is_active: true,
-    description: 'Relational databases, SQL queries, normalization, transactions, and indexing.',
-    topics: [
-      { id: 'top-ds-202-1', subject_id: 'sub-ds-202', name: 'Relational Model & ER Diagrams', description: 'Entities, relationships, cardinalities' },
-      { id: 'top-ds-202-2', subject_id: 'sub-ds-202', name: 'Advanced SQL Queries & Joins', description: 'Inner, left, right, outer joins, subqueries' },
-      { id: 'top-ds-202-3', subject_id: 'sub-ds-202', name: 'Database Normalization', description: '1NF, 2NF, 3NF, BCNF' },
-      { id: 'top-ds-202-4', subject_id: 'sub-ds-202', name: 'Indexing & Transactions (ACID)', description: 'B-tree index, commit, rollback' },
-    ],
-  },
-  {
-    id: 'sub-ds-203',
-    name: 'Probability & Applied Statistics',
-    subject_code: 'DS-203',
-    stream: 'DS',
-    semester: 'Sem 2',
-    teacher_name: 'Dr. Roy',
-    is_active: true,
-    description: 'Probability distributions, hypothesis testing, correlation, and regression analysis.',
-    topics: [
-      { id: 'top-ds-203-1', subject_id: 'sub-ds-203', name: 'Descriptive Statistics & Measures', description: 'Mean, median, mode, variance, standard deviation' },
-      { id: 'top-ds-203-2', subject_id: 'sub-ds-203', name: 'Probability Distributions', description: 'Normal, binomial, Poisson distributions' },
-      { id: 'top-ds-203-3', subject_id: 'sub-ds-203', name: 'Hypothesis Testing & Confidence Intervals', description: 't-test, z-test, p-values' },
-      { id: 'top-ds-203-4', subject_id: 'sub-ds-203', name: 'Correlation & Simple Linear Regression', description: 'Pearson correlation, least squares fit' },
-    ],
-  },
-];
+  const customSubs = JSON.parse(localStorage.getItem('fy_custom_subjects') || '[]');
+  const cleanCustom = (Array.isArray(customSubs) ? customSubs : []).filter((s) => !isDummySubject(s));
+  localStorage.setItem('fy_custom_subjects', JSON.stringify(cleanCustom));
 
-// Clean in-memory caches populated immediately from persistent cache (with robust defaults)
+  const cachedTops = loadCache('topics', []);
+  const cleanTops = (Array.isArray(cachedTops) ? cachedTops : []).filter((t) => !DUMMY_SUBJECT_IDS.has(t.subject_id) && !t.id?.startsWith('top-it-') && !t.id?.startsWith('top-ds-'));
+  saveCache('topics', cleanTops);
+
+  const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+  let altered = false;
+  for (const k of Object.keys(overrides)) {
+    if (DUMMY_SUBJECT_IDS.has(k) || k.startsWith('sub-it-') || k.startsWith('sub-ds-')) {
+      delete overrides[k];
+      altered = true;
+    }
+  }
+  if (altered) {
+    localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
+  }
+} catch (e) {}
+
+// Clean in-memory caches populated immediately from persistent cache
 let localSubjects = (() => {
-  const c = loadCache('subjects');
-  if (Array.isArray(c) && c.length > 0) return c;
-  return [...DEFAULT_SUBJECTS];
+  const c = loadCache('subjects', []);
+  return (Array.isArray(c) ? c : []).filter((s) => !isDummySubject(s));
 })();
 
 let localTopics = (() => {
-  const c = loadCache('topics');
-  if (Array.isArray(c) && c.length > 0) return c;
-  const allTops = [];
-  DEFAULT_SUBJECTS.forEach((s) => {
-    if (Array.isArray(s.topics)) allTops.push(...s.topics);
-  });
-  return allTops;
+  const c = loadCache('topics', []);
+  return (Array.isArray(c) ? c : []).filter(
+    (t) => !DUMMY_SUBJECT_IDS.has(t.subject_id) && !t.id?.startsWith('top-it-') && !t.id?.startsWith('top-ds-')
+  );
 })();
 
-let localStudents = loadCache('students');
+let localStudents = (() => {
+  const c = loadCache('students', []);
+  let deletedIds = new Set();
+  try {
+    const raw = JSON.parse(localStorage.getItem('fy_deleted_student_ids') || '[]');
+    deletedIds = new Set(raw.map((x) => String(x).toLowerCase()));
+  } catch (e) {}
+  return (Array.isArray(c) ? c : []).filter(
+    (s) => !deletedIds.has(String(s.id).toLowerCase()) && (!s.roll_number || !deletedIds.has(String(s.roll_number).toLowerCase()))
+  );
+})();
 let localTasks = loadCache('tasks');
 let localAssignments = loadCache('assignments');
 let localSubmissions = loadCache('submissions');
@@ -359,16 +181,14 @@ export const dataService = {
 
   // Synchronous getters for 0ms instantaneous rendering on initial page mount
   getCachedSubjects() {
-    let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
-    if (!mem || mem.length === 0) {
-      mem = [...DEFAULT_SUBJECTS];
-    }
+    let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects', []);
     let overrides = {};
     try {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
     } catch (e) {}
 
-    return (Array.isArray(mem) ? mem : []).map((s) => {
+    const cleanMem = (Array.isArray(mem) ? mem : []).filter((s) => !isDummySubject(s));
+    return cleanMem.map((s) => {
       const ov = overrides[s.id] || {};
       const stream = ov.stream || s.stream || (
         s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
@@ -380,7 +200,7 @@ export const dataService = {
         ...ov,
         stream,
         semester,
-        topics: Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : localTopics.filter((t) => t.subject_id === s.id),
+        topics: Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : (localTopics.filter((t) => t.subject_id === s.id) || []),
       };
     });
   },
@@ -620,17 +440,10 @@ export const dataService = {
           combined.push(s);
         }
       });
-      DEFAULT_SUBJECTS.forEach((s) => {
-        if (
-          !existingIds.has(s.id) &&
-          !combined.some((c) => (c.name || '').trim().toLowerCase() === s.name.toLowerCase())
-        ) {
-          existingIds.add(s.id);
-          combined.push(s);
-        }
-      });
       baseList = combined;
     }
+
+    baseList = baseList.filter((s) => !isDummySubject(s));
 
     const mapped = baseList.map((s) => {
       const ov = overrides[s.id] || {};
@@ -890,8 +703,8 @@ export const dataService = {
     const memTopics = (localTopics || []).filter((t) => t.subject_id === subjectId);
     if (memTopics.length > 0) return memTopics;
 
-    // Check embedded topics in local or default subjects
-    const sub = (localSubjects || []).find((s) => s.id === subjectId) || DEFAULT_SUBJECTS.find((s) => s.id === subjectId);
+    // Check embedded topics in local subjects
+    const sub = (localSubjects || []).find((s) => s.id === subjectId);
     if (sub && Array.isArray(sub.topics) && sub.topics.length > 0) {
       return sub.topics;
     }
@@ -1897,6 +1710,19 @@ export const dataService = {
       studentOverrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
     } catch (e) {}
 
+    let deletedIds = new Set();
+    try {
+      const raw = JSON.parse(localStorage.getItem('fy_deleted_student_ids') || '[]');
+      deletedIds = new Set(raw.map((x) => String(x).toLowerCase()));
+    } catch (e) {}
+
+    const isStudentDeleted = (st) => {
+      if (!st) return true;
+      if (st.id && deletedIds.has(String(st.id).toLowerCase())) return true;
+      if (st.roll_number && deletedIds.has(String(st.roll_number).toLowerCase())) return true;
+      return false;
+    };
+
     const mapStudent = (st) => {
       const ov = studentOverrides[st.id] || {};
       const rawClass = ov.class_name || st.class_name || 'FY B.Sc. IT';
@@ -1911,32 +1737,41 @@ export const dataService = {
         stream,
         class_name: className,
         semester,
-        task_assignments: localAssignments.filter((a) => a.student_id === st.id),
+        task_assignments: (localAssignments || []).filter((a) => a.student_id === st.id),
       };
     };
 
     if (isSupabaseConfigured()) {
       try {
-        // Query dedicated students table directly from Supabase
-        const { data, error } = await supabase
+        // Query dedicated students table directly from Supabase with guard timeout
+        const queryPromise = supabase
           .from('students')
           .select('*')
           .order('roll_number', { ascending: true });
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase getStudents timeout (2s)')), 2000)
+        );
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
         if (!error && Array.isArray(data)) {
-          const mapped = data.map(mapStudent);
+          const nonDeleted = data.filter((s) => !isStudentDeleted(s));
+          const mapped = nonDeleted.map(mapStudent);
           localStudents = mapped;
           saveCache('students', mapped);
           return mapped;
         }
       } catch (err) {
-        console.warn('Supabase getStudents from students table notice:', err);
+        console.warn('Supabase getStudents notice (falling back to local cache):', err.message);
       }
     }
 
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-    const mappedLocal = localRegistered.map(mapStudent);
+    const nonDeletedLocal = localRegistered.filter((s) => !isStudentDeleted(s));
+    const mappedLocal = nonDeletedLocal.map(mapStudent);
     localStudents = mappedLocal;
+    saveCache('students', mappedLocal);
     return mappedLocal;
   },
 
@@ -2099,6 +1934,15 @@ export const dataService = {
     };
     localStudents.push(newStudent);
 
+    // Ensure re-registered or newly added student is not marked as deleted
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('fy_deleted_student_ids') || '[]');
+      const filtered = deletedList.filter(
+        (x) => x.toLowerCase() !== newStudent.id.toLowerCase() && x.toLowerCase() !== newStudent.roll_number?.toLowerCase()
+      );
+      localStorage.setItem('fy_deleted_student_ids', JSON.stringify(filtered));
+    } catch (e) {}
+
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
       overrides[newStudent.id] = { stream, class_name: className, semester };
@@ -2108,6 +1952,7 @@ export const dataService = {
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     localRegistered.push(newStudent);
     localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
+    saveCache('students', localStudents);
 
     if (isSupabaseConfigured()) {
       try {
@@ -2139,57 +1984,74 @@ export const dataService = {
     return newStudent;
   },
 
-  async deleteStudent(studentId) {
-    // 1. Delete from Supabase if configured
-    if (isSupabaseConfigured()) {
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase deleteStudent timeout')), 3000)
-        );
+  async deleteStudent(studentId, rollNumber = null) {
+    if (!studentId && !rollNumber) return false;
 
-        // Delete assignments
-        const delAsgs = supabase.from('task_assignments').delete().eq('student_id', studentId);
-        await Promise.race([delAsgs, timeoutPromise]).catch(() => {});
+    // 1. Maintain persistent tombstone list so deleted student NEVER resurrects on poll
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('fy_deleted_student_ids') || '[]');
+      const set = new Set(deletedList.map((x) => String(x).toLowerCase()));
+      if (studentId) set.add(String(studentId).toLowerCase());
+      if (rollNumber) set.add(String(rollNumber).toLowerCase());
+      localStorage.setItem('fy_deleted_student_ids', JSON.stringify([...set]));
+    } catch (e) {}
 
-        // Delete student
-        const delStudent = supabase.from('students').delete().eq('id', studentId);
-        const { error } = await Promise.race([delStudent, timeoutPromise]);
-        if (error) console.warn('Supabase deleteStudent notice:', error.message);
-      } catch (err) {
-        console.warn('Supabase deleteStudent error:', err.message);
-      }
-    }
-
-    // 2. Remove from local memory
-    localStudents = localStudents.filter((s) => s.id !== studentId);
+    // 2. Remove immediately from local memory
+    localStudents = (localStudents || []).filter(
+      (s) => s.id !== studentId && (!rollNumber || s.roll_number?.toLowerCase() !== rollNumber?.toLowerCase())
+    );
     saveCache('students', localStudents);
 
-    // 3. Remove from localStorage fy_registered_students
+    // 3. Remove immediately from localStorage fy_registered_students
     try {
       const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-      const updated = localRegistered.filter((s) => s.id !== studentId);
+      const updated = localRegistered.filter(
+        (s) => s.id !== studentId && (!rollNumber || s.roll_number?.toLowerCase() !== rollNumber?.toLowerCase())
+      );
       localStorage.setItem('fy_registered_students', JSON.stringify(updated));
     } catch (e) {}
 
     // 4. Remove from overrides
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
-      if (overrides[studentId]) {
-        delete overrides[studentId];
-        localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
-      }
+      if (studentId && overrides[studentId]) delete overrides[studentId];
+      if (rollNumber && overrides[rollNumber]) delete overrides[rollNumber];
+      localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
     // 5. Clean up active student session if this student was logged in
     try {
       const sess = JSON.parse(localStorage.getItem('fy_it_student_session') || '{}');
-      if (sess.id === studentId) {
+      if (sess.id === studentId || (rollNumber && sess.roll_number?.toLowerCase() === rollNumber?.toLowerCase())) {
         localStorage.removeItem('fy_it_student_session');
         sessionStorage.removeItem('fy_it_student_session');
       }
     } catch (e) {}
 
-    this.notifyLocalChange('STUDENT_DELETED', { id: studentId });
+    // 6. Notify event bus immediately for 0ms reactive UI update
+    this.notifyLocalChange('STUDENT_DELETED', { id: studentId, roll_number: rollNumber });
+
+    // 7. Background cascade delete from Supabase (runs asynchronously without blocking UI)
+    if (isSupabaseConfigured()) {
+      (async () => {
+        try {
+          if (studentId) {
+            await supabase.from('task_assignments').delete().eq('student_id', studentId);
+            await supabase.from('submissions').delete().eq('student_id', studentId);
+            await supabase.from('notifications').delete().eq('user_id', studentId);
+            await supabase.from('students').delete().eq('id', studentId);
+            await supabase.from('profiles').delete().eq('id', studentId);
+          }
+          if (rollNumber) {
+            await supabase.from('students').delete().eq('roll_number', rollNumber);
+            await supabase.from('profiles').delete().eq('roll_number', rollNumber);
+          }
+        } catch (err) {
+          console.warn('Background Supabase deleteStudent notice:', err?.message);
+        }
+      })();
+    }
+
     return true;
   },
 
