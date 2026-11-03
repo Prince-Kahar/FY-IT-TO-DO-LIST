@@ -89,6 +89,7 @@ export const AdminStudents = () => {
     roll_number: '',
     mobile_number: '',
     email: '',
+    stream: 'IT',
     class_name: 'FY B.Sc. IT',
     semester: 'Sem 1',
     division: 'A',
@@ -98,13 +99,15 @@ export const AdminStudents = () => {
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
   const handleOpenEditModal = (student) => {
+    const isDS = student.stream === 'DS' || (student.class_name || '').toUpperCase().includes('DS');
     setEditingStudent(student);
     setEditStudentForm({
       full_name: student.full_name || '',
       roll_number: student.roll_number || '',
       mobile_number: student.mobile_number || student.mobile || student.phone || '',
       email: student.email || '',
-      class_name: student.class_name || 'FY B.Sc. IT',
+      stream: isDS ? 'DS' : 'IT',
+      class_name: isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT',
       semester: student.semester || 'Sem 1',
       division: student.division || 'A',
       password: student.password || 'student@123',
@@ -124,26 +127,39 @@ export const AdminStudents = () => {
     }
     setSubmittingEdit(true);
     try {
-      const updated = await dataService.updateStudent(editingStudent.id, {
+      const isDS = editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').toUpperCase().includes('DS');
+      const streamVal = isDS ? 'DS' : 'IT';
+      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+      const semesterVal = editStudentForm.semester || 'Sem 1';
+
+      const updatedFields = {
         full_name: editStudentForm.full_name.trim(),
         roll_number: editStudentForm.roll_number.trim().toUpperCase(),
         mobile_number: editStudentForm.mobile_number.trim(),
         email:
           editStudentForm.email.trim() ||
           `${editStudentForm.roll_number.trim().toLowerCase()}@college.edu`,
-        class_name: editStudentForm.class_name || 'FY B.Sc. IT',
-        semester: editStudentForm.semester || 'Sem 1',
+        stream: streamVal,
+        class_name: classNameVal,
+        semester: semesterVal,
         division: editStudentForm.division || 'A',
         password: editStudentForm.password || 'student@123',
         is_active: editStudentForm.is_active,
-      });
+      };
 
-      addToast(`Student "${updated.full_name || 'record'}" updated successfully!`, 'success');
+      // 0ms instant optimistic UI update so admin sees change immediately
+      setStudents((prev) =>
+        prev.map((s) => (s.id === editingStudent.id ? { ...s, ...updatedFields } : s))
+      );
+
+      const updated = await dataService.updateStudent(editingStudent.id, updatedFields);
+
+      addToast(`Student "${updated.full_name || 'record'}" updated to ${streamVal} (${classNameVal} • ${semesterVal})!`, 'success');
       setEditingStudent(null);
       if (selectedStudent && selectedStudent.id === editingStudent.id) {
-        setSelectedStudent({ ...selectedStudent, ...updated });
+        setSelectedStudent({ ...selectedStudent, ...updatedFields });
       }
-      loadStudents();
+      await loadStudents(true);
     } catch (err) {
       console.error('Error updating student:', err);
       addToast(err.message || 'Error updating student details.', 'error');
@@ -225,23 +241,29 @@ export const AdminStudents = () => {
     }
     setSubmittingStudent(true);
     try {
+      const isDS = (newStudentForm.stream === 'DS') || (newStudentForm.class_name || '').toUpperCase().includes('DS');
+      const streamVal = isDS ? 'DS' : 'IT';
+      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+
       await dataService.addStudent({
         full_name: newStudentForm.full_name.trim(),
         roll_number: newStudentForm.roll_number.trim().toUpperCase(),
         mobile_number: newStudentForm.mobile_number.trim(),
         email: newStudentForm.email.trim() || `${newStudentForm.roll_number.trim().toLowerCase()}@college.edu`,
-        class_name: newStudentForm.class_name || 'FY B.Sc. IT',
+        stream: streamVal,
+        class_name: classNameVal,
         semester: newStudentForm.semester || 'Sem 1',
         division: newStudentForm.division || 'A',
         password: newStudentForm.password || 'student@123',
       });
-      addToast(`Student "${newStudentForm.full_name}" added successfully!`, 'success');
+      addToast(`Student "${newStudentForm.full_name}" added to ${streamVal} (${classNameVal}) successfully!`, 'success');
       setIsAddStudentOpen(false);
       setNewStudentForm({
         full_name: '',
         roll_number: '',
         mobile_number: '',
         email: '',
+        stream: 'IT',
         class_name: 'FY B.Sc. IT',
         semester: 'Sem 1',
         division: 'A',
@@ -630,9 +652,51 @@ export const AdminStudents = () => {
             <div className="modal-header">
               <div>
                 <h3 className="modal-title">{selectedStudent.full_name}</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Roll: {selectedStudent.roll_number} • Class: {selectedStudent.class_name} (Div {selectedStudent.division})
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    Roll: <strong>{selectedStudent.roll_number}</strong>
+                  </span>
+                  <span
+                    style={{
+                      background: (selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? '#FAF5FF' : '#EFF6FF',
+                      color: (selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? '#7C3AED' : '#1D4ED8',
+                      border: `1px solid ${(selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? '#DDD6FE' : '#BFDBFE'}`,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {(selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? '📊 DS Stream' : '💻 IT Stream'}
+                  </span>
+                  <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    {selectedStudent.class_name || 'FY B.Sc. IT'}
+                  </span>
+                  <span
+                    style={{
+                      background: '#FEF3C7',
+                      color: '#B45309',
+                      border: '1px solid #FDE68A',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {selectedStudent.semester || 'Sem 1'}
+                  </span>
+                  <span
+                    style={{
+                      background: 'var(--bg-subtle)',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Div {selectedStudent.division || 'A'}
+                  </span>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
@@ -966,21 +1030,79 @@ export const AdminStudents = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Stream & Program</label>
-                    <select
-                      className="form-control"
-                      value={newStudentForm.class_name}
-                      onChange={(e) => setNewStudentForm({ ...newStudentForm, class_name: e.target.value })}
+                {/* Stream Selection */}
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Academic Stream *</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: (newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? '#7C3AED' : '#2563EB' }}>
+                      {(newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? '📊 Data Science (DS)' : '💻 Information Technology (IT)'}
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentForm({ ...newStudentForm, stream: 'IT', class_name: 'FY B.Sc. IT' })}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: (newStudentForm.stream === 'IT' || (!newStudentForm.stream && !(newStudentForm.class_name || '').includes('DS'))) ? '2px solid #2563EB' : '1px solid var(--border-light)',
+                        background: (newStudentForm.stream === 'IT' || (!newStudentForm.stream && !(newStudentForm.class_name || '').includes('DS'))) ? '#EFF6FF' : 'var(--bg-surface)',
+                        color: (newStudentForm.stream === 'IT' || (!newStudentForm.stream && !(newStudentForm.class_name || '').includes('DS'))) ? '#1D4ED8' : 'var(--text-muted)',
+                        fontWeight: (newStudentForm.stream === 'IT' || (!newStudentForm.stream && !(newStudentForm.class_name || '').includes('DS'))) ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
                     >
-                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT</option>
-                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS</option>
-                    </select>
+                      <span>💻</span>
+                      <span>IT Stream</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentForm({ ...newStudentForm, stream: 'DS', class_name: 'FY B.Sc. DS' })}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: (newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? '2px solid #7C3AED' : '1px solid var(--border-light)',
+                        background: (newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? '#FAF5FF' : 'var(--bg-surface)',
+                        color: (newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? '#6D28D9' : 'var(--text-muted)',
+                        fontWeight: (newStudentForm.stream === 'DS' || (newStudentForm.class_name || '').includes('DS')) ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>📊</span>
+                      <span>DS Stream</span>
+                    </button>
                   </div>
+                  <select
+                    className="form-control"
+                    value={newStudentForm.class_name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isDS = val.toUpperCase().includes('DS');
+                      setNewStudentForm({
+                        ...newStudentForm,
+                        class_name: val,
+                        stream: isDS ? 'DS' : 'IT',
+                      });
+                    }}
+                  >
+                    <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                    <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                  </select>
+                </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Semester</label>
+                    <label className="form-label">Semester *</label>
                     <select
                       className="form-control"
                       value={newStudentForm.semester || 'Sem 1'}
@@ -1119,21 +1241,79 @@ export const AdminStudents = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Stream & Program</label>
-                    <select
-                      className="form-control"
-                      value={editStudentForm.class_name}
-                      onChange={(e) => setEditStudentForm({ ...editStudentForm, class_name: e.target.value })}
+                {/* Stream Selection with Buttons & Dropdown */}
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Academic Stream *</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: (editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? '#7C3AED' : '#2563EB' }}>
+                      {(editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? '📊 Data Science (DS)' : '💻 Information Technology (IT)'}
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditStudentForm({ ...editStudentForm, stream: 'IT', class_name: 'FY B.Sc. IT' })}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: (editStudentForm.stream === 'IT' || (!editStudentForm.stream && !(editStudentForm.class_name || '').includes('DS'))) ? '2px solid #2563EB' : '1px solid var(--border-light)',
+                        background: (editStudentForm.stream === 'IT' || (!editStudentForm.stream && !(editStudentForm.class_name || '').includes('DS'))) ? '#EFF6FF' : 'var(--bg-surface)',
+                        color: (editStudentForm.stream === 'IT' || (!editStudentForm.stream && !(editStudentForm.class_name || '').includes('DS'))) ? '#1D4ED8' : 'var(--text-muted)',
+                        fontWeight: (editStudentForm.stream === 'IT' || (!editStudentForm.stream && !(editStudentForm.class_name || '').includes('DS'))) ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
                     >
-                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT</option>
-                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS</option>
-                    </select>
+                      <span>💻</span>
+                      <span>IT Stream</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditStudentForm({ ...editStudentForm, stream: 'DS', class_name: 'FY B.Sc. DS' })}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: (editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? '2px solid #7C3AED' : '1px solid var(--border-light)',
+                        background: (editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? '#FAF5FF' : 'var(--bg-surface)',
+                        color: (editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? '#6D28D9' : 'var(--text-muted)',
+                        fontWeight: (editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').includes('DS')) ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>📊</span>
+                      <span>DS Stream</span>
+                    </button>
                   </div>
+                  <select
+                    className="form-control"
+                    value={editStudentForm.class_name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isDS = val.toUpperCase().includes('DS');
+                      setEditStudentForm({
+                        ...editStudentForm,
+                        class_name: val,
+                        stream: isDS ? 'DS' : 'IT',
+                      });
+                    }}
+                  >
+                    <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                    <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                  </select>
+                </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Semester</label>
+                    <label className="form-label">Semester *</label>
                     <select
                       className="form-control"
                       value={editStudentForm.semester || 'Sem 1'}

@@ -1562,6 +1562,29 @@ export const dataService = {
   // STUDENTS DIRECTORY & MANAGEMENT (Separate Table: public.students)
   // =========================================================================
   async getStudents() {
+    let studentOverrides = {};
+    try {
+      studentOverrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+    } catch (e) {}
+
+    const mapStudent = (st) => {
+      const ov = studentOverrides[st.id] || {};
+      const rawClass = ov.class_name || st.class_name || 'FY B.Sc. IT';
+      const isDS = ov.stream === 'DS' || rawClass.toUpperCase().includes('DS');
+      const stream = isDS ? 'DS' : 'IT';
+      const className = isDS ? 'FY B.Sc. DS' : (rawClass.toUpperCase().includes('IT') ? 'FY B.Sc. IT' : rawClass);
+      const semester = ov.semester || st.semester || 'Sem 1';
+
+      return {
+        ...st,
+        ...ov,
+        stream,
+        class_name: className,
+        semester,
+        task_assignments: localAssignments.filter((a) => a.student_id === st.id),
+      };
+    };
+
     if (isSupabaseConfigured()) {
       try {
         // Query dedicated students table directly from Supabase
@@ -1571,13 +1594,10 @@ export const dataService = {
           .order('roll_number', { ascending: true });
 
         if (!error && Array.isArray(data)) {
-          localStudents = data;
-          saveCache('students', data);
-          return data.map((st) => ({
-            ...st,
-            semester: st.semester || 'Sem 1',
-            task_assignments: localAssignments.filter((a) => a.student_id === st.id),
-          }));
+          const mapped = data.map(mapStudent);
+          localStudents = mapped;
+          saveCache('students', mapped);
+          return mapped;
         }
       } catch (err) {
         console.warn('Supabase getStudents from students table notice:', err);
@@ -1585,11 +1605,9 @@ export const dataService = {
     }
 
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
-    return localRegistered.map((st) => ({
-      ...st,
-      semester: st.semester || 'Sem 1',
-      task_assignments: localAssignments.filter((a) => a.student_id === st.id),
-    }));
+    const mappedLocal = localRegistered.map(mapStudent);
+    localStudents = mappedLocal;
+    return mappedLocal;
   },
 
   async toggleStudentActive(studentId, currentStatus) {
@@ -1626,49 +1644,88 @@ export const dataService = {
   },
 
   async updateStudent(studentId, updates) {
+    const rawClass = updates.class_name || '';
+    const isDS = updates.stream === 'DS' || rawClass.toUpperCase().includes('DS');
+    const stream = isDS ? 'DS' : 'IT';
+    const className = updates.class_name || (isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT');
+    const semester = updates.semester || 'Sem 1';
+
+    const normalizedUpdates = {
+      ...updates,
+      stream,
+      class_name: className,
+      semester,
+    };
+
     // 1. Update in local memory
     localStudents = localStudents.map((s) =>
-      s.id === studentId ? { ...s, ...updates } : s
+      s.id === studentId ? { ...s, ...normalizedUpdates } : s
     );
 
-    // 2. Update persistent fy_registered_students in localStorage
+    // 2. Persist in fy_student_overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+      overrides[studentId] = {
+        ...(overrides[studentId] || {}),
+        ...normalizedUpdates,
+      };
+      localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
+    } catch (e) {
+      console.warn('Error saving fy_student_overrides:', e);
+    }
+
+    // 3. Update persistent fy_registered_students in localStorage
     try {
       const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
       const index = localRegistered.findIndex((s) => s.id === studentId);
       if (index !== -1) {
-        localRegistered[index] = { ...localRegistered[index], ...updates };
+        localRegistered[index] = { ...localRegistered[index], ...normalizedUpdates };
       } else {
         const match = localStudents.find((s) => s.id === studentId);
-        if (match) localRegistered.push({ ...match, ...updates });
+        if (match) localRegistered.push({ ...match, ...normalizedUpdates });
       }
       localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
     } catch (e) {
       console.warn('Error updating local registered students:', e);
     }
 
-    // 3. Update cache
+    // 4. Update cache
     const cachedStudents = getCache('students');
     if (cachedStudents && Array.isArray(cachedStudents)) {
       saveCache(
         'students',
-        cachedStudents.map((s) => (s.id === studentId ? { ...s, ...updates } : s))
+        cachedStudents.map((s) => (s.id === studentId ? { ...s, ...normalizedUpdates } : s))
       );
     }
 
-    // 4. Update Supabase if configured
+    // 5. Update active student session if the logged-in student is this student
+    try {
+      const sessionRaw = localStorage.getItem('fy_it_student_session');
+      if (sessionRaw) {
+        const sess = JSON.parse(sessionRaw);
+        if (sess.id === studentId) {
+          const updatedSess = { ...sess, ...normalizedUpdates };
+          localStorage.setItem('fy_it_student_session', JSON.stringify(updatedSess));
+          sessionStorage.setItem('fy_it_student_session', JSON.stringify(updatedSess));
+        }
+      }
+    } catch (e) {}
+
+    // 6. Update Supabase if configured (ONLY columns that exist in public.students table!)
     let updatedStudent = null;
     if (isSupabaseConfigured()) {
       try {
         const payload = {};
-        if (updates.full_name !== undefined) payload.full_name = updates.full_name;
-        if (updates.roll_number !== undefined) payload.roll_number = updates.roll_number;
-        if (updates.mobile_number !== undefined) payload.mobile_number = updates.mobile_number;
-        if (updates.email !== undefined) payload.email = updates.email;
-        if (updates.class_name !== undefined) payload.class_name = updates.class_name;
-        if (updates.semester !== undefined) payload.semester = updates.semester;
-        if (updates.division !== undefined) payload.division = updates.division;
-        if (updates.password !== undefined) payload.password = updates.password;
-        if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+        if (normalizedUpdates.full_name !== undefined) payload.full_name = normalizedUpdates.full_name;
+        if (normalizedUpdates.roll_number !== undefined) payload.roll_number = normalizedUpdates.roll_number;
+        if (normalizedUpdates.mobile_number !== undefined) payload.mobile_number = normalizedUpdates.mobile_number;
+        if (normalizedUpdates.email !== undefined) payload.email = normalizedUpdates.email;
+        if (normalizedUpdates.class_name !== undefined) payload.class_name = normalizedUpdates.class_name;
+        // NOTE: semester and stream MUST NOT be sent to Supabase as they do not exist in the students schema
+        if (normalizedUpdates.division !== undefined) payload.division = normalizedUpdates.division;
+        if (normalizedUpdates.password !== undefined) payload.password = normalizedUpdates.password;
+        if (normalizedUpdates.is_active !== undefined) payload.is_active = normalizedUpdates.is_active;
+        payload.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
           .from('students')
@@ -1678,7 +1735,7 @@ export const dataService = {
           .single();
 
         if (!error && data) {
-          updatedStudent = data;
+          updatedStudent = { ...data, ...normalizedUpdates };
         } else if (error) {
           console.warn('Supabase updateStudent error:', error.message);
         }
@@ -1688,21 +1745,35 @@ export const dataService = {
     }
 
     const res =
-      updatedStudent || localStudents.find((s) => s.id === studentId) || { id: studentId, ...updates };
+      updatedStudent || localStudents.find((s) => s.id === studentId) || { id: studentId, ...normalizedUpdates };
     this.notifyLocalChange('STUDENT_UPDATED', res);
     return res;
   },
 
   async addStudent(studentData) {
+    const rawClass = studentData.class_name || '';
+    const isDS = studentData.stream === 'DS' || rawClass.toUpperCase().includes('DS');
+    const stream = isDS ? 'DS' : 'IT';
+    const className = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+    const semester = studentData.semester || 'Sem 1';
+
     const newStudent = {
       ...studentData,
-      semester: studentData.semester || 'Sem 1',
+      stream,
+      class_name: className,
+      semester,
       id: 'student-' + Date.now(),
       role: 'student',
       is_active: true,
       created_at: new Date().toISOString(),
     };
     localStudents.push(newStudent);
+
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+      overrides[newStudent.id] = { stream, class_name: className, semester };
+      localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
+    } catch (e) {}
 
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     localRegistered.push(newStudent);
@@ -1717,7 +1788,7 @@ export const dataService = {
           roll_number: newStudent.roll_number,
           mobile_number: newStudent.mobile_number || '',
           email: newStudent.email || '',
-          class_name: newStudent.class_name || 'FY B.Sc. IT',
+          class_name: newStudent.class_name,
           division: newStudent.division || 'A',
           password: newStudent.password || 'student@123',
           is_active: true,
