@@ -143,8 +143,24 @@ export const AuthProvider = ({ children }) => {
         .maybeSingle();
 
       if (stData) {
-        setProfile(stData);
-        return stData;
+        const isDS = (stData.class_name || '').toUpperCase().includes('DS');
+        let studentStream = isDS ? 'DS' : 'IT';
+        let studentSemester = 'Sem 1';
+        try {
+          const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+          if (overrides[stData.id]) {
+            if (overrides[stData.id].stream) studentStream = overrides[stData.id].stream;
+            if (overrides[stData.id].semester) studentSemester = overrides[stData.id].semester;
+          }
+        } catch (e) {}
+        const enriched = {
+          ...stData,
+          stream: studentStream,
+          semester: studentSemester,
+          role: 'student',
+        };
+        setProfile(enriched);
+        return enriched;
       }
 
       // 2. Check separate admins table
@@ -220,8 +236,21 @@ export const AuthProvider = ({ children }) => {
               throw new Error('Your student account has been deactivated by the Class Head.');
             }
 
+            const isDS = (matchedSupa.class_name || '').toUpperCase().includes('DS');
+            let studentStream = isDS ? 'DS' : 'IT';
+            let studentSemester = 'Sem 1';
+            try {
+              const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+              if (overrides[matchedSupa.id]) {
+                if (overrides[matchedSupa.id].stream) studentStream = overrides[matchedSupa.id].stream;
+                if (overrides[matchedSupa.id].semester) studentSemester = overrides[matchedSupa.id].semester;
+              }
+            } catch (e) {}
+
             const studentProfile = {
               ...matchedSupa,
+              stream: studentStream,
+              semester: studentSemester,
               role: 'student',
             };
             setUser({ id: matchedSupa.id, email: matchedSupa.email });
@@ -434,6 +463,11 @@ export const AuthProvider = ({ children }) => {
       throw new Error('A student with this Email, Roll Number, or Mobile Number is already registered. Please login.');
     }
 
+    const isDS = stream === 'DS' || (className && className.toUpperCase().includes('DS'));
+    const finalStream = isDS ? 'DS' : 'IT';
+    const finalClassName = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+    const finalSemester = semester || 'Sem 1';
+
     const newStudent = {
       id: 'student-' + Date.now(),
       full_name: fullName.trim(),
@@ -442,12 +476,24 @@ export const AuthProvider = ({ children }) => {
       email: cleanEmail,
       password,
       role: 'student',
-      class_name: className,
-      semester: semester || 'Sem 1',
+      stream: finalStream,
+      class_name: finalClassName,
+      semester: finalSemester,
       division,
       is_active: true,
       created_at: new Date().toISOString(),
     };
+
+    // Save override
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+      overrides[newStudent.id] = {
+        stream: finalStream,
+        class_name: finalClassName,
+        semester: finalSemester,
+      };
+      localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
+    } catch (e) {}
 
     // Save to local registered list
     localRegistered.push(newStudent);
