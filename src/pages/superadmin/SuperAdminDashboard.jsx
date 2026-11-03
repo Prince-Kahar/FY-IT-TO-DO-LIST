@@ -102,14 +102,24 @@ export const SuperAdminDashboard = () => {
       loadData(true);
     }, 1000);
 
-    // 2. Realtime subscription
+    // 2. Realtime subscription & cross-tab sync
     const unsub = dataService.subscribeRealtime(() => {
       loadData(true);
     });
 
+    const handleSync = () => loadData(true);
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+
     return () => {
       clearInterval(interval);
       if (unsub) unsub();
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
     };
   }, []);
 
@@ -1096,6 +1106,17 @@ export const SuperAdminDashboard = () => {
                                   }}>
                                     📘 {sub.semester || 'Sem 1'}
                                   </span>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    background: '#F1F5F9',
+                                    color: '#475569',
+                                    border: '1px solid #E2E8F0',
+                                    fontWeight: 700,
+                                  }}>
+                                    📑 {(sub.topics || []).length} Topics
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -1157,6 +1178,24 @@ export const SuperAdminDashboard = () => {
                           {/* Actions */}
                           <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/admin/subjects')}
+                                title="Manage Units & Topics"
+                                style={{
+                                  background: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  borderColor: '#BFDBFE',
+                                  padding: '5px 9px',
+                                  borderRadius: '6px',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <BookOpen size={13} />
+                                <span>Units & Topics</span>
+                              </button>
+
                               <button
                                 type="button"
                                 className="btn btn-secondary btn-sm"

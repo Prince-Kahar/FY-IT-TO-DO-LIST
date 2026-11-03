@@ -73,7 +73,14 @@ try {
 // Clean in-memory caches populated immediately from persistent cache
 let localSubjects = (() => {
   const c = loadCache('subjects', []);
-  return (Array.isArray(c) ? c : []).filter((s) => !isDummySubject(s));
+  let deletedSubjectIds = new Set();
+  try {
+    const raw = JSON.parse(localStorage.getItem('fy_deleted_subject_ids') || '[]');
+    deletedSubjectIds = new Set(raw.map((x) => String(x).toLowerCase()));
+  } catch (e) {}
+  return (Array.isArray(c) ? c : []).filter(
+    (s) => !isDummySubject(s) && !deletedSubjectIds.has(String(s.id).toLowerCase())
+  );
 })();
 
 let localTopics = (() => {
@@ -184,35 +191,55 @@ export const dataService = {
     let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects', []);
     let overrides = {};
     let topicOverrides = {};
+    let deletedSubjectIds = new Set();
     try {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
       topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      const rawDeletedSubs = JSON.parse(localStorage.getItem('fy_deleted_subject_ids') || '[]');
+      deletedSubjectIds = new Set(rawDeletedSubs.map((x) => String(x).toLowerCase()));
     } catch (e) {}
 
-    const cleanMem = (Array.isArray(mem) ? mem : []).filter((s) => !isDummySubject(s));
+    const cleanMem = (Array.isArray(mem) ? mem : []).filter(
+      (s) => !isDummySubject(s) && !deletedSubjectIds.has(String(s.id).toLowerCase())
+    );
+
     return cleanMem.map((s) => {
       const ov = overrides[s.id] || {};
+      const subjectCode = ov.subject_code || s.subject_code || s.code || (s.stream === 'DS' ? 'DS-101' : 'IT-101');
       const stream = ov.stream || s.stream || (
-        s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
-        s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
+        subjectCode?.toUpperCase().startsWith('DS') ? 'DS' :
+        subjectCode?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
       );
       const semester = ov.semester || s.semester || 'Sem 1';
-      const rawTopics = Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : (localTopics.filter((t) => t.subject_id === s.id) || []);
-      const enrichedTopics = rawTopics.map((t) => {
-        const tov = topicOverrides[t.id] || {};
-        return {
-          ...t,
-          ...tov,
-          unit_name: tov.unit_name || t.unit_name || 'Unit 1: General Topics',
-        };
+      const rawTopics = [
+        ...(Array.isArray(s.topics) ? s.topics : []),
+        ...(localTopics || []).filter((t) => t.subject_id === s.id),
+      ];
+      const seenTopics = new Set();
+      const uniqueTopics = [];
+      rawTopics.forEach((tp) => {
+        if (tp && tp.id && !seenTopics.has(tp.id)) {
+          seenTopics.add(tp.id);
+          const tov = topicOverrides[tp.id] || {};
+          uniqueTopics.push({
+            ...tp,
+            ...tov,
+            unit_name: tov.unit_name || tp.unit_name || 'Unit 1: General Topics',
+          });
+        }
       });
 
       return {
         ...s,
         ...ov,
+        name: ov.name || s.name,
+        subject_code: subjectCode,
         stream,
         semester,
-        topics: enrichedTopics,
+        teacher_name: ov.teacher_name || s.teacher_name || s.faculty_name || s.teacher || 'Department Faculty',
+        description: ov.description !== undefined ? ov.description : (s.description || ''),
+        is_active: ov.is_active !== undefined ? ov.is_active : (s.is_active !== undefined ? s.is_active : true),
+        topics: uniqueTopics,
       };
     });
   },
@@ -456,37 +483,54 @@ export const dataService = {
     }
 
     let topicOverrides = {};
+    let deletedSubjectIds = new Set();
     try {
       topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      const rawDeletedSubs = JSON.parse(localStorage.getItem('fy_deleted_subject_ids') || '[]');
+      deletedSubjectIds = new Set(rawDeletedSubs.map((x) => String(x).toLowerCase()));
     } catch (e) {}
 
-    baseList = baseList.filter((s) => !isDummySubject(s));
+    baseList = baseList.filter(
+      (s) => !isDummySubject(s) && !deletedSubjectIds.has(String(s.id).toLowerCase())
+    );
 
     const mapped = baseList.map((s) => {
       const ov = overrides[s.id] || {};
+      const subjectCode = ov.subject_code || s.subject_code || s.code || (s.stream === 'DS' ? 'DS-101' : 'IT-101');
       const stream = ov.stream || s.stream || (
-        s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
-        s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
+        subjectCode?.toUpperCase().startsWith('DS') ? 'DS' :
+        subjectCode?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
       );
       const semester = ov.semester || s.semester || 'Sem 1';
-      const rawTopics = Array.isArray(s.topics) && s.topics.length > 0
-        ? s.topics
-        : (localTopics.filter((t) => t.subject_id === s.id) || []);
-      const enrichedTopics = rawTopics.map((t) => {
-        const tov = topicOverrides[t.id] || {};
-        return {
-          ...t,
-          ...tov,
-          unit_name: tov.unit_name || t.unit_name || 'Unit 1: General Topics',
-        };
+      const rawTopics = [
+        ...(Array.isArray(s.topics) ? s.topics : []),
+        ...(localTopics || []).filter((t) => t.subject_id === s.id),
+      ];
+      const seenTopics = new Set();
+      const uniqueTopics = [];
+      rawTopics.forEach((tp) => {
+        if (tp && tp.id && !seenTopics.has(tp.id)) {
+          seenTopics.add(tp.id);
+          const tov = topicOverrides[tp.id] || {};
+          uniqueTopics.push({
+            ...tp,
+            ...tov,
+            unit_name: tov.unit_name || tp.unit_name || 'Unit 1: General Topics',
+          });
+        }
       });
 
       return {
         ...s,
         ...ov,
+        name: ov.name || s.name,
+        subject_code: subjectCode,
         stream,
         semester,
-        topics: enrichedTopics,
+        teacher_name: ov.teacher_name || s.teacher_name || s.faculty_name || s.teacher || 'Department Faculty',
+        description: ov.description !== undefined ? ov.description : (s.description || ''),
+        is_active: ov.is_active !== undefined ? ov.is_active : (s.is_active !== undefined ? s.is_active : true),
+        topics: uniqueTopics,
       };
     });
 
@@ -518,6 +562,12 @@ export const dataService = {
     };
 
     // 1. Immediately store in local memory and cache so UI never loses the subject
+    try {
+      const deletedSubs = JSON.parse(localStorage.getItem('fy_deleted_subject_ids') || '[]');
+      const filtered = deletedSubs.filter((x) => x.toLowerCase() !== String(subjectId).toLowerCase());
+      localStorage.setItem('fy_deleted_subject_ids', JSON.stringify(filtered));
+    } catch (e) {}
+
     const existingIndex = localSubjects.findIndex((s) => s.id === subjectId);
     if (existingIndex >= 0) {
       localSubjects[existingIndex] = fullSubject;
@@ -685,6 +735,14 @@ export const dataService = {
         throw err;
       }
     }
+
+    // Record tombstone so deleted subject never resurrects
+    try {
+      const deletedSubs = JSON.parse(localStorage.getItem('fy_deleted_subject_ids') || '[]');
+      const set = new Set(deletedSubs.map((x) => String(x).toLowerCase()));
+      if (id) set.add(String(id).toLowerCase());
+      localStorage.setItem('fy_deleted_subject_ids', JSON.stringify([...set]));
+    } catch (e) {}
 
     // Clear from overrides and custom subjects
     try {
