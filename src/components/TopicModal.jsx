@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, Loader2, AlertCircle, Plus, Trash2, Layers, BookOpen } from 'lucide-react';
+import { X, CheckCircle2, Loader2, AlertCircle, Plus, Trash2, Layers, CornerDownRight, Tag } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
+import { parseSubtopicsHierarchy, formatSubtopicsToString } from '../utils/syllabusUtils';
 
 export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onClose, onSuccess }) => {
   const { addToast } = useToast();
@@ -22,15 +23,17 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
 
   const [unitName, setUnitName] = useState(initialUnitName);
 
-  // Parse existing subtopics into an array of strings
-  const parseInitialSubtopics = (rawSub) => {
-    if (!rawSub) return [''];
-    if (Array.isArray(rawSub)) return rawSub.length > 0 ? rawSub : [''];
-    const parts = String(rawSub)
-      .split(/[,;\n]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return parts.length > 0 ? parts : [''];
+  // Helper to parse subtopics for editing
+  const parseInitialHierarchy = (rawSub, subData) => {
+    const parsed = parseSubtopicsHierarchy(rawSub, subData);
+    if (parsed.length === 0) {
+      return [{ id: 'sub-' + Date.now(), title: '', items: [] }];
+    }
+    return parsed.map((p, idx) => ({
+      id: 'sub-' + Date.now() + '-' + idx,
+      title: p.title,
+      items: Array.isArray(p.items) ? p.items : [],
+    }));
   };
 
   // State for multiple topics
@@ -40,7 +43,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
         {
           id: topicToEdit.id,
           name: topicToEdit.name || '',
-          subtopics: parseInitialSubtopics(topicToEdit.subtopic),
+          subtopics: parseInitialHierarchy(topicToEdit.subtopic, topicToEdit.subtopics_data),
           description: topicToEdit.description || '',
           isExisting: true,
         },
@@ -50,7 +53,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       {
         id: 'new-' + Date.now(),
         name: '',
-        subtopics: [''],
+        subtopics: [{ id: 'sub-' + Date.now(), title: '', items: [] }],
         description: '',
         isExisting: false,
       },
@@ -69,7 +72,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       {
         id: 'new-' + Date.now() + '-' + prev.length,
         name: '',
-        subtopics: [''],
+        subtopics: [{ id: 'sub-' + Date.now() + '-' + prev.length, title: '', items: [] }],
         description: '',
         isExisting: false,
       },
@@ -90,20 +93,22 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
     if (errorMsg) setErrorMsg('');
   };
 
-  // Add a Subtopic line to a Topic
+  // Subtopic Management (Parent Level)
   const handleAddSubtopic = (tIdx) => {
     setTopics((prev) =>
       prev.map((t, idx) => {
         if (idx !== tIdx) return t;
         return {
           ...t,
-          subtopics: [...t.subtopics, ''],
+          subtopics: [
+            ...t.subtopics,
+            { id: 'sub-' + Date.now() + '-' + t.subtopics.length, title: '', items: [] },
+          ],
         };
       })
     );
   };
 
-  // Remove a Subtopic line from a Topic
   const handleRemoveSubtopic = (tIdx, sIdx) => {
     setTopics((prev) =>
       prev.map((t, idx) => {
@@ -111,20 +116,69 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
         const filtered = t.subtopics.filter((_, sIndex) => sIndex !== sIdx);
         return {
           ...t,
-          subtopics: filtered.length > 0 ? filtered : [''],
+          subtopics:
+            filtered.length > 0
+              ? filtered
+              : [{ id: 'sub-' + Date.now(), title: '', items: [] }],
         };
       })
     );
   };
 
-  // Update specific Subtopic string
-  const handleSubtopicChange = (tIdx, sIdx, value) => {
+  const handleSubtopicTitleChange = (tIdx, sIdx, value) => {
     setTopics((prev) =>
       prev.map((t, idx) => {
         if (idx !== tIdx) return t;
         const updated = [...t.subtopics];
-        updated[sIdx] = value;
+        updated[sIdx] = { ...updated[sIdx], title: value };
         return { ...t, subtopics: updated };
+      })
+    );
+  };
+
+  // Nested Sub-subtopic Management (Child Level: Subtopic ka bhi subtopic)
+  const handleAddChildItem = (tIdx, sIdx) => {
+    setTopics((prev) =>
+      prev.map((t, idx) => {
+        if (idx !== tIdx) return t;
+        const updatedSub = [...t.subtopics];
+        const currentItems = Array.isArray(updatedSub[sIdx].items) ? updatedSub[sIdx].items : [];
+        updatedSub[sIdx] = {
+          ...updatedSub[sIdx],
+          items: [...currentItems, ''],
+        };
+        return { ...t, subtopics: updatedSub };
+      })
+    );
+  };
+
+  const handleRemoveChildItem = (tIdx, sIdx, itemIdx) => {
+    setTopics((prev) =>
+      prev.map((t, idx) => {
+        if (idx !== tIdx) return t;
+        const updatedSub = [...t.subtopics];
+        const currentItems = Array.isArray(updatedSub[sIdx].items) ? updatedSub[sIdx].items : [];
+        updatedSub[sIdx] = {
+          ...updatedSub[sIdx],
+          items: currentItems.filter((_, idx2) => idx2 !== itemIdx),
+        };
+        return { ...t, subtopics: updatedSub };
+      })
+    );
+  };
+
+  const handleChildItemChange = (tIdx, sIdx, itemIdx, value) => {
+    setTopics((prev) =>
+      prev.map((t, idx) => {
+        if (idx !== tIdx) return t;
+        const updatedSub = [...t.subtopics];
+        const currentItems = [...(updatedSub[sIdx].items || [])];
+        currentItems[itemIdx] = value;
+        updatedSub[sIdx] = {
+          ...updatedSub[sIdx],
+          items: currentItems,
+        };
+        return { ...t, subtopics: updatedSub };
       })
     );
   };
@@ -181,19 +235,40 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
 
       for (const t of topics) {
         const cleanName = t.name.trim();
-        // Clean subtopics: filter out empty, split any comma-separated inputs
-        const flatSubtopics = (t.subtopics || [])
-          .flatMap((s) => s.split(/[,;\n]+/))
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const joinedSubtopics = flatSubtopics.join(', ');
+
+        // Build clean structured subtopics_data
+        const cleanHierarchy = [];
+        (t.subtopics || []).forEach((st) => {
+          const rawTitle = (st.title || '').trim();
+          if (!rawTitle) return;
+
+          // If user pasted/typed with parentheses e.g. "Arithmetic mean (Direct method, Shortcut)"
+          // or with colons, let the parser normalize it
+          const subParsed = parseSubtopicsHierarchy(rawTitle);
+          if (subParsed.length > 0 && subParsed[0].items.length > 0 && (!st.items || st.items.length === 0)) {
+            cleanHierarchy.push(subParsed[0]);
+          } else {
+            const cleanChildren = (st.items || [])
+              .flatMap((item) => String(item).split(/[,;\n]+/))
+              .map((i) => i.trim())
+              .filter(Boolean);
+
+            cleanHierarchy.push({
+              title: rawTitle,
+              items: cleanChildren,
+            });
+          }
+        });
+
+        const formattedString = formatSubtopicsToString(cleanHierarchy);
 
         if (t.isExisting && t.id) {
           // Update existing topic
           await dataService.updateTopic(t.id, {
             name: cleanName,
             unit_name: cleanUnit,
-            subtopic: joinedSubtopics || null,
+            subtopic: formattedString || null,
+            subtopics_data: cleanHierarchy.length > 0 ? cleanHierarchy : null,
             description: t.description?.trim() || null,
           });
           savedCount++;
@@ -203,7 +278,8 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
             subject_id: subject.id,
             name: cleanName,
             unit_name: cleanUnit,
-            subtopic: joinedSubtopics || null,
+            subtopic: formattedString || null,
+            subtopics_data: cleanHierarchy.length > 0 ? cleanHierarchy : null,
             description: t.description?.trim() || null,
           });
           savedCount++;
@@ -213,7 +289,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       if (topics.length === 1 && isEditMode) {
         addToast(`Topic updated successfully under ${cleanUnit}.`, 'success');
       } else {
-        addToast(`${savedCount} topic${savedCount > 1 ? 's' : ''} added under ${cleanUnit}.`, 'success');
+        addToast(`${savedCount} topic${savedCount > 1 ? 's' : ''} saved under ${cleanUnit}.`, 'success');
       }
 
       if (onSuccess) onSuccess();
@@ -233,7 +309,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '580px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: '640px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
       >
         {/* Modal Header */}
         <div className="modal-header" style={{ paddingBottom: '12px' }}>
@@ -417,7 +493,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="e.g. Communication: An Overview"
+                    placeholder="e.g. Measures of Central Tendency"
                     value={topic.name}
                     onChange={(e) => handleTopicChange(tIdx, 'name', e.target.value)}
                     required
@@ -425,11 +501,11 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                   />
                 </div>
 
-                {/* Subtopics with + options */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {/* Subtopics and Sub-subtopics Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 600, margin: 0 }}>
-                      Subtopics (Optional)
+                      Subtopics & Nested Concepts (Optional)
                     </label>
                     <button
                       type="button"
@@ -447,69 +523,192 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                         gap: '4px',
                         cursor: 'pointer',
                       }}
-                      title="Add another subtopic input"
+                      title="Add another subtopic"
                     >
                       <Plus size={12} />
                       <span>+ Add Subtopic</span>
                     </button>
                   </div>
 
-                  {topic.subtopics.map((sub, sIdx) => (
-                    <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. while loop, do-while, break, continue"
-                        value={sub}
-                        onChange={(e) => handleSubtopicChange(tIdx, sIdx, e.target.value)}
-                        style={{ background: '#FFFFFF', fontSize: '0.85rem' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleAddSubtopic(tIdx)}
-                        title="Add next subtopic"
+                  {topic.subtopics.map((sub, sIdx) => {
+                    const hasChildItems = Array.isArray(sub.items) && sub.items.length > 0;
+                    return (
+                      <div
+                        key={sub.id || sIdx}
                         style={{
-                          width: '32px',
-                          height: '34px',
-                          borderRadius: '6px',
-                          border: '1px solid #CBD5E1',
                           background: '#FFFFFF',
-                          color: 'var(--primary-600)',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          flexShrink: 0,
+                          flexDirection: 'column',
+                          gap: '8px',
                         }}
                       >
-                        <Plus size={15} />
-                      </button>
-                      {topic.subtopics.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSubtopic(tIdx, sIdx)}
-                          title="Remove subtopic"
-                          style={{
-                            width: '32px',
-                            height: '34px',
-                            borderRadius: '6px',
-                            border: '1px solid #FECACA',
-                            background: '#FEF2F2',
-                            color: '#DC2626',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                        {/* Parent Subtopic Row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Tag size={14} color="#3B82F6" style={{ flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Subtopic e.g. Arithmetic mean"
+                            value={sub.title}
+                            onChange={(e) => handleSubtopicTitleChange(tIdx, sIdx, e.target.value)}
+                            style={{ background: '#F8FAFC', fontSize: '0.85rem', fontWeight: 600 }}
+                          />
+
+                          {/* Button to add Nested Subtopic (Sub-concept) */}
+                          <button
+                            type="button"
+                            onClick={() => handleAddChildItem(tIdx, sIdx)}
+                            title="Add sub-concept under this subtopic"
+                            style={{
+                              background: '#F0FDF4',
+                              border: '1px solid #BBF7D0',
+                              color: '#166534',
+                              borderRadius: '6px',
+                              padding: '5px 8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <CornerDownRight size={13} />
+                            <span>+ Sub-item</span>
+                          </button>
+
+                          {/* Remove Subtopic button */}
+                          {topic.subtopics.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubtopic(tIdx, sIdx)}
+                              title="Delete subtopic"
+                              style={{
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '6px',
+                                border: '1px solid #FECACA',
+                                background: '#FEF2F2',
+                                color: '#DC2626',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Nested Sub-subtopics (Child Concepts under this subtopic) */}
+                        {hasChildItems && (
+                          <div
+                            style={{
+                              marginLeft: '20px',
+                              paddingLeft: '10px',
+                              borderLeft: '2px dashed #93C5FD',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                            }}
+                          >
+                            <div style={{ fontSize: '0.72rem', color: '#1D4ED8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CornerDownRight size={12} />
+                              <span>Nested Sub-topics / Concepts under "{sub.title || 'this subtopic'}":</span>
+                            </div>
+
+                            {sub.items.map((childItem, cIdx) => (
+                              <div key={cIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  placeholder="e.g. Direct method, Shortcut method, Step deviation"
+                                  value={childItem}
+                                  onChange={(e) => handleChildItemChange(tIdx, sIdx, cIdx, e.target.value)}
+                                  style={{
+                                    background: '#FFFFFF',
+                                    fontSize: '0.8rem',
+                                    padding: '5px 8px',
+                                    borderColor: '#BFDBFE',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddChildItem(tIdx, sIdx)}
+                                  title="Add next sub-item"
+                                  style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '5px',
+                                    border: '1px solid #CBD5E1',
+                                    background: '#FFFFFF',
+                                    color: 'var(--primary-600)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <Plus size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveChildItem(tIdx, sIdx, cIdx)}
+                                  title="Remove sub-item"
+                                  style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '5px',
+                                    border: '1px solid #FECACA',
+                                    background: '#FEF2F2',
+                                    color: '#DC2626',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <X size={13} />
+                                </button>
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddChildItem(tIdx, sIdx)}
+                              style={{
+                                alignSelf: 'flex-start',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#2563EB',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <Plus size={12} />
+                              <span>+ Add another concept under {sub.title || 'subtopic'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
                   <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                    Tip: Click <strong>+</strong> to add more subtopics, or type comma-separated values.
+                    💡 <strong>Tip:</strong> Click <strong>+ Sub-item</strong> to add child concepts (e.g. Arithmetic mean › Direct method, Shortcut method).
                   </span>
                 </div>
 

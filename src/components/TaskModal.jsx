@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, BookOpen, Layers } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
+import { parseSubtopicsHierarchy } from '../utils/syllabusUtils';
 
 // Helper to format Date into datetime-local value using LOCAL system time (preventing UTC offset shift)
 const formatToLocalDateTimeInput = (dateInput) => {
@@ -57,6 +58,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
 
   // 4. SUBTOPIC STATES
   const [selectedSubtopic, setSelectedSubtopic] = useState(taskToEdit?.subtopic || '');
+  const [selectedChildSubtopic, setSelectedChildSubtopic] = useState('');
   const [customSubtopic, setCustomSubtopic] = useState(taskToEdit?.subtopic || '');
 
   // 5. TASK TITLE (Right after Subtopic)
@@ -217,14 +219,15 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     return availableTopics.find((t) => t.id === topicId);
   }, [availableTopics, topicId]);
 
-  // Parse subtopics from active topic
-  const parsedSubtopics = useMemo(() => {
-    if (!activeTopic?.subtopic) return [];
-    return activeTopic.subtopic
-      .split(/[\r\n,;•|]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+  // Parse subtopics & nested sub-subtopics from active topic
+  const parsedHierarchy = useMemo(() => {
+    if (!activeTopic) return [];
+    return parseSubtopicsHierarchy(activeTopic.subtopic, activeTopic.subtopics_data);
   }, [activeTopic]);
+
+  const activeSubtopicObj = useMemo(() => {
+    return parsedHierarchy.find((s) => s.title === selectedSubtopic);
+  }, [parsedHierarchy, selectedSubtopic]);
 
   // Handle unit change
   const handleUnitChange = (newUnit) => {
@@ -315,10 +318,16 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     setErrorMsg('');
 
     try {
-      const finalSubtopic =
-        selectedSubtopic === '__custom__' || parsedSubtopics.length === 0
-          ? customSubtopic.trim() || null
-          : selectedSubtopic.trim() || customSubtopic.trim() || null;
+      let finalSubtopic = null;
+      if (selectedSubtopic === '__custom__' || parsedHierarchy.length === 0) {
+        finalSubtopic = customSubtopic.trim() || null;
+      } else if (selectedSubtopic) {
+        if (selectedChildSubtopic && selectedChildSubtopic !== '__all__') {
+          finalSubtopic = `${selectedSubtopic} › ${selectedChildSubtopic}`;
+        } else {
+          finalSubtopic = selectedSubtopic;
+        }
+      }
 
       const taskPayload = {
         title: title.trim(),
@@ -555,20 +564,20 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
             </div>
 
-            {/* 5. SUBTOPIC SELECTION (Optional) */}
+            {/* 5. SUBTOPIC & NESTED CONCEPT SELECTION (Optional) */}
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label className="form-label" style={{ fontWeight: 600, margin: 0 }}>
-                  Subtopic (Optional)
+                  Subtopic & Specific Concept (Optional)
                 </label>
-                {parsedSubtopics.length > 0 && (
+                {parsedHierarchy.length > 0 && (
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {parsedSubtopics.length} subtopic{parsedSubtopics.length > 1 ? 's' : ''} available in syllabus
+                    {parsedHierarchy.length} subtopic{parsedHierarchy.length > 1 ? 's' : ''} available in syllabus
                   </span>
                 )}
               </div>
 
-              {parsedSubtopics.length > 0 ? (
+              {parsedHierarchy.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <select
                     className="form-control"
@@ -576,19 +585,45 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                     onChange={(e) => {
                       const val = e.target.value;
                       setSelectedSubtopic(val);
+                      setSelectedChildSubtopic('');
                       if (val !== '__custom__') {
                         setCustomSubtopic(val);
                       }
                     }}
                   >
                     <option value="">-- All Subtopics / Complete Topic --</option>
-                    {parsedSubtopics.map((st, idx) => (
-                      <option key={idx} value={st}>
-                        🔹 {st}
-                      </option>
-                    ))}
+                    {parsedHierarchy.map((st, idx) => {
+                      const childCount = Array.isArray(st.items) ? st.items.length : 0;
+                      return (
+                        <option key={idx} value={st.title}>
+                          🔹 {st.title} {childCount > 0 ? `(${childCount} sub-concepts)` : ''}
+                        </option>
+                      );
+                    })}
                     <option value="__custom__">✏️ Custom Subtopic (Type manually)...</option>
                   </select>
+
+                  {/* Nested Sub-subtopic (Subtopic ka subtopic dropdown) */}
+                  {activeSubtopicObj && Array.isArray(activeSubtopicObj.items) && activeSubtopicObj.items.length > 0 && (
+                    <div style={{ paddingLeft: '14px', borderLeft: '3px solid #93C5FD', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1D4ED8', margin: 0 }}>
+                        ↳ Specific Method / Concept under "{activeSubtopicObj.title}":
+                      </label>
+                      <select
+                        className="form-control"
+                        value={selectedChildSubtopic}
+                        onChange={(e) => setSelectedChildSubtopic(e.target.value)}
+                        style={{ fontSize: '0.85rem', borderColor: '#93C5FD' }}
+                      >
+                        <option value="">-- All Concepts under {activeSubtopicObj.title} --</option>
+                        {activeSubtopicObj.items.map((subItem, itIdx) => (
+                          <option key={itIdx} value={subItem}>
+                            🎯 {subItem}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {selectedSubtopic === '__custom__' && (
                     <input

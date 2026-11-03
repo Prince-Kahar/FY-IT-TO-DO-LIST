@@ -6,7 +6,9 @@ import {
   Trash2,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
+  GripVertical,
   Layers,
   Power,
   RotateCcw,
@@ -17,6 +19,7 @@ import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
 import { SubjectModal } from '../../components/SubjectModal';
 import { TopicModal } from '../../components/TopicModal';
+import { parseSubtopicsHierarchy } from '../../utils/syllabusUtils';
 
 export const AdminSubjects = () => {
   const { addToast } = useToast();
@@ -162,6 +165,74 @@ export const AdminSubjects = () => {
     } catch (err) {
       console.error('Error deleting topic:', err);
     }
+  };
+
+  // Drag and drop / Reordering State and Handlers
+  const [draggedTopicId, setDraggedTopicId] = useState(null);
+  const [dragOverTopicId, setDragOverTopicId] = useState(null);
+
+  const moveTopicToPosition = (sourceTopicId, targetTopicId, subjectId) => {
+    if (!sourceTopicId || !targetTopicId || sourceTopicId === targetTopicId) return;
+
+    setSubjects((prevSubjects) => {
+      return prevSubjects.map((sub) => {
+        if (sub.id !== subjectId) return sub;
+        const currentTopics = [...(sub.topics || [])];
+        const sourceIndex = currentTopics.findIndex((t) => t.id === sourceTopicId);
+        const targetIndex = currentTopics.findIndex((t) => t.id === targetTopicId);
+        if (sourceIndex === -1 || targetIndex === -1) return sub;
+
+        // Remove source topic and insert at target position
+        const [movedTopic] = currentTopics.splice(sourceIndex, 1);
+        currentTopics.splice(targetIndex, 0, movedTopic);
+
+        // Persist order in background
+        dataService.saveTopicOrder(subjectId, currentTopics.map((t) => t.id));
+        return {
+          ...sub,
+          topics: currentTopics,
+        };
+      });
+    });
+
+    addToast('Topic order updated.', 'success');
+  };
+
+  const handleMoveTopicArrow = (topicId, direction, unitTopics, subjectId) => {
+    const curIdx = unitTopics.findIndex((t) => t.id === topicId);
+    if (curIdx === -1) return;
+    const targetIdx = curIdx + direction;
+    if (targetIdx < 0 || targetIdx >= unitTopics.length) return;
+    const targetTopicId = unitTopics[targetIdx].id;
+    moveTopicToPosition(topicId, targetTopicId, subjectId);
+  };
+
+  const handleDragStart = (e, topicId) => {
+    setDraggedTopicId(topicId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', topicId);
+  };
+
+  const handleDragOver = (e, topicId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverTopicId !== topicId) {
+      setDragOverTopicId(topicId);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTopicId(null);
+    setDragOverTopicId(null);
+  };
+
+  const handleDrop = (e, targetTopicId, subjectId) => {
+    e.preventDefault();
+    if (draggedTopicId && draggedTopicId !== targetTopicId) {
+      moveTopicToPosition(draggedTopicId, targetTopicId, subjectId);
+    }
+    setDraggedTopicId(null);
+    setDragOverTopicId(null);
   };
 
   const handleOpenAddTopic = (subject, defaultUnit = '') => {
@@ -837,88 +908,207 @@ export const AdminSubjects = () => {
                                   {/* Topics in this Unit (Collapsible) */}
                                   {!isUnitCollapsed && (
                                     <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      {unitTopics.map((tp, idx) => (
-                                  <div
-                                    key={tp.id}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '10px 12px',
-                                      background: 'var(--bg-subtle)',
-                                      borderRadius: '6px',
-                                      border: '1px solid var(--border-light)',
-                                    }}
-                                  >
-                                    <div style={{ flex: 1, paddingRight: '12px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                        <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                                          {idx + 1}. {tp.name}
-                                        </span>
-                                        {tp.subtopic && (
-                                          <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            {tp.subtopic.split(/[,;\n]+/).map((st, sIdx) => {
-                                              const cleanSub = st.trim();
-                                              if (!cleanSub) return null;
-                                              return (
-                                                <span
-                                                  key={sIdx}
-                                                  style={{
-                                                    background: '#EFF6FF',
-                                                    color: '#1D4ED8',
-                                                    border: '1px solid #BFDBFE',
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 600,
-                                                    padding: '1px 7px',
-                                                    borderRadius: '4px',
-                                                  }}
-                                                >
-                                                  {cleanSub}
-                                                </span>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
-                                      </div>
-                                      {tp.description && (
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                          {tp.description}
-                                        </div>
-                                      )}
-                                    </div>
+                                      {unitTopics.map((tp, idx) => {
+                                        const isDragging = draggedTopicId === tp.id;
+                                        const isDragOver = dragOverTopicId === tp.id;
+                                        const subHierarchy = parseSubtopicsHierarchy(tp.subtopic, tp.subtopics_data);
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenEditTopic(sub, tp)}
-                                        style={{
-                                          background: 'transparent',
-                                          border: 'none',
-                                          color: 'var(--primary-600)',
-                                          cursor: 'pointer',
-                                          padding: '4px',
-                                        }}
-                                        title="Edit Topic & Subtopic"
-                                      >
-                                        <Edit size={14} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteTopic(tp.id, tp.name)}
-                                        style={{
-                                          background: 'transparent',
-                                          border: 'none',
-                                          color: 'var(--danger-main)',
-                                          cursor: 'pointer',
-                                          padding: '4px',
-                                        }}
-                                        title="Delete Topic"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
+                                        return (
+                                          <div
+                                            key={tp.id}
+                                            draggable={true}
+                                            onDragStart={(e) => handleDragStart(e, tp.id)}
+                                            onDragOver={(e) => handleDragOver(e, tp.id)}
+                                            onDragEnd={handleDragEnd}
+                                            onDrop={(e) => handleDrop(e, tp.id, sub.id)}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'space-between',
+                                              padding: '9px 12px',
+                                              background: isDragging ? '#EFF6FF' : isDragOver ? '#F0FDF4' : 'var(--bg-subtle)',
+                                              borderRadius: '6px',
+                                              border: isDragOver
+                                                ? '2px dashed var(--primary-600)'
+                                                : isDragging
+                                                ? '1px dashed #3B82F6'
+                                                : '1px solid var(--border-light)',
+                                              opacity: isDragging ? 0.6 : 1,
+                                              transition: 'all 0.15s ease',
+                                              gap: '10px',
+                                            }}
+                                          >
+                                            {/* Drag Grip Handle & Up/Down Movement Arrows */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                              <div
+                                                style={{
+                                                  cursor: 'grab',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  padding: '2px',
+                                                  color: 'var(--text-muted)',
+                                                }}
+                                                title="Drag and drop to reorder"
+                                              >
+                                                <GripVertical size={16} />
+                                              </div>
+
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                                <button
+                                                  type="button"
+                                                  disabled={idx === 0}
+                                                  onClick={() => handleMoveTopicArrow(tp.id, -1, unitTopics, sub.id)}
+                                                  style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    padding: '0 2px',
+                                                    cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                                                    color: idx === 0 ? '#CBD5E1' : 'var(--text-main)',
+                                                    lineHeight: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    borderRadius: '2px',
+                                                  }}
+                                                  title="Move Topic Up"
+                                                >
+                                                  <ChevronUp size={12} />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={idx === unitTopics.length - 1}
+                                                  onClick={() => handleMoveTopicArrow(tp.id, 1, unitTopics, sub.id)}
+                                                  style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    padding: '0 2px',
+                                                    cursor: idx === unitTopics.length - 1 ? 'not-allowed' : 'pointer',
+                                                    color: idx === unitTopics.length - 1 ? '#CBD5E1' : 'var(--text-main)',
+                                                    lineHeight: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    borderRadius: '2px',
+                                                  }}
+                                                  title="Move Topic Down"
+                                                >
+                                                  <ChevronDown size={12} />
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {/* Topic Name & Subtopic Hierarchy Display */}
+                                            <div style={{ flex: 1, paddingRight: '8px' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                                                  {idx + 1}. {tp.name}
+                                                </span>
+
+                                                {/* Render Subtopics with nested concepts */}
+                                                {subHierarchy.length > 0 && (
+                                                  <div style={{ display: 'inline-flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    {subHierarchy.map((st, sIdx) => {
+                                                      const hasChildren = Array.isArray(st.items) && st.items.length > 0;
+                                                      if (!hasChildren) {
+                                                        return (
+                                                          <span
+                                                            key={sIdx}
+                                                            style={{
+                                                              background: '#EFF6FF',
+                                                              color: '#1D4ED8',
+                                                              border: '1px solid #BFDBFE',
+                                                              fontSize: '0.72rem',
+                                                              fontWeight: 600,
+                                                              padding: '1px 7px',
+                                                              borderRadius: '4px',
+                                                            }}
+                                                          >
+                                                            {st.title}
+                                                          </span>
+                                                        );
+                                                      }
+
+                                                      return (
+                                                        <span
+                                                          key={sIdx}
+                                                          style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            background: '#EFF6FF',
+                                                            color: '#1D4ED8',
+                                                            border: '1px solid #BFDBFE',
+                                                            fontSize: '0.72rem',
+                                                            padding: '2px 7px',
+                                                            borderRadius: '5px',
+                                                          }}
+                                                        >
+                                                          <span style={{ fontWeight: 700 }}>{st.title}</span>
+                                                          <span style={{ color: '#60A5FA', fontSize: '0.7rem', fontWeight: 800 }}>›</span>
+                                                          <span style={{ display: 'inline-flex', gap: '3px', flexWrap: 'wrap' }}>
+                                                            {st.items.map((subItem, itIdx) => (
+                                                              <span
+                                                                key={itIdx}
+                                                                style={{
+                                                                  background: '#FFFFFF',
+                                                                  color: '#1E40AF',
+                                                                  border: '1px solid #DBEAFE',
+                                                                  borderRadius: '3px',
+                                                                  padding: '0 5px',
+                                                                  fontSize: '0.68rem',
+                                                                  fontWeight: 600,
+                                                                }}
+                                                              >
+                                                                {subItem}
+                                                              </span>
+                                                            ))}
+                                                          </span>
+                                                        </span>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {tp.description && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                  {tp.description}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenEditTopic(sub, tp)}
+                                                style={{
+                                                  background: 'transparent',
+                                                  border: 'none',
+                                                  color: 'var(--primary-600)',
+                                                  cursor: 'pointer',
+                                                  padding: '4px',
+                                                }}
+                                                title="Edit Topic & Subtopic"
+                                              >
+                                                <Edit size={14} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteTopic(tp.id, tp.name)}
+                                                style={{
+                                                  background: 'transparent',
+                                                  border: 'none',
+                                                  color: 'var(--danger-main)',
+                                                  cursor: 'pointer',
+                                                  padding: '4px',
+                                                }}
+                                                title="Delete Topic"
+                                              >
+                                                <Trash2 size={14} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                               </div>
                             )}
                           </div>

@@ -222,9 +222,27 @@ export const dataService = {
             ...tp,
             ...tov,
             unit_name: tov.unit_name || tp.unit_name || 'Unit 1: General Topics',
+            subtopic: tov.subtopic !== undefined ? tov.subtopic : tp.subtopic || null,
+            subtopics_data: tov.subtopics_data || tp.subtopics_data || null,
           });
         }
       });
+
+      let topicOrders = {};
+      try {
+        topicOrders = JSON.parse(localStorage.getItem('fy_topic_order') || '{}');
+      } catch (e) {}
+      const subOrder = topicOrders[s.id] || [];
+      if (subOrder.length > 0) {
+        uniqueTopics.sort((a, b) => {
+          const idxA = subOrder.indexOf(a.id);
+          const idxB = subOrder.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return 0;
+        });
+      }
 
       return {
         ...s,
@@ -516,9 +534,27 @@ export const dataService = {
             ...tp,
             ...tov,
             unit_name: tov.unit_name || tp.unit_name || 'Unit 1: General Topics',
+            subtopic: tov.subtopic !== undefined ? tov.subtopic : tp.subtopic || null,
+            subtopics_data: tov.subtopics_data || tp.subtopics_data || null,
           });
         }
       });
+
+      let topicOrders = {};
+      try {
+        topicOrders = JSON.parse(localStorage.getItem('fy_topic_order') || '{}');
+      } catch (e) {}
+      const subOrder = topicOrders[s.id] || [];
+      if (subOrder.length > 0) {
+        uniqueTopics.sort((a, b) => {
+          const idxA = subOrder.indexOf(a.id);
+          const idxB = subOrder.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return 0;
+        });
+      }
 
       uniqueTopics.forEach((ut) => {
         if (ut && ut.id && !localTopics.some((lt) => lt.id === ut.id)) {
@@ -822,21 +858,37 @@ export const dataService = {
     }
 
     let topicOverrides = {};
+    let topicOrders = {};
     try {
       topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      topicOrders = JSON.parse(localStorage.getItem('fy_topic_order') || '{}');
     } catch (e) {}
+
+    const subjectOrder = topicOrders[subjectId] || [];
+    if (subjectOrder.length > 0) {
+      rawTopics.sort((a, b) => {
+        const idxA = subjectOrder.indexOf(a.id);
+        const idxB = subjectOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+    }
 
     return (rawTopics || []).map((tp) => {
       const tov = topicOverrides[tp.id] || {};
       const mem = (localTopics || []).find((l) => l.id === tp.id) || {};
       const unitName = tov.unit_name || mem.unit_name || tp.unit_name || 'Unit 1: General Topics';
       const subtopic = tov.subtopic !== undefined ? tov.subtopic : (mem.subtopic !== undefined ? mem.subtopic : tp.subtopic || null);
+      const subtopicsData = tov.subtopics_data || mem.subtopics_data || tp.subtopics_data || null;
       return {
         ...tp,
         ...mem,
         ...tov,
         unit_name: unitName,
         subtopic: subtopic,
+        subtopics_data: subtopicsData,
       };
     });
   },
@@ -880,6 +932,7 @@ export const dataService = {
         name: newTopic.name,
         unit_name: newTopic.unit_name || 'Unit 1: General Topics',
         subtopic: newTopic.subtopic || null,
+        subtopics_data: newTopic.subtopics_data || null,
         description: newTopic.description || null,
       };
       localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
@@ -944,7 +997,11 @@ export const dataService = {
 
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
-      overrides[id] = { ...(overrides[id] || {}), ...updates };
+      overrides[id] = {
+        ...(overrides[id] || {}),
+        ...updates,
+        subtopics_data: updates.subtopics_data !== undefined ? updates.subtopics_data : overrides[id]?.subtopics_data,
+      };
       localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
@@ -1028,6 +1085,55 @@ export const dataService = {
     }
     this.notifyLocalChange('TOPIC_DELETED', { id });
     return true;
+  },
+
+  saveTopicOrder(subjectId, orderedTopicIds) {
+    if (!subjectId || !Array.isArray(orderedTopicIds)) return false;
+    try {
+      const orders = JSON.parse(localStorage.getItem('fy_topic_order') || '{}');
+      orders[subjectId] = orderedTopicIds;
+      localStorage.setItem('fy_topic_order', JSON.stringify(orders));
+
+      // Also update in-memory order_index in fy_topic_overrides
+      const overrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      orderedTopicIds.forEach((tId, idx) => {
+        overrides[tId] = {
+          ...(overrides[tId] || {}),
+          order_index: idx,
+        };
+      });
+      localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
+
+      // Update in-memory localTopics order
+      if (Array.isArray(localTopics)) {
+        localTopics.sort((a, b) => {
+          if (a.subject_id !== subjectId || b.subject_id !== subjectId) return 0;
+          const idxA = orderedTopicIds.indexOf(a.id);
+          const idxB = orderedTopicIds.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          return 0;
+        });
+        saveCache('topics', localTopics);
+      }
+
+      // Update in-memory localSubjects topic order
+      const sub = (localSubjects || []).find((s) => s.id === subjectId);
+      if (sub && Array.isArray(sub.topics)) {
+        sub.topics.sort((a, b) => {
+          const idxA = orderedTopicIds.indexOf(a.id);
+          const idxB = orderedTopicIds.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          return 0;
+        });
+        saveCache('subjects', localSubjects);
+      }
+
+      this.notifyLocalChange('TOPICS_REORDERED', { subjectId, orderedTopicIds });
+      return true;
+    } catch (e) {
+      console.warn('saveTopicOrder notice:', e);
+      return false;
+    }
   },
 
   // =========================================================================
