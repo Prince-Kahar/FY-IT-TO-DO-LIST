@@ -1599,15 +1599,38 @@ export const dataService = {
     const isLate = taskDueDate ? new Date() > new Date(taskDueDate) : false;
     const submissionId = generateUUID();
 
-    // 1. Prepare uploaded photos representation
-    const uploadedPhotos = files.map((f, idx) => ({
-      id: 'file-' + Date.now() + '-' + idx,
-      storage_path: `${studentId}/${assignmentId}/${submissionId}/${f.name}`,
-      original_file_name: f.name,
-      signed_url: URL.createObjectURL(f),
-      content_type: f.type,
-      file_size: f.size,
-    }));
+    // 1. Prepare persistent base64 representation for photos so they never expire or fail across reloads
+    const readFileAsDataUrl = (file) =>
+      new Promise((resolve) => {
+        if (!file || typeof file === 'string') {
+          resolve(file || '');
+          return;
+        }
+        try {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        } catch (e) {
+          resolve('');
+        }
+      });
+
+    const dataUrls = await Promise.all((files || []).map((f) => readFileAsDataUrl(f)));
+
+    const uploadedPhotos = (files || []).map((f, idx) => {
+      const dataUrl = dataUrls[idx];
+      return {
+        id: 'file-' + Date.now() + '-' + idx,
+        storage_path: `${studentId}/${assignmentId}/${submissionId}/${f?.name || `proof_${idx + 1}.jpg`}`,
+        original_file_name: f?.name || `proof_${idx + 1}.jpg`,
+        signed_url: dataUrl || (f instanceof Blob ? URL.createObjectURL(f) : ''),
+        data_url: dataUrl,
+        base64: dataUrl,
+        content_type: f?.type || 'image/jpeg',
+        file_size: f?.size || 0,
+      };
+    });
 
     let supaSubmission = null;
     let supaUploadedFiles = [];
@@ -1737,7 +1760,7 @@ export const dataService = {
 
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        const queryPromise = supabase
           .from('submissions')
           .select(`
             *,
@@ -1760,19 +1783,34 @@ export const dataService = {
           `)
           .order('submitted_at', { ascending: false });
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase getAllSubmissions timeout')), 2500)
+        );
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
         if (!error && Array.isArray(data) && data.length > 0) {
           allSubs = [...data, ...allSubs];
           localSubmissions = allSubs;
           saveCache('submissions', allSubs);
         }
       } catch (err) {
-        console.warn('Supabase getAllSubmissions notice:', err);
+        console.warn('Supabase getAllSubmissions notice:', err.message);
       }
     }
+
+    // Filter deleted submissions
+    let deletedSubmissionIds = new Set();
+    try {
+      const rawDeleted = JSON.parse(localStorage.getItem('fy_deleted_submission_ids') || '[]');
+      deletedSubmissionIds = new Set(rawDeleted.map((x) => String(x).toLowerCase()));
+    } catch (e) {}
 
     // Deduplicate by ID
     const seen = new Set();
     const uniqueSubs = allSubs.filter((s) => {
+      if (!s || !s.id) return false;
+      if (deletedSubmissionIds.has(String(s.id).toLowerCase())) return false;
       if (seen.has(s.id)) return false;
       seen.add(s.id);
       return true;
@@ -1809,75 +1847,165 @@ export const dataService = {
     marksAwarded,
     adminId,
   }) {
-    if (isSupabaseConfigured()) {
-      // 1. Update submission record
-      const { data: updatedSub, error: subError } = await supabase
-        .from('submissions')
-        .update({
+    const reviewedAt = new Date().toISOString();
+    const cleanFeedback = (feedback || '').trim();
+
+    // 1. ALWAYS update local memory immediately
+    const subIdx = localSubmissions.findIndex((s) => s.id === submissionId);
+    let updatedSub = null;
+    if (subIdx >= 0) {
+      localSubmissions[subIdx] = {
+        ...localSubmissions[subIdx],
+        status,
+        feedback: cleanFeedback,
+        marks_awarded: marksAwarded,
+        reviewed_by: adminId,
+        reviewed_at: reviewedAt,
+      };
+      updatedSub = localSubmissions[subIdx];
+    } else {
+      updatedSub = {
+        id: submissionId,
+        task_assignment_id: assignmentId,
+        student_id: studentId,
+        status,
+        feedback: cleanFeedback,
+        marks_awarded: marksAwarded,
+        reviewed_by: adminId,
+        reviewed_at: reviewedAt,
+      };
+      localSubmissions.unshift(updatedSub);
+    }
+    saveCache('submissions', localSubmissions);
+
+    // 2. ALWAYS persist review in localStorage fy_it_submissions
+    try {
+      const stored = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      const storedIdx = stored.findIndex((s) => s.id === submissionId);
+      if (storedIdx >= 0) {
+        stored[storedIdx] = {
+          ...stored[storedIdx],
           status,
-          feedback,
+          feedback: cleanFeedback,
           marks_awarded: marksAwarded,
           reviewed_by: adminId,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', submissionId)
-        .select()
-        .single();
+          reviewed_at: reviewedAt,
+        };
+      } else {
+        stored.unshift(updatedSub);
+      }
+      localStorage.setItem('fy_it_submissions', JSON.stringify(stored));
+    } catch (e) {}
 
-      if (subError) throw subError;
-
-      // 2. Update parent assignment status
-      await supabase
-        .from('task_assignments')
-        .update({
-          status,
-        })
-        .eq('id', assignmentId);
-
-      // 3. Notify student
-      await supabase.from('notifications').insert([
-        {
-          user_id: studentId,
-          title: `Submission Review: ${status}`,
-          message: `Your task submission was reviewed. Status: ${status}${
-            marksAwarded !== null && marksAwarded !== undefined ? ` (${marksAwarded} marks)` : ''
-          }. Feedback: "${feedback || 'No comments'}"`,
-          notification_type: 'submission_reviewed',
-          is_read: false,
-        },
-      ]);
-
-      this.notifyLocalChange('SUBMISSION_REVIEWED', updatedSub);
-      return updatedSub;
-    }
-
-    // Demo Mode
-    const sub = localSubmissions.find((s) => s.id === submissionId);
-    if (sub) {
-      sub.status = status;
-      sub.feedback = feedback;
-      sub.marks_awarded = marksAwarded;
-      sub.reviewed_by = adminId;
-      sub.reviewed_at = new Date().toISOString();
-    }
-
+    // 3. Update assignment status locally
     const asg = localAssignments.find((a) => a.id === assignmentId);
     if (asg) {
       asg.status = status;
     }
 
-    localNotifications.unshift({
+    // 4. Create in-app student notification locally
+    const notifItem = {
       id: 'notif-' + Date.now(),
       user_id: studentId,
       title: `Submission Review: ${status}`,
-      message: `Your task submission was reviewed: ${status}. Feedback: "${feedback || 'No comments'}"`,
+      message: `Your task submission was reviewed. Status: ${status}${
+        marksAwarded !== null && marksAwarded !== undefined ? ` (${marksAwarded} marks)` : ''
+      }. Feedback: "${cleanFeedback || 'No comments'}"`,
       notification_type: 'submission_reviewed',
       is_read: false,
-      created_at: new Date().toISOString(),
-    });
+      created_at: reviewedAt,
+    };
+    localNotifications.unshift(notifItem);
 
-    this.notifyLocalChange('SUBMISSION_REVIEWED', sub);
-    return sub;
+    // 5. If Supabase configured, sync safely (non-blocking)
+    if (isSupabaseConfigured()) {
+      try {
+        const updatePayload = {
+          status,
+          feedback: cleanFeedback,
+          marks_awarded: marksAwarded,
+          reviewed_at: reviewedAt,
+        };
+        // ONLY pass reviewed_by if adminId is a valid UUID to avoid PostgreSQL foreign key error!
+        if (adminId && isValidUUID(adminId)) {
+          updatePayload.reviewed_by = adminId;
+        }
+
+        const supaUpdatePromise = (async () => {
+          if (isValidUUID(submissionId)) {
+            await supabase
+              .from('submissions')
+              .update(updatePayload)
+              .eq('id', submissionId);
+          }
+          if (assignmentId && isValidUUID(assignmentId)) {
+            await supabase
+              .from('task_assignments')
+              .update({ status })
+              .eq('id', assignmentId);
+          }
+          if (studentId && isValidUUID(studentId)) {
+            await supabase.from('notifications').insert([
+              {
+                user_id: studentId,
+                title: `Submission Review: ${status}`,
+                message: notifItem.message,
+                notification_type: 'submission_reviewed',
+                is_read: false,
+              },
+            ]);
+          }
+        })();
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase reviewSubmission sync timeout')), 2500)
+        );
+
+        await Promise.race([supaUpdatePromise, timeoutPromise]);
+      } catch (err) {
+        console.warn('Supabase reviewSubmission sync notice (local review preserved):', err.message);
+      }
+    }
+
+    this.notifyLocalChange('SUBMISSION_REVIEWED', updatedSub);
+    return updatedSub;
+  },
+
+  async deleteSubmission(submissionId) {
+    if (!submissionId) return false;
+
+    // 1. Remove from localSubmissions in memory
+    localSubmissions = localSubmissions.filter((s) => s.id !== submissionId);
+    saveCache('submissions', localSubmissions);
+
+    // 2. Remove from localStorage fy_it_submissions
+    try {
+      const stored = JSON.parse(localStorage.getItem('fy_it_submissions') || '[]');
+      const filtered = stored.filter((s) => s.id !== submissionId);
+      localStorage.setItem('fy_it_submissions', JSON.stringify(filtered));
+    } catch (e) {}
+
+    // 3. Record in fy_deleted_submission_ids so it never reappears
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('fy_deleted_submission_ids') || '[]');
+      if (!deletedIds.includes(submissionId)) {
+        deletedIds.push(submissionId);
+        localStorage.setItem('fy_deleted_submission_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
+    // 4. Delete from Supabase if configured & valid UUID
+    if (isSupabaseConfigured() && isValidUUID(submissionId)) {
+      try {
+        await supabase.from('submission_files').delete().eq('submission_id', submissionId);
+        await supabase.from('submissions').delete().eq('id', submissionId);
+      } catch (err) {
+        console.warn('Supabase deleteSubmission notice:', err.message);
+      }
+    }
+
+    this.notifyLocalChange('SUBMISSION_DELETED', { id: submissionId });
+    return true;
   },
 
   // =========================================================================

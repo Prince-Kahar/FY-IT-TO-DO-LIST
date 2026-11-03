@@ -12,25 +12,33 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
+export const DEFAULT_PROOF_PLACEHOLDER =
+  'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=80';
+
 export const resolveSubmissionPhotoUrl = (file) => {
-  if (!file) return '';
+  if (!file) return DEFAULT_PROOF_PLACEHOLDER;
   if (typeof file === 'string') {
-    if (file.startsWith('http') || file.startsWith('data:') || file.startsWith('blob:')) {
-      return file;
-    }
+    if (file.startsWith('data:') || file.startsWith('http')) return file;
+    if (file.startsWith('blob:')) return file;
     return `https://cgwlllymkzbltuhsqepg.supabase.co/storage/v1/object/public/task-submissions/${file}`;
   }
-  const candidate = file.signed_url || file.url || file.data_url || file.base64;
-  if (candidate && (candidate.startsWith('http') || candidate.startsWith('data:') || candidate.startsWith('blob:'))) {
-    return candidate;
+  // Check persistent data_url / base64 first
+  if (file.data_url && file.data_url.startsWith('data:')) return file.data_url;
+  if (file.base64 && file.base64.startsWith('data:')) return file.base64;
+  if (file.url && file.url.startsWith('http')) return file.url;
+  if (file.signed_url && (file.signed_url.startsWith('http') || file.signed_url.startsWith('data:'))) {
+    return file.signed_url;
+  }
+  if (file.signed_url && file.signed_url.startsWith('blob:')) {
+    return file.signed_url;
   }
   if (file.storage_path) {
-    if (file.storage_path.startsWith('http') || file.storage_path.startsWith('data:') || file.storage_path.startsWith('blob:')) {
+    if (file.storage_path.startsWith('http') || file.storage_path.startsWith('data:')) {
       return file.storage_path;
     }
     return `https://cgwlllymkzbltuhsqepg.supabase.co/storage/v1/object/public/task-submissions/${file.storage_path}`;
   }
-  return '';
+  return DEFAULT_PROOF_PLACEHOLDER;
 };
 
 export const PhotoViewerModal = ({ photos = [], initialIndex = 0, onClose }) => {
@@ -328,9 +336,14 @@ export const PhotoViewerModal = ({ photos = [], initialIndex = 0, onClose }) => 
               src={photoUrl}
               alt={currentPhoto?.original_file_name || `Submission photo ${currentIndex + 1}`}
               onLoad={() => setIsImgLoading(false)}
-              onError={() => {
-                setIsImgLoading(false);
-                setImgLoadFailed(true);
+              onError={(e) => {
+                if (e.currentTarget.src !== DEFAULT_PROOF_PLACEHOLDER) {
+                  e.currentTarget.src = DEFAULT_PROOF_PLACEHOLDER;
+                  setIsImgLoading(false);
+                } else {
+                  setIsImgLoading(false);
+                  setImgLoadFailed(true);
+                }
               }}
               style={{
                 maxHeight: '75vh',

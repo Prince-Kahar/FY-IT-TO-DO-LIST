@@ -9,12 +9,17 @@ import {
   AlertTriangle,
   Download,
   FileCheck,
+  Trash2,
+  Loader2,
+  X,
 } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 import { dataService } from '../../lib/dataService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ReviewModal } from '../../components/ReviewModal';
 
 export const AdminSubmissions = () => {
+  const { addToast } = useToast();
   const [submissions, setSubmissions] = useState(() => dataService.getCachedSubmissions());
   const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
   const [loading, setLoading] = useState(false);
@@ -25,8 +30,10 @@ export const AdminSubmissions = () => {
   const [subjectFilter, setSubjectFilter] = useState('ALL');
   const [lateFilter, setLateFilter] = useState('ALL');
 
-  // Review Modal
+  // Review & Delete Modals
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [submissionToDelete, setSubmissionToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadSubmissions = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -41,6 +48,22 @@ export const AdminSubmissions = () => {
       console.error('Error loading submissions:', err);
     } finally {
       if (!isBackground) setLoading(false);
+    }
+  };
+
+  const handleDeleteSubmission = async () => {
+    if (!submissionToDelete) return;
+    setIsDeleting(true);
+    try {
+      await dataService.deleteSubmission(submissionToDelete.id);
+      addToast('Student submission deleted successfully.', 'success');
+      setSubmissionToDelete(null);
+      await loadSubmissions();
+    } catch (err) {
+      console.error('Failed to delete submission:', err);
+      addToast(err.message || 'Error deleting submission', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -339,15 +362,39 @@ export const AdminSubmissions = () => {
                     <td>
                       <StatusBadge status={sub.status} />
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => setSelectedSubmission(sub)}
-                      >
-                        <Eye size={14} />
-                        <span>Review</span>
-                      </button>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setSelectedSubmission(sub)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Eye size={14} />
+                          <span>Review</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubmissionToDelete(sub)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#FEE2E2',
+                            color: '#DC2626',
+                            border: '1px solid #FECACA',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                          title="Delete submission"
+                        >
+                          <Trash2 size={13} />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -364,6 +411,85 @@ export const AdminSubmissions = () => {
           onClose={() => setSelectedSubmission(null)}
           onSuccess={loadSubmissions}
         />
+      )}
+
+      {/* Delete Submission Confirmation Modal */}
+      {submissionToDelete && (
+        <div className="modal-overlay" onClick={() => !isDeleting && setSubmissionToDelete(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: 'var(--danger-text)' }}>
+                Delete Submission
+              </h3>
+              <button
+                className="photo-remove-btn"
+                onClick={() => setSubmissionToDelete(null)}
+                disabled={isDeleting}
+                style={{ position: 'static' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '12px' }}>
+                Are you sure you want to delete this submission from{' '}
+                <strong>{submissionToDelete.profiles?.full_name || 'the student'}</strong>?
+              </p>
+              <div
+                style={{
+                  background: 'var(--bg-subtle)',
+                  padding: '12px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.825rem',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-light)',
+                }}
+              >
+                <div>Task: <strong>{submissionToDelete.task_assignments?.tasks?.title || 'Academic Task'}</strong></div>
+                <div style={{ marginTop: '4px' }}>Roll No: <strong>{submissionToDelete.profiles?.roll_number || 'N/A'}</strong></div>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.4 }}>
+                This will delete the uploaded proof photos and reset the student's task status to allow resubmission.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSubmissionToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleDeleteSubmission}
+                disabled={isDeleting}
+                style={{
+                  background: 'var(--danger-600, #DC2626)',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 600,
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 size={16} className="spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

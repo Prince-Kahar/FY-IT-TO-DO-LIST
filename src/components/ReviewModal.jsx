@@ -10,6 +10,7 @@ import {
   Clock,
   Loader2,
   Award,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -30,6 +31,7 @@ export const ReviewModal = ({ submission, onClose, onSuccess }) => {
       : ''
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
@@ -38,6 +40,25 @@ export const ReviewModal = ({ submission, onClose, onSuccess }) => {
   const student = submission.profiles;
   const isLate = submission.task_assignments?.is_late;
   const maxMarks = task?.max_marks;
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this student submission? This will remove the submission proof and reset the assignment.')) {
+      return;
+    }
+    setIsDeleting(true);
+    setErrorMsg('');
+    try {
+      await dataService.deleteSubmission(submission.id);
+      addToast('Submission deleted successfully.', 'success');
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to delete submission:', err);
+      setErrorMsg(err.message || 'Error deleting submission.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
@@ -360,32 +381,64 @@ export const ReviewModal = ({ submission, onClose, onSuccess }) => {
             </div>
 
             {/* Footer */}
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
                 type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-                disabled={isSubmitting}
+                className="btn btn-danger btn-sm"
+                onClick={handleDelete}
+                disabled={isSubmitting || isDeleting}
+                style={{
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  borderColor: '#FECACA',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 600,
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                }}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
+                {isDeleting ? (
                   <>
-                    <Loader2 size={16} className="spin" />
-                    <span>Saving Review...</span>
+                    <Loader2 size={15} className="spin" />
+                    <span>Deleting...</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 size={16} />
-                    <span>Save & Notify Student</span>
+                    <Trash2 size={15} />
+                    <span>Delete Submission</span>
                   </>
                 )}
               </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onClose}
+                  disabled={isSubmitting || isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isSubmitting || isDeleting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="spin" />
+                      <span>Saving Review...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} />
+                      <span>Save & Notify Student</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>
