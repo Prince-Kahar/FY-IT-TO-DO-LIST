@@ -22,24 +22,21 @@ const saveCache = (key, val) => {
 // Built-in foundational academic curriculum (Empty: real subjects created by admin)
 export const DEFAULT_SUBJECTS = [];
 
-// Helper to identify and purge dummy/legacy subjects
+// Helper to identify and purge dummy/legacy mock subjects only
 const DUMMY_SUBJECT_IDS = new Set([
   'sub-it-101', 'sub-it-102', 'sub-it-103', 'sub-it-104', 'sub-it-105',
   'sub-it-201', 'sub-it-202', 'sub-it-203',
   'sub-ds-101', 'sub-ds-102', 'sub-ds-103',
   'sub-ds-201', 'sub-ds-202', 'sub-ds-203',
 ]);
-const DUMMY_SUBJECT_NAMES = new Set([
-  'imperative programming', 'digital electronics', 'operating systems',
-  'discrete mathematics', 'communication skills', 'object oriented programming with c++',
-  'microprocessor architecture', 'web programming', 'foundations of data science',
-  'python for data science', 'linear algebra & calculus', 'data structures & algorithms',
-  'database management systems & sql', 'probability & applied statistics'
-]);
 export const isDummySubject = (s) => {
   if (!s) return false;
+  // Valid UUIDs or user-custom created subjects are real curriculum subjects, never dummy
+  if (s._custom || s.is_custom) return false;
+  if (s.id && typeof s.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s.id)) {
+    return false;
+  }
   if (s.id && (DUMMY_SUBJECT_IDS.has(s.id) || s.id.startsWith('sub-it-') || s.id.startsWith('sub-ds-'))) return true;
-  if (s.name && DUMMY_SUBJECT_NAMES.has((s.name || '').trim().toLowerCase())) return true;
   return false;
 };
 
@@ -541,6 +538,7 @@ export const dataService = {
 
   async createSubject(subjectData) {
     const subjectId = (subjectData.id && isValidUUID(subjectData.id)) ? subjectData.id : generateUUID();
+    const cleanName = (subjectData.name || '').trim();
     const stream = subjectData.stream || (
       subjectData.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
       subjectData.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'IT'
@@ -549,13 +547,14 @@ export const dataService = {
 
     const fullSubject = {
       id: subjectId,
-      name: subjectData.name,
+      name: cleanName,
       stream,
       semester,
-      subject_code: subjectData.subject_code || (stream === 'DS' ? 'DS-101' : 'IT-101'),
-      description: subjectData.description || null,
-      teacher_name: subjectData.teacher_name || null,
+      subject_code: (subjectData.subject_code || (stream === 'DS' ? 'DS-101' : 'IT-101')).trim(),
+      description: subjectData.description ? subjectData.description.trim() : null,
+      teacher_name: subjectData.teacher_name ? subjectData.teacher_name.trim() : null,
       is_active: subjectData.is_active !== undefined ? subjectData.is_active : true,
+      _custom: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       topics: [],
@@ -596,12 +595,13 @@ export const dataService = {
         teacher_name: fullSubject.teacher_name,
         description: fullSubject.description,
         is_active: fullSubject.is_active,
+        _custom: true,
         updated_at: new Date().toISOString(),
       };
       localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
-    // 3. Insert into Supabase if configured with clean base schema columns
+    // 3. Insert into Supabase if configured with clean base schema columns (with 3.5s guard timeout)
     if (isSupabaseConfigured()) {
       try {
         const supabasePayload = {
@@ -615,14 +615,23 @@ export const dataService = {
           updated_at: fullSubject.updated_at,
         };
 
-        const { data, error } = await supabase
+        const insertPromise = supabase
           .from('subjects')
           .insert([supabasePayload])
           .select()
           .single();
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase createSubject timeout')), 3500)
+        );
+
+        const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
+
         if (!error && data) {
-          const merged = { ...fullSubject, ...data, stream: fullSubject.stream, semester: fullSubject.semester };
+          const merged = { ...fullSubject, ...data, stream: fullSubject.stream, semester: fullSubject.semester, _custom: true };
+          const idx = localSubjects.findIndex((s) => s.id === subjectId);
+          if (idx >= 0) localSubjects[idx] = merged;
+          saveCache('subjects', localSubjects);
           this.notifyLocalChange('SUBJECT_CREATED', merged);
           return merged;
         } else if (error) {

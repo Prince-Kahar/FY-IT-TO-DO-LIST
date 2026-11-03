@@ -1494,22 +1494,28 @@ export const SuperAdminDashboard = () => {
             setSubjectToEdit(null);
           }}
           onSave={async (payload) => {
-            if (subjectToEdit) {
-              const updated = await dataService.updateSubject(subjectToEdit.id, payload);
-              addToast(`Subject "${payload.name}" updated successfully!`, 'success');
-              if (updated) {
-                setAvailableSubjects((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+            try {
+              if (subjectToEdit) {
+                const updated = await dataService.updateSubject(subjectToEdit.id, payload);
+                addToast(`Subject "${payload.name}" updated successfully!`, 'success');
+                if (updated) {
+                  setAvailableSubjects((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+                }
+              } else {
+                const created = await dataService.createSubject(payload);
+                addToast(`New subject "${payload.name}" added to curriculum!`, 'success');
+                if (created) {
+                  setAvailableSubjects((prev) => [...prev.filter((s) => s.id !== created.id), created]);
+                }
               }
-            } else {
-              const created = await dataService.createSubject(payload);
-              addToast(`New subject "${payload.name}" added to curriculum!`, 'success');
-              if (created) {
-                setAvailableSubjects((prev) => [...prev, created]);
-              }
+              setIsSubjectModalOpen(false);
+              setSubjectToEdit(null);
+              await loadData(true);
+            } catch (err) {
+              console.error('Failed to save subject:', err);
+              addToast(err.message || 'Failed to save subject', 'error');
+              throw err;
             }
-            setIsSubjectModalOpen(false);
-            setSubjectToEdit(null);
-            loadData(true);
           }}
         />
       )}
@@ -2005,6 +2011,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
   const [isActive, setIsActive] = useState(
     subjectToEdit?.is_active !== undefined ? subjectToEdit.is_active : true
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleStreamChange = (newStream) => {
@@ -2035,7 +2042,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Subject Name is required.');
@@ -2057,15 +2064,25 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
       }
     }
 
-    onSave({
-      name: name.trim(),
-      stream,
-      semester,
-      subject_code: cleanCode || (stream === 'DS' ? 'DS-101' : 'IT-101'),
-      teacher_name: teacherName.trim() || null,
-      description: description.trim() || null,
-      is_active: isActive,
-    });
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      await onSave({
+        name: name.trim(),
+        stream,
+        semester,
+        subject_code: cleanCode || (stream === 'DS' ? 'DS-101' : 'IT-101'),
+        teacher_name: teacherName.trim() || null,
+        description: description.trim() || null,
+        is_active: isActive,
+      });
+    } catch (err) {
+      console.error('SuperSubjectModal submit error:', err);
+      setError(err.message || 'Failed to create subject. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -2316,14 +2333,25 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
             <button
               type="submit"
               className="btn btn-primary"
+              disabled={isSubmitting}
               style={{
                 background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
                 borderColor: '#4F46E5',
                 padding: '8px 18px',
                 fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              {subjectToEdit ? 'Save Changes' : 'Create Subject'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="spin" />
+                  <span>{subjectToEdit ? 'Saving Changes...' : 'Creating Subject...'}</span>
+                </>
+              ) : (
+                subjectToEdit ? 'Save Changes' : 'Create Subject'
+              )}
             </button>
           </div>
         </form>
