@@ -156,6 +156,7 @@ export const formatAnnouncementWithAttachment = (message, attachment) => {
 let realtimeChannel = null;
 let realtimeListeners = new Set();
 let lastTasksFetchTime = 0;
+let lastSubjectsFetchTime = 0;
 
 export const dataService = {
   // Strict stream & semester isolation validator
@@ -464,11 +465,16 @@ export const dataService = {
   // =========================================================================
   // SUBJECTS & TOPICS
   // =========================================================================
-  async getSubjects() {
+  async getSubjects(forceRefresh = false) {
     let overrides = {};
     try {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
     } catch (e) {}
+
+    // Throttle queries within 3 seconds to avoid Supabase Disk IO throttling & speed up UI
+    if (!forceRefresh && localSubjects && localSubjects.length > 0 && Date.now() - lastSubjectsFetchTime < 3000) {
+      return localSubjects;
+    }
 
     let customSubjects = [];
     try {
@@ -629,6 +635,7 @@ export const dataService = {
       });
     }
 
+    lastSubjectsFetchTime = Date.now();
     saveCache('topics', localTopics);
     localSubjects = mapped;
     saveCache('subjects', mapped);
@@ -944,13 +951,15 @@ export const dataService = {
   },
 
   async createTopic(topicData) {
-    // Check if topic with same name already exists for this subject
-    const existing = await this.getTopicsBySubject(topicData.subject_id);
+    lastSubjectsFetchTime = 0;
+    // Fast in-memory duplicate check (0ms)
+    const existing = (localTopics || []).filter((t) => t.subject_id === topicData.subject_id);
     const isDup = (existing || []).some(
-      (t) => (t.name || '').trim().toLowerCase() === (topicData.name || '').trim().toLowerCase()
+      (t) => (t.name || '').trim().toLowerCase() === (topicData.name || '').trim().toLowerCase() &&
+             (t.unit_name || '').trim().toLowerCase() === (topicData.unit_name || '').trim().toLowerCase()
     );
     if (isDup) {
-      throw new Error(`Topic "${topicData.name}" already exists for this subject.`);
+      throw new Error(`Topic "${topicData.name}" already exists for this subject in ${topicData.unit_name || 'this unit'}.`);
     }
 
     const topicId = (topicData.id && isValidUUID(topicData.id)) ? topicData.id : generateUUID();
@@ -974,7 +983,7 @@ export const dataService = {
       saveCache('subjects', localSubjects);
     }
 
-    // Persist full metadata (unit_name, subtopic, etc.) in overrides
+    // Persist full metadata in overrides
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
       overrides[newTopic.id] = {
@@ -988,31 +997,26 @@ export const dataService = {
       localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
+    // Non-blocking asynchronous sync to Supabase (does not block client UI)
     if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          id: newTopic.id,
-          subject_id: newTopic.subject_id,
-          name: newTopic.name,
-          description: newTopic.description || (newTopic.subtopic ? `Subtopic: ${newTopic.subtopic}` : null),
-        };
-        const { data, error } = await supabase
-          .from('topics')
-          .insert([payload])
-          .select()
-          .single();
-        if (!error && data) {
-          const mergedTopic = { ...newTopic, ...data };
-          this.notifyLocalChange('TOPIC_CREATED', mergedTopic);
-          return mergedTopic;
-        } else if (error) {
-          console.error('Supabase createTopic error:', error.message);
-        }
-      } catch (err) {
-        console.error('Supabase createTopic notice:', err);
-      }
+      const payload = {
+        id: newTopic.id,
+        subject_id: newTopic.subject_id,
+        name: newTopic.name,
+        description: newTopic.description || (newTopic.subtopic ? `Subtopic: ${newTopic.subtopic}` : null),
+      };
+      supabase
+        .from('topics')
+        .insert([payload])
+        .select()
+        .maybeSingle()
+        .catch((err) => console.warn('Supabase createTopic async notice:', err));
     }
+
     this.notifyLocalChange('TOPIC_CREATED', newTopic);
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
     return newTopic;
   },
 
@@ -1028,6 +1032,7 @@ export const dataService = {
   },
 
   async updateTopic(id, updates) {
+    lastSubjectsFetchTime = 0;
     const existing = (localTopics || []).find((t) => t.id === id);
     const merged = { ...(existing || {}), ...updates, id, updated_at: new Date().toISOString() };
 
@@ -1055,21 +1060,162 @@ export const dataService = {
       localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
+    // Non-blocking asynchronous update to Supabase
     if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          name: updates.name,
-          description: updates.description || (updates.subtopic ? `Subtopic: ${updates.subtopic}` : null),
-        };
-        const { error } = await supabase.from('topics').update(payload).eq('id', id);
-        if (error) console.warn('Supabase updateTopic notice:', error.message);
-      } catch (err) {
-        console.warn('Supabase updateTopic error:', err);
-      }
+      const payload = {
+        name: updates.name,
+        description: updates.description || (updates.subtopic ? `Subtopic: ${updates.subtopic}` : null),
+      };
+      supabase
+        .from('topics')
+        .update(payload)
+        .eq('id', id)
+        .catch((err) => console.warn('Supabase updateTopic notice:', err));
     }
 
     this.notifyLocalChange('TOPIC_UPDATED', merged);
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
     return merged;
+  },
+
+  async saveTopicsBatch(subjectId, unitName, topicsList) {
+    lastSubjectsFetchTime = 0;
+    if (!subjectId || !Array.isArray(topicsList) || topicsList.length === 0) return [];
+    const cleanUnit = (unitName || 'Unit 1: General Topics').trim();
+
+    let topicOverrides = {};
+    try {
+      topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+    } catch (e) {}
+
+    const newSupabasePayloads = [];
+    const updateSupabasePayloads = [];
+    const processedTopics = [];
+
+    topicsList.forEach((t) => {
+      const cleanName = (t.name || '').trim();
+      if (!cleanName) return;
+
+      if (t.isExisting && t.id) {
+        // Update existing topic
+        const existing = (localTopics || []).find((lt) => lt.id === t.id);
+        const merged = {
+          ...(existing || {}),
+          id: t.id,
+          name: cleanName,
+          unit_name: cleanUnit,
+          subtopic: t.subtopic || null,
+          subtopics_data: t.subtopics_data || null,
+          description: t.description || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        localTopics = (localTopics || []).map((lt) => (lt.id === t.id ? merged : lt));
+
+        topicOverrides[t.id] = {
+          ...(topicOverrides[t.id] || {}),
+          id: t.id,
+          name: cleanName,
+          unit_name: cleanUnit,
+          subtopic: t.subtopic || null,
+          subtopics_data: t.subtopics_data || null,
+          description: t.description || null,
+        };
+
+        processedTopics.push(merged);
+        updateSupabasePayloads.push({
+          id: t.id,
+          payload: {
+            name: cleanName,
+            description: t.description || (t.subtopic ? `Subtopic: ${t.subtopic}` : null),
+          },
+        });
+      } else {
+        // Create new topic
+        const topicId = (t.id && isValidUUID(t.id)) ? t.id : generateUUID();
+        const newTopic = {
+          id: topicId,
+          subject_id: subjectId,
+          name: cleanName,
+          unit_name: cleanUnit,
+          subtopic: t.subtopic || null,
+          subtopics_data: t.subtopics_data || null,
+          description: t.description || null,
+          created_at: new Date().toISOString(),
+        };
+
+        localTopics.push(newTopic);
+        topicOverrides[topicId] = {
+          id: topicId,
+          name: cleanName,
+          unit_name: cleanUnit,
+          subtopic: t.subtopic || null,
+          subtopics_data: t.subtopics_data || null,
+          description: t.description || null,
+        };
+
+        processedTopics.push(newTopic);
+        newSupabasePayloads.push({
+          id: topicId,
+          subject_id: subjectId,
+          name: cleanName,
+          description: t.description || (t.subtopic ? `Subtopic: ${t.subtopic}` : null),
+        });
+      }
+    });
+
+    // 1. Immediately persist local caches (Instant 0ms)
+    saveCache('topics', localTopics);
+    try {
+      localStorage.setItem('fy_topic_overrides', JSON.stringify(topicOverrides));
+    } catch (e) {}
+
+    // 2. Sync localSubjects topics in memory
+    const subIdx = (localSubjects || []).findIndex((s) => s.id === subjectId);
+    if (subIdx !== -1) {
+      if (!Array.isArray(localSubjects[subIdx].topics)) {
+        localSubjects[subIdx].topics = [];
+      }
+      processedTopics.forEach((pt) => {
+        const existIdx = localSubjects[subIdx].topics.findIndex((t) => t.id === pt.id);
+        if (existIdx >= 0) {
+          localSubjects[subIdx].topics[existIdx] = pt;
+        } else {
+          localSubjects[subIdx].topics.push(pt);
+        }
+      });
+      saveCache('subjects', localSubjects);
+    }
+
+    // 3. Notify listeners so UI updates instantly
+    this.notifyLocalChange('TOPICS_BATCH_SAVED', { subjectId, unitName: cleanUnit, topics: processedTopics });
+    try {
+      window.dispatchEvent(new Event('fy_data_change'));
+    } catch (e) {}
+
+    // 4. Background non-blocking sync to Supabase (batched!)
+    if (isSupabaseConfigured()) {
+      (async () => {
+        try {
+          if (newSupabasePayloads.length > 0) {
+            await supabase.from('topics').insert(newSupabasePayloads);
+          }
+          if (updateSupabasePayloads.length > 0) {
+            await Promise.all(
+              updateSupabasePayloads.map((u) =>
+                supabase.from('topics').update(u.payload).eq('id', u.id)
+              )
+            );
+          }
+        } catch (syncErr) {
+          console.warn('Background Supabase topics sync notice:', syncErr);
+        }
+      })();
+    }
+
+    return processedTopics;
   },
 
   async renameUnit(subjectId, oldUnitName, newUnitName) {

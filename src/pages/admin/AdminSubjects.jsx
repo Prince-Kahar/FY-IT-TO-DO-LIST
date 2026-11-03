@@ -121,6 +121,11 @@ export const AdminSubjects = () => {
         }
         return [...list, savedSubject];
       });
+    } else {
+      const fresh = dataService.getCachedSubjects();
+      if (fresh && fresh.length > 0) {
+        setSubjects(fresh);
+      }
     }
     loadSubjects(true);
   };
@@ -161,7 +166,8 @@ export const AdminSubjects = () => {
     try {
       await dataService.deleteTopic(topicId);
       addToast(`Topic "${topicName}" removed.`, 'info');
-      loadSubjects();
+      const fresh = dataService.getCachedSubjects();
+      if (fresh && fresh.length > 0) setSubjects(fresh);
     } catch (err) {
       console.error('Error deleting topic:', err);
     }
@@ -349,7 +355,8 @@ export const AdminSubjects = () => {
         await dataService.renameUnit(unitModal.subject.id, unitModal.oldUnitName, cleanName);
         addToast(`Unit renamed to "${cleanName}"`, 'success');
         setUnitModal(null);
-        loadSubjects(true);
+        const fresh = dataService.getCachedSubjects();
+        if (fresh && fresh.length > 0) setSubjects(fresh);
       }
     } catch (err) {
       addToast(err.message || 'Error updating unit.', 'error');

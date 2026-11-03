@@ -231,19 +231,14 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
     setIsSubmitting(true);
 
     try {
-      let savedCount = 0;
-
-      for (const t of topics) {
+      // Build batch list of topics with cleaned subtopics
+      const preparedList = topics.map((t) => {
         const cleanName = t.name.trim();
-
-        // Build clean structured subtopics_data
         const cleanHierarchy = [];
         (t.subtopics || []).forEach((st) => {
           const rawTitle = (st.title || '').trim();
           if (!rawTitle) return;
 
-          // If user pasted/typed with parentheses e.g. "Arithmetic mean (Direct method, Shortcut)"
-          // or with colons, let the parser normalize it
           const subParsed = parseSubtopicsHierarchy(rawTitle);
           if (subParsed.length > 0 && subParsed[0].items.length > 0 && (!st.items || st.items.length === 0)) {
             cleanHierarchy.push(subParsed[0]);
@@ -261,35 +256,23 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
         });
 
         const formattedString = formatSubtopicsToString(cleanHierarchy);
+        return {
+          id: t.id,
+          isExisting: t.isExisting,
+          name: cleanName,
+          subtopic: formattedString || null,
+          subtopics_data: cleanHierarchy.length > 0 ? cleanHierarchy : null,
+          description: t.description?.trim() || null,
+        };
+      });
 
-        if (t.isExisting && t.id) {
-          // Update existing topic
-          await dataService.updateTopic(t.id, {
-            name: cleanName,
-            unit_name: cleanUnit,
-            subtopic: formattedString || null,
-            subtopics_data: cleanHierarchy.length > 0 ? cleanHierarchy : null,
-            description: t.description?.trim() || null,
-          });
-          savedCount++;
-        } else {
-          // Create new topic
-          await dataService.createTopic({
-            subject_id: subject.id,
-            name: cleanName,
-            unit_name: cleanUnit,
-            subtopic: formattedString || null,
-            subtopics_data: cleanHierarchy.length > 0 ? cleanHierarchy : null,
-            description: t.description?.trim() || null,
-          });
-          savedCount++;
-        }
-      }
+      // Ultra-fast batch save (instant memory update & background Supabase sync)
+      const savedTopics = await dataService.saveTopicsBatch(subject.id, cleanUnit, preparedList);
 
       if (topics.length === 1 && isEditMode) {
         addToast(`Topic updated successfully under ${cleanUnit}.`, 'success');
       } else {
-        addToast(`${savedCount} topic${savedCount > 1 ? 's' : ''} saved under ${cleanUnit}.`, 'success');
+        addToast(`${savedTopics.length} topic${savedTopics.length > 1 ? 's' : ''} saved under ${cleanUnit}.`, 'success');
       }
 
       if (onSuccess) onSuccess();
