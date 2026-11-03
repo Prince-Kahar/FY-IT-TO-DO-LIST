@@ -19,9 +19,258 @@ const saveCache = (key, val) => {
   } catch (e) {}
 };
 
-// Clean in-memory caches populated immediately from persistent cache
-let localSubjects = loadCache('subjects');
-let localTopics = loadCache('topics');
+// Built-in foundational academic curriculum for FY B.Sc. IT and FY B.Sc. DS
+export const DEFAULT_SUBJECTS = [
+  // FY B.Sc. IT (Sem 1)
+  {
+    id: 'sub-it-101',
+    name: 'Imperative Programming',
+    subject_code: 'IT-101',
+    stream: 'IT',
+    semester: 'Sem 1',
+    teacher_name: 'Prof. Sharma',
+    is_active: true,
+    description: 'C programming, memory control, pointers and procedural algorithms.',
+    topics: [
+      { id: 'top-it-101-1', subject_id: 'sub-it-101', name: 'Variables & Data Types', description: 'Primitive types and operators' },
+      { id: 'top-it-101-2', subject_id: 'sub-it-101', name: 'Control Structures & Loops', description: 'if-else, switch, while, for' },
+      { id: 'top-it-101-3', subject_id: 'sub-it-101', name: 'Pointers & Dynamic Memory', description: 'Pointer arithmetic, malloc and free' },
+      { id: 'top-it-101-4', subject_id: 'sub-it-101', name: 'Arrays & Strings', description: '1D/2D arrays, string library functions' },
+      { id: 'top-it-101-5', subject_id: 'sub-it-101', name: 'Functions & Recursion', description: 'Call by value, call by reference' },
+    ],
+  },
+  {
+    id: 'sub-it-102',
+    name: 'Digital Electronics',
+    subject_code: 'IT-102',
+    stream: 'IT',
+    semester: 'Sem 1',
+    teacher_name: 'Dr. Patel',
+    is_active: true,
+    description: 'Logic gates, Boolean algebra, flip-flops, and sequential circuit design.',
+    topics: [
+      { id: 'top-it-102-1', subject_id: 'sub-it-102', name: 'Number Systems & Binary Codes', description: 'Binary, octal, hex conversions' },
+      { id: 'top-it-102-2', subject_id: 'sub-it-102', name: 'Logic Gates & Boolean Algebra', description: 'AND, OR, NOT, NAND, NOR, XOR' },
+      { id: 'top-it-102-3', subject_id: 'sub-it-102', name: 'Karnaugh Maps (K-Maps)', description: 'Minimization of boolean expressions' },
+      { id: 'top-it-102-4', subject_id: 'sub-it-102', name: 'Flip-Flops & Registers', description: 'SR, JK, D, T flip-flops' },
+    ],
+  },
+  {
+    id: 'sub-it-103',
+    name: 'Operating Systems',
+    subject_code: 'IT-103',
+    stream: 'IT',
+    semester: 'Sem 1',
+    teacher_name: 'Prof. Kulkarni',
+    is_active: true,
+    description: 'Process management, CPU scheduling, memory management, and file systems.',
+    topics: [
+      { id: 'top-it-103-1', subject_id: 'sub-it-103', name: 'Process Scheduling Algorithms', description: 'FCFS, SJF, Round Robin' },
+      { id: 'top-it-103-2', subject_id: 'sub-it-103', name: 'Deadlocks & Resource Allocation', description: 'Bankers algorithm and prevention' },
+      { id: 'top-it-103-3', subject_id: 'sub-it-103', name: 'Virtual Memory & Paging', description: 'Page replacement algorithms' },
+      { id: 'top-it-103-4', subject_id: 'sub-it-103', name: 'File Systems & Security', description: 'Directory structure and access permissions' },
+    ],
+  },
+  {
+    id: 'sub-it-104',
+    name: 'Discrete Mathematics',
+    subject_code: 'IT-104',
+    stream: 'IT',
+    semester: 'Sem 1',
+    teacher_name: 'Dr. Roy',
+    is_active: true,
+    description: 'Set theory, propositional logic, relations, and recurrence relations.',
+    topics: [
+      { id: 'top-it-104-1', subject_id: 'sub-it-104', name: 'Set Theory & Venn Diagrams', description: 'Union, intersection, cartesian product' },
+      { id: 'top-it-104-2', subject_id: 'sub-it-104', name: 'Propositional Logic', description: 'Truth tables, tautologies, predicates' },
+      { id: 'top-it-104-3', subject_id: 'sub-it-104', name: 'Relations & Functions', description: 'Equivalence relations, partial order' },
+      { id: 'top-it-104-4', subject_id: 'sub-it-104', name: 'Recurrence Relations', description: 'Generating functions and solutions' },
+    ],
+  },
+  {
+    id: 'sub-it-105',
+    name: 'Communication Skills',
+    subject_code: 'IT-105',
+    stream: 'IT',
+    semester: 'Sem 1',
+    teacher_name: 'Prof. Fernandes',
+    is_active: true,
+    description: 'Professional correspondence, presentation skills, technical report writing.',
+    topics: [
+      { id: 'top-it-105-1', subject_id: 'sub-it-105', name: 'Technical Report Writing', description: 'Structure, citations, and abstracts' },
+      { id: 'top-it-105-2', subject_id: 'sub-it-105', name: 'Professional Email & Letter Writing', description: 'Formal inquiry, proposal letters' },
+      { id: 'top-it-105-3', subject_id: 'sub-it-105', name: 'Oral Presentations & Seminars', description: 'Slide preparation and delivery' },
+    ],
+  },
+
+  // FY B.Sc. IT (Sem 2)
+  {
+    id: 'sub-it-201',
+    name: 'Object Oriented Programming with C++',
+    subject_code: 'IT-201',
+    stream: 'IT',
+    semester: 'Sem 2',
+    teacher_name: 'Prof. Sharma',
+    is_active: true,
+    description: 'OOP concepts, encapsulation, inheritance, polymorphism, and templates in C++.',
+    topics: [
+      { id: 'top-it-201-1', subject_id: 'sub-it-201', name: 'Classes & Objects', description: 'Access specifiers, constructors and destructors' },
+      { id: 'top-it-201-2', subject_id: 'sub-it-201', name: 'Inheritance & Polymorphism', description: 'Virtual functions, method overriding' },
+      { id: 'top-it-201-3', subject_id: 'sub-it-201', name: 'Operator Overloading', description: 'Unary & binary operator overloading' },
+      { id: 'top-it-201-4', subject_id: 'sub-it-201', name: 'Templates & Exception Handling', description: 'Function/class templates, try-catch' },
+    ],
+  },
+  {
+    id: 'sub-it-202',
+    name: 'Microprocessor Architecture',
+    subject_code: 'IT-202',
+    stream: 'IT',
+    semester: 'Sem 2',
+    teacher_name: 'Dr. Patel',
+    is_active: true,
+    description: '8085 microprocessor hardware architecture, instruction sets, and assembly code.',
+    topics: [
+      { id: 'top-it-202-1', subject_id: 'sub-it-202', name: '8085 Architecture & Pinout', description: 'ALU, registers, bus timing diagrams' },
+      { id: 'top-it-202-2', subject_id: 'sub-it-202', name: 'Instruction Set & Addressing Modes', description: 'Data transfer, arithmetic, branching' },
+      { id: 'top-it-202-3', subject_id: 'sub-it-202', name: 'Assembly Language Programs', description: 'Looping, 16-bit addition, sorting' },
+      { id: 'top-it-202-4', subject_id: 'sub-it-202', name: 'Interrupts & Peripheral Interfacing', description: '8255 PPI, timer interfacing' },
+    ],
+  },
+  {
+    id: 'sub-it-203',
+    name: 'Web Programming',
+    subject_code: 'IT-203',
+    stream: 'IT',
+    semester: 'Sem 2',
+    teacher_name: 'Prof. Kulkarni',
+    is_active: true,
+    description: 'HTML5, modern CSS3 styling, responsive layouts, and JavaScript dynamic web apps.',
+    topics: [
+      { id: 'top-it-203-1', subject_id: 'sub-it-203', name: 'HTML5 Semantic Markup', description: 'Forms, audio/video, canvas' },
+      { id: 'top-it-203-2', subject_id: 'sub-it-203', name: 'CSS3 Flexbox & Grid', description: 'Responsive layouts and media queries' },
+      { id: 'top-it-203-3', subject_id: 'sub-it-203', name: 'JavaScript DOM Manipulation', description: 'Event listeners, dynamic UI updates' },
+      { id: 'top-it-203-4', subject_id: 'sub-it-203', name: 'AJAX & Fetch API', description: 'Asynchronous HTTP data requests' },
+    ],
+  },
+
+  // FY B.Sc. DS (Sem 1)
+  {
+    id: 'sub-ds-101',
+    name: 'Foundations of Data Science',
+    subject_code: 'DS-101',
+    stream: 'DS',
+    semester: 'Sem 1',
+    teacher_name: 'Dr. Mehta',
+    is_active: true,
+    description: 'Data science lifecycle, data exploration, cleaning, and statistical fundamentals.',
+    topics: [
+      { id: 'top-ds-101-1', subject_id: 'sub-ds-101', name: 'Data Science Lifecycle', description: 'Problem definition, collection, deployment' },
+      { id: 'top-ds-101-2', subject_id: 'sub-ds-101', name: 'Data Cleaning & Preprocessing', description: 'Handling null values, outliers, normalization' },
+      { id: 'top-ds-101-3', subject_id: 'sub-ds-101', name: 'Exploratory Data Analysis (EDA)', description: 'Correlation, distributions, scatter matrices' },
+      { id: 'top-ds-101-4', subject_id: 'sub-ds-101', name: 'Data Visualization Techniques', description: 'Heatmaps, histograms, box plots' },
+    ],
+  },
+  {
+    id: 'sub-ds-102',
+    name: 'Python for Data Science',
+    subject_code: 'DS-102',
+    stream: 'DS',
+    semester: 'Sem 1',
+    teacher_name: 'Prof. Deshmukh',
+    is_active: true,
+    description: 'Python programming, NumPy arrays, Pandas DataFrames, and scientific computing.',
+    topics: [
+      { id: 'top-ds-102-1', subject_id: 'sub-ds-102', name: 'Python Fundamentals & Data Structures', description: 'Lists, dictionaries, sets, comprehensions' },
+      { id: 'top-ds-102-2', subject_id: 'sub-ds-102', name: 'NumPy Array Computing', description: 'Broadcasting, indexing, vector operations' },
+      { id: 'top-ds-102-3', subject_id: 'sub-ds-102', name: 'Pandas DataFrames & Series', description: 'Data filtering, group by, merge/join' },
+      { id: 'top-ds-102-4', subject_id: 'sub-ds-102', name: 'Data Visualization with Matplotlib & Seaborn', description: 'Statistical plotting and customization' },
+    ],
+  },
+  {
+    id: 'sub-ds-103',
+    name: 'Linear Algebra & Calculus',
+    subject_code: 'DS-103',
+    stream: 'DS',
+    semester: 'Sem 1',
+    teacher_name: 'Dr. Roy',
+    is_active: true,
+    description: 'Vectors, matrices, eigenvalues, gradients, and optimization in machine learning.',
+    topics: [
+      { id: 'top-ds-103-1', subject_id: 'sub-ds-103', name: 'Vectors & Vector Spaces', description: 'Dot product, vector norms, orthogonal basis' },
+      { id: 'top-ds-103-2', subject_id: 'sub-ds-103', name: 'Matrices, Determinants & Inverse', description: 'Matrix operations and rank' },
+      { id: 'top-ds-103-3', subject_id: 'sub-ds-103', name: 'Eigenvalues & Eigenvectors', description: 'Diagonalization and PCA foundation' },
+      { id: 'top-ds-103-4', subject_id: 'sub-ds-103', name: 'Differential Calculus & Gradient Descent', description: 'Partial derivatives and cost optimization' },
+    ],
+  },
+
+  // FY B.Sc. DS (Sem 2)
+  {
+    id: 'sub-ds-201',
+    name: 'Data Structures & Algorithms',
+    subject_code: 'DS-201',
+    stream: 'DS',
+    semester: 'Sem 2',
+    teacher_name: 'Prof. Deshmukh',
+    is_active: true,
+    description: 'Stacks, queues, trees, graphs, sorting, and complexity analysis for data science.',
+    topics: [
+      { id: 'top-ds-201-1', subject_id: 'sub-ds-201', name: 'Stacks, Queues & Linked Lists', description: 'LIFO, FIFO and dynamic nodes' },
+      { id: 'top-ds-201-2', subject_id: 'sub-ds-201', name: 'Binary Trees & Binary Search Trees (BST)', description: 'Tree traversals, insertion, searching' },
+      { id: 'top-ds-201-3', subject_id: 'sub-ds-201', name: 'Graph Algorithms', description: 'BFS, DFS, Dijkstra shortest path' },
+      { id: 'top-ds-201-4', subject_id: 'sub-ds-201', name: 'Sorting & Searching Algorithms', description: 'QuickSort, MergeSort, Binary Search' },
+    ],
+  },
+  {
+    id: 'sub-ds-202',
+    name: 'Database Management Systems & SQL',
+    subject_code: 'DS-202',
+    stream: 'DS',
+    semester: 'Sem 2',
+    teacher_name: 'Dr. Mehta',
+    is_active: true,
+    description: 'Relational databases, SQL queries, normalization, transactions, and indexing.',
+    topics: [
+      { id: 'top-ds-202-1', subject_id: 'sub-ds-202', name: 'Relational Model & ER Diagrams', description: 'Entities, relationships, cardinalities' },
+      { id: 'top-ds-202-2', subject_id: 'sub-ds-202', name: 'Advanced SQL Queries & Joins', description: 'Inner, left, right, outer joins, subqueries' },
+      { id: 'top-ds-202-3', subject_id: 'sub-ds-202', name: 'Database Normalization', description: '1NF, 2NF, 3NF, BCNF' },
+      { id: 'top-ds-202-4', subject_id: 'sub-ds-202', name: 'Indexing & Transactions (ACID)', description: 'B-tree index, commit, rollback' },
+    ],
+  },
+  {
+    id: 'sub-ds-203',
+    name: 'Probability & Applied Statistics',
+    subject_code: 'DS-203',
+    stream: 'DS',
+    semester: 'Sem 2',
+    teacher_name: 'Dr. Roy',
+    is_active: true,
+    description: 'Probability distributions, hypothesis testing, correlation, and regression analysis.',
+    topics: [
+      { id: 'top-ds-203-1', subject_id: 'sub-ds-203', name: 'Descriptive Statistics & Measures', description: 'Mean, median, mode, variance, standard deviation' },
+      { id: 'top-ds-203-2', subject_id: 'sub-ds-203', name: 'Probability Distributions', description: 'Normal, binomial, Poisson distributions' },
+      { id: 'top-ds-203-3', subject_id: 'sub-ds-203', name: 'Hypothesis Testing & Confidence Intervals', description: 't-test, z-test, p-values' },
+      { id: 'top-ds-203-4', subject_id: 'sub-ds-203', name: 'Correlation & Simple Linear Regression', description: 'Pearson correlation, least squares fit' },
+    ],
+  },
+];
+
+// Clean in-memory caches populated immediately from persistent cache (with robust defaults)
+let localSubjects = (() => {
+  const c = loadCache('subjects');
+  if (Array.isArray(c) && c.length > 0) return c;
+  return [...DEFAULT_SUBJECTS];
+})();
+
+let localTopics = (() => {
+  const c = loadCache('topics');
+  if (Array.isArray(c) && c.length > 0) return c;
+  const allTops = [];
+  DEFAULT_SUBJECTS.forEach((s) => {
+    if (Array.isArray(s.topics)) allTops.push(...s.topics);
+  });
+  return allTops;
+})();
+
 let localStudents = loadCache('students');
 let localTasks = loadCache('tasks');
 let localAssignments = loadCache('assignments');
@@ -84,7 +333,10 @@ let realtimeListeners = new Set();
 export const dataService = {
   // Synchronous getters for 0ms instantaneous rendering on initial page mount
   getCachedSubjects() {
-    const mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
+    let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
+    if (!mem || mem.length === 0) {
+      mem = [...DEFAULT_SUBJECTS];
+    }
     let overrides = {};
     try {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
@@ -102,6 +354,7 @@ export const dataService = {
         ...ov,
         stream,
         semester,
+        topics: Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : localTopics.filter((t) => t.subject_id === s.id),
       };
     });
   },
@@ -282,56 +535,78 @@ export const dataService = {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
     } catch (e) {}
 
+    let customSubjects = [];
+    try {
+      customSubjects = JSON.parse(localStorage.getItem('fy_custom_subjects') || '[]');
+    } catch (e) {}
+
+    let remoteData = null;
     if (isSupabaseConfigured()) {
       try {
-        let { data, error } = await supabase
+        const queryPromise = supabase
           .from('subjects')
           .select('*, topics(*)')
           .order('created_at', { ascending: true });
 
-        if (error || !data) {
-          const plain = await supabase
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase subject query timeout (2.5s)')), 2500)
+        );
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          remoteData = data;
+        } else if (error) {
+          const plainQuery = supabase
             .from('subjects')
             .select('*')
             .order('created_at', { ascending: true });
-          if (!plain.error && Array.isArray(plain.data)) {
-            data = plain.data;
+          const { data: plainData, error: plainError } = await Promise.race([plainQuery, timeoutPromise]);
+          if (!plainError && Array.isArray(plainData) && plainData.length > 0) {
+            remoteData = plainData;
           }
         }
-
-        if (Array.isArray(data)) {
-          const remoteIds = new Set(data.map((s) => s.id));
-          // Preserve locally created subjects that may not yet be in Supabase remote table
-          const localOnly = (localSubjects || []).filter((s) => !remoteIds.has(s.id));
-          const allRaw = [...data, ...localOnly];
-
-          const mapped = allRaw.map((s) => {
-            const ov = overrides[s.id] || {};
-            const stream = ov.stream || s.stream || (
-              s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
-              s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
-            );
-            const semester = ov.semester || s.semester || 'Sem 1';
-            return {
-              ...s,
-              ...ov,
-              stream,
-              semester,
-              topics: Array.isArray(s.topics) ? s.topics : localTopics.filter((t) => t.subject_id === s.id),
-            };
-          });
-
-          localSubjects = mapped;
-          saveCache('subjects', mapped);
-          return mapped;
-        }
       } catch (err) {
-        console.warn('Error fetching subjects from Supabase:', err);
+        console.warn('Supabase getSubjects notice (falling back to cache):', err.message);
       }
     }
 
-    // Fallback when Supabase offline or error
-    const mapped = (localSubjects || []).map((s) => {
+    let baseList = [];
+    if (Array.isArray(remoteData) && remoteData.length > 0) {
+      const remoteIds = new Set(remoteData.map((s) => s.id));
+      const localOnly = (localSubjects || []).filter((s) => !remoteIds.has(s.id));
+      const customOnly = (customSubjects || []).filter(
+        (s) => !remoteIds.has(s.id) && !localOnly.some((l) => l.id === s.id)
+      );
+      baseList = [...remoteData, ...localOnly, ...customOnly];
+    } else {
+      const existingIds = new Set();
+      const combined = [];
+      (localSubjects || []).forEach((s) => {
+        if (!existingIds.has(s.id)) {
+          existingIds.add(s.id);
+          combined.push(s);
+        }
+      });
+      (customSubjects || []).forEach((s) => {
+        if (!existingIds.has(s.id)) {
+          existingIds.add(s.id);
+          combined.push(s);
+        }
+      });
+      DEFAULT_SUBJECTS.forEach((s) => {
+        if (
+          !existingIds.has(s.id) &&
+          !combined.some((c) => (c.name || '').trim().toLowerCase() === s.name.toLowerCase())
+        ) {
+          existingIds.add(s.id);
+          combined.push(s);
+        }
+      });
+      baseList = combined;
+    }
+
+    const mapped = baseList.map((s) => {
       const ov = overrides[s.id] || {};
       const stream = ov.stream || s.stream || (
         s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
@@ -343,9 +618,13 @@ export const dataService = {
         ...ov,
         stream,
         semester,
-        topics: localTopics.filter((t) => t.subject_id === s.id),
+        topics: Array.isArray(s.topics) && s.topics.length > 0
+          ? s.topics
+          : (localTopics.filter((t) => t.subject_id === s.id) || []),
       };
     });
+
+    localSubjects = mapped;
     saveCache('subjects', mapped);
     return mapped;
   },
@@ -381,7 +660,15 @@ export const dataService = {
     }
     saveCache('subjects', localSubjects);
 
-    // 2. Persist in localStorage fy_subject_overrides
+    // 2. Persist in localStorage fy_subject_overrides & fy_custom_subjects
+    try {
+      const custom = JSON.parse(localStorage.getItem('fy_custom_subjects') || '[]');
+      const idx = custom.findIndex((s) => s.id === subjectId);
+      if (idx >= 0) custom[idx] = fullSubject;
+      else custom.push(fullSubject);
+      localStorage.setItem('fy_custom_subjects', JSON.stringify(custom));
+    } catch (e) {}
+
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
       overrides[subjectId] = {
@@ -533,7 +820,12 @@ export const dataService = {
       }
     }
 
-    // Clear from overrides
+    // Clear from overrides and custom subjects
+    try {
+      const custom = JSON.parse(localStorage.getItem('fy_custom_subjects') || '[]');
+      localStorage.setItem('fy_custom_subjects', JSON.stringify(custom.filter((s) => s.id !== id)));
+    } catch (e) {}
+
     try {
       const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
       if (overrides[id]) {
@@ -555,17 +847,29 @@ export const dataService = {
   async getTopicsBySubject(subjectId) {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        const queryPromise = supabase
           .from('topics')
           .select('*')
           .eq('subject_id', subjectId)
           .order('created_at', { ascending: true });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Topics query timeout')), 2000)
+        );
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
         if (!error && Array.isArray(data) && data.length > 0) return data;
       } catch (err) {
-        console.warn('Supabase getTopicsBySubject notice:', err);
+        console.warn('Supabase getTopicsBySubject notice:', err.message);
       }
     }
-    return localTopics.filter((t) => t.subject_id === subjectId);
+    const memTopics = (localTopics || []).filter((t) => t.subject_id === subjectId);
+    if (memTopics.length > 0) return memTopics;
+
+    // Check embedded topics in local or default subjects
+    const sub = (localSubjects || []).find((s) => s.id === subjectId) || DEFAULT_SUBJECTS.find((s) => s.id === subjectId);
+    if (sub && Array.isArray(sub.topics) && sub.topics.length > 0) {
+      return sub.topics;
+    }
+    return [];
   },
 
   async createTopic(topicData) {

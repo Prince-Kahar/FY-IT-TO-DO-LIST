@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Layers,
   Power,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -18,9 +20,13 @@ import { TopicModal } from '../../components/TopicModal';
 export const AdminSubjects = () => {
   const { addToast } = useToast();
 
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedSubjectId, setExpandedSubjectId] = useState(null);
+  const [subjects, setSubjects] = useState(() => {
+    const cached = dataService.getCachedSubjects();
+    return Array.isArray(cached) && cached.length > 0 ? cached : [];
+  });
+  const [loading, setLoading] = useState(() => subjects.length === 0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedSubjectId, setExpandedSubjectId] = useState(() => subjects[0]?.id || null);
   const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
   const [semesterFilter, setSemesterFilter] = useState('ALL'); // 'ALL' | 'Sem 1' | 'Sem 2'
 
@@ -30,7 +36,8 @@ export const AdminSubjects = () => {
   const [topicModalSubject, setTopicModalSubject] = useState(null);
 
   const loadSubjects = async (isBackground = false) => {
-    if (!isBackground) setLoading(true);
+    if (!isBackground && subjects.length === 0) setLoading(true);
+    if (!isBackground) setRefreshing(true);
     try {
       const data = await dataService.getSubjects();
       setSubjects(data);
@@ -40,7 +47,8 @@ export const AdminSubjects = () => {
     } catch (err) {
       console.error('Error loading subjects:', err);
     } finally {
-      if (!isBackground) setLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -159,17 +167,30 @@ export const AdminSubjects = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setSubjectToEdit(null);
-            setIsSubjectModalOpen(true);
-          }}
-        >
-          <Plus size={16} />
-          <span>Add New Subject</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => loadSubjects(false)}
+            disabled={refreshing}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            title="Sync live subjects"
+          >
+            <RotateCcw size={15} className={refreshing ? 'animate-spin' : ''} />
+            <span>{refreshing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setSubjectToEdit(null);
+              setIsSubjectModalOpen(true);
+            }}
+          >
+            <Plus size={16} />
+            <span>Add New Subject</span>
+          </button>
+        </div>
       </div>
 
       {/* Stream & Semester Filter Pills */}
@@ -317,7 +338,14 @@ export const AdminSubjects = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {filteredSubjects.length === 0 ? (
+        {loading && subjects.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+            <Loader2 size={36} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary-600)' }} />
+            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+              Loading academic subjects & curriculum...
+            </p>
+          </div>
+        ) : filteredSubjects.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
             <BookOpen size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
             <p style={{ margin: 0, fontWeight: 600 }}>No subjects found for {streamFilter === 'ALL' ? 'the selected filter' : `${streamFilter} stream`}.</p>
