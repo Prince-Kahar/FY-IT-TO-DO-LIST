@@ -10,6 +10,25 @@ export const StudentSubjects = () => {
   const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
   const [expandedSubjectId, setExpandedSubjectId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [collapsedUnits, setCollapsedUnits] = useState({});
+
+  const toggleUnitCollapse = (subjectId, unitName) => {
+    const key = `${subjectId}__${unitName}`;
+    setCollapsedUnits((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const toggleAllUnitsInSubject = (subjectId, unitKeys, shouldCollapse) => {
+    setCollapsedUnits((prev) => {
+      const updated = { ...prev };
+      unitKeys.forEach((u) => {
+        updated[`${subjectId}__${u}`] = shouldCollapse;
+      });
+      return updated;
+    });
+  };
 
   const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
   const studentSemester = profile?.semester || 'Sem 1';
@@ -183,127 +202,246 @@ export const StudentSubjects = () => {
                     </p>
                   )}
 
-                  <h4
-                    style={{
-                      fontSize: '0.9rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      color: 'var(--text-muted)',
-                      letterSpacing: '0.05em',
-                      marginBottom: '12px',
-                    }}
-                  >
-                    Curriculum Topics & Tasks
-                  </h4>
+                  {(() => {
+                    const unitsMap = {};
+                    topics.forEach((tp) => {
+                      const u = (tp.unit_name || 'Unit 1: General Topics').trim();
+                      if (!unitsMap[u]) unitsMap[u] = [];
+                      unitsMap[u].push(tp);
+                    });
+                    const unitKeys = Object.keys(unitsMap);
+                    const allUnitsCollapsed = unitKeys.length > 0 && unitKeys.every((u) => collapsedUnits[`${sub.id}__${u}`]);
 
-                  {topics.length === 0 ? (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      No topics added yet by the faculty.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {topics.map((tp, idx) => {
-                        const topicTasks = subAssignments.filter((a) => a.tasks?.topic_id === tp.id);
-
-                        return (
-                          <div
-                            key={tp.id}
+                    return (
+                      <>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '14px',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
+                        >
+                          <h4
                             style={{
-                              background: 'var(--bg-subtle)',
-                              borderRadius: 'var(--radius-md)',
-                              padding: '14px 16px',
+                              fontSize: '0.9rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              color: 'var(--text-muted)',
+                              letterSpacing: '0.05em',
+                              margin: 0,
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                                    {idx + 1}. {tp.name}
-                                  </span>
-                                  {tp.subtopic && (
-                                    <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap' }}>
-                                      {tp.subtopic.split(/[,;\n]+/).map((st, sIdx) => {
-                                        const clean = st.trim();
-                                        if (!clean) return null;
+                            Curriculum Units & Topics ({topics.length} Total Topics)
+                          </h4>
+
+                          {unitKeys.length > 0 && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => toggleAllUnitsInSubject(sub.id, unitKeys, !allUnitsCollapsed)}
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '3px 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {allUnitsCollapsed ? (
+                                <>
+                                  <ChevronDown size={14} />
+                                  <span>Expand All Topics</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight size={14} />
+                                  <span>Collapse All Topics</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {unitKeys.length === 0 ? (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            No topics added yet by the faculty.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            {unitKeys.map((uName) => {
+                              const unitTopics = unitsMap[uName];
+                              const isUnitCollapsed = !!collapsedUnits[`${sub.id}__${uName}`];
+
+                              return (
+                                <div
+                                  key={uName}
+                                  style={{
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: 'var(--radius-md)',
+                                    overflow: 'hidden',
+                                    background: '#FFFFFF',
+                                    boxShadow: isUnitCollapsed ? 'none' : '0 1px 3px rgba(0,0,0,0.03)',
+                                  }}
+                                >
+                                  {/* Unit Header Bar (Clickable to Collapse/Expand) */}
+                                  <div
+                                    onClick={() => toggleUnitCollapse(sub.id, uName)}
+                                    style={{
+                                      padding: '10px 14px',
+                                      background: isUnitCollapsed ? '#F8FAFC' : '#F1F5F9',
+                                      borderBottom: isUnitCollapsed ? 'none' : '1px solid var(--border-light)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      flexWrap: 'wrap',
+                                      gap: '8px',
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                    }}
+                                    title={isUnitCollapsed ? 'Click to expand topics' : 'Click to collapse topics'}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                                        {isUnitCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                                      </div>
+                                      <span style={{ fontSize: '1rem' }}>📑</span>
+                                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                        {uName}
+                                      </strong>
+                                      <span
+                                        style={{
+                                          background: isUnitCollapsed ? '#E2E8F0' : 'var(--primary-100)',
+                                          color: isUnitCollapsed ? '#475569' : 'var(--primary-700)',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '10px',
+                                        }}
+                                      >
+                                        {unitTopics.length} {unitTopics.length === 1 ? 'topic' : 'topics'}
+                                        {isUnitCollapsed ? ' (Collapsed)' : ''}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Topics in this Unit */}
+                                  {!isUnitCollapsed && (
+                                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                      {unitTopics.map((tp, idx) => {
+                                        const topicTasks = subAssignments.filter((a) => a.tasks?.topic_id === tp.id);
+
                                         return (
-                                          <span
-                                            key={sIdx}
+                                          <div
+                                            key={tp.id}
                                             style={{
-                                              background: '#EFF6FF',
-                                              color: '#1D4ED8',
-                                              border: '1px solid #BFDBFE',
-                                              fontSize: '0.7rem',
-                                              fontWeight: 600,
-                                              padding: '1px 6px',
-                                              borderRadius: '4px',
+                                              background: 'var(--bg-subtle)',
+                                              borderRadius: 'var(--radius-md)',
+                                              padding: '12px 14px',
+                                              border: '1px solid var(--border-light)',
                                             }}
                                           >
-                                            {clean}
-                                          </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                              <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                                    {idx + 1}. {tp.name}
+                                                  </span>
+                                                  {tp.subtopic && (
+                                                    <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                      {tp.subtopic.split(/[,;\n]+/).map((st, sIdx) => {
+                                                        const clean = st.trim();
+                                                        if (!clean) return null;
+                                                        return (
+                                                          <span
+                                                            key={sIdx}
+                                                            style={{
+                                                              background: '#EFF6FF',
+                                                              color: '#1D4ED8',
+                                                              border: '1px solid #BFDBFE',
+                                                              fontSize: '0.7rem',
+                                                              fontWeight: 600,
+                                                              padding: '1px 6px',
+                                                              borderRadius: '4px',
+                                                            }}
+                                                          >
+                                                            {clean}
+                                                          </span>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                {tp.description && (
+                                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                    {tp.description}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <span
+                                                style={{
+                                                  fontSize: '0.75rem',
+                                                  fontWeight: 600,
+                                                  color: 'var(--text-muted)',
+                                                  background: '#FFFFFF',
+                                                  padding: '2px 8px',
+                                                  borderRadius: 'var(--radius-full)',
+                                                  border: '1px solid var(--border-light)',
+                                                }}
+                                              >
+                                                {topicTasks.length} {topicTasks.length === 1 ? 'task' : 'tasks'}
+                                              </span>
+                                            </div>
+
+                                            {/* Tasks under this topic */}
+                                            {topicTasks.length > 0 && (
+                                              <div
+                                                style={{
+                                                  marginTop: '10px',
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  gap: '8px',
+                                                  paddingLeft: '12px',
+                                                  borderLeft: '2px solid var(--primary-200)',
+                                                }}
+                                              >
+                                                {topicTasks.map((asg) => (
+                                                  <div
+                                                    key={asg.id}
+                                                    style={{
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'space-between',
+                                                      background: '#FFFFFF',
+                                                      padding: '8px 12px',
+                                                      borderRadius: 'var(--radius-sm)',
+                                                      border: '1px solid var(--border-light)',
+                                                    }}
+                                                  >
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                                                      {asg.tasks?.title}
+                                                    </span>
+                                                    <StatusBadge status={asg.status} />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
                                         );
                                       })}
                                     </div>
                                   )}
                                 </div>
-                                {tp.description && (
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                    {tp.description}
-                                  </div>
-                                )}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  color: 'var(--text-muted)',
-                                  background: '#FFFFFF',
-                                  padding: '2px 8px',
-                                  borderRadius: 'var(--radius-full)',
-                                  border: '1px solid var(--border-light)',
-                                }}
-                              >
-                                {topicTasks.length} {topicTasks.length === 1 ? 'task' : 'tasks'}
-                              </span>
-                            </div>
-
-                            {/* Tasks under this topic */}
-                            {topicTasks.length > 0 && (
-                              <div
-                                style={{
-                                  marginTop: '10px',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '8px',
-                                  paddingLeft: '12px',
-                                  borderLeft: '2px solid var(--primary-200)',
-                                }}
-                              >
-                                {topicTasks.map((asg) => (
-                                  <div
-                                    key={asg.id}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      background: '#FFFFFF',
-                                      padding: '8px 12px',
-                                      borderRadius: 'var(--radius-sm)',
-                                      border: '1px solid var(--border-light)',
-                                    }}
-                                  >
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
-                                      {asg.tasks?.title}
-                                    </span>
-                                    <StatusBadge status={asg.status} />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>

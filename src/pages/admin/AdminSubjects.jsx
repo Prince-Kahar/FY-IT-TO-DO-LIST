@@ -30,6 +30,25 @@ export const AdminSubjects = () => {
   const [expandedSubjectId, setExpandedSubjectId] = useState(() => subjects[0]?.id || null);
   const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
   const [semesterFilter, setSemesterFilter] = useState('ALL'); // 'ALL' | 'Sem 1' | 'Sem 2'
+  const [collapsedUnits, setCollapsedUnits] = useState({});
+
+  const toggleUnitCollapse = (subjectId, unitName) => {
+    const key = `${subjectId}__${unitName}`;
+    setCollapsedUnits((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const toggleAllUnitsInSubject = (subjectId, unitKeys, shouldCollapse) => {
+    setCollapsedUnits((prev) => {
+      const updated = { ...prev };
+      unitKeys.forEach((u) => {
+        updated[`${subjectId}__${u}`] = shouldCollapse;
+      });
+      return updated;
+    });
+  };
 
   // Modals
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -630,32 +649,6 @@ export const AdminSubjects = () => {
                     </p>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      Curriculum Units & Topics ({topics.length} Total Topics)
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleOpenAddUnit(sub)}
-                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                      >
-                        <Plus size={12} />
-                        <span>Add Unit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleOpenAddTopic(sub)}
-                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                      >
-                        <Plus size={12} />
-                        <span>Add Topic</span>
-                      </button>
-                    </div>
-                  </div>
-
                   {(() => {
                     const unitsMap = {};
                     topics.forEach((tp) => {
@@ -664,118 +657,187 @@ export const AdminSubjects = () => {
                       unitsMap[u].push(tp);
                     });
                     const unitKeys = Object.keys(unitsMap);
+                    const allUnitsCollapsed = unitKeys.length > 0 && unitKeys.every((u) => collapsedUnits[`${sub.id}__${u}`]);
 
-                    if (unitKeys.length === 0) {
-                      return (
-                        <div
-                          style={{
-                            background: 'var(--bg-subtle)',
-                            borderRadius: 'var(--radius-md)',
-                            padding: '24px',
-                            textAlign: 'center',
-                            fontSize: '0.85rem',
-                            color: 'var(--text-muted)',
-                          }}
-                        >
-                          <p style={{ margin: '0 0 12px', fontWeight: 600 }}>
-                            No units or topics added yet for this subject.
-                          </p>
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    return (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            Curriculum Units & Topics ({topics.length} Total Topics)
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {unitKeys.length > 0 && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => toggleAllUnitsInSubject(sub.id, unitKeys, !allUnitsCollapsed)}
+                                style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
+                              >
+                                {allUnitsCollapsed ? (
+                                  <>
+                                    <ChevronDown size={14} />
+                                    <span>Expand All Topics</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronRight size={14} />
+                                    <span>Collapse All Topics</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="btn btn-secondary btn-sm"
                               onClick={() => handleOpenAddUnit(sub)}
+                              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
                             >
-                              <Plus size={14} />
-                              <span>Add First Unit</span>
+                              <Plus size={12} />
+                              <span>Add Unit</span>
                             </button>
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
                               onClick={() => handleOpenAddTopic(sub)}
+                              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
                             >
-                              <Plus size={14} />
+                              <Plus size={12} />
                               <span>Add Topic</span>
                             </button>
                           </div>
                         </div>
-                      );
-                    }
 
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {unitKeys.map((uName) => {
-                          const unitTopics = unitsMap[uName];
-                          return (
-                            <div
-                              key={uName}
-                              style={{
-                                border: '1px solid var(--border-light)',
-                                borderRadius: 'var(--radius-md)',
-                                overflow: 'hidden',
-                                background: '#FFFFFF',
-                              }}
-                            >
-                              {/* Unit Header Bar */}
-                              <div
-                                style={{
-                                  padding: '10px 14px',
-                                  background: '#F8FAFC',
-                                  borderBottom: '1px solid var(--border-light)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  flexWrap: 'wrap',
-                                  gap: '8px',
-                                }}
+                        {unitKeys.length === 0 ? (
+                          <div
+                            style={{
+                              background: 'var(--bg-subtle)',
+                              borderRadius: 'var(--radius-md)',
+                              padding: '24px',
+                              textAlign: 'center',
+                              fontSize: '0.85rem',
+                              color: 'var(--text-muted)',
+                            }}
+                          >
+                            <p style={{ margin: '0 0 12px', fontWeight: 600 }}>
+                              No units or topics added yet for this subject.
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleOpenAddUnit(sub)}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontSize: '1rem' }}>📑</span>
-                                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                                    {uName}
-                                  </strong>
-                                  <span
+                                <Plus size={14} />
+                                <span>Add First Unit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleOpenAddTopic(sub)}
+                              >
+                                <Plus size={14} />
+                                <span>Add Topic</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            {unitKeys.map((uName) => {
+                              const unitTopics = unitsMap[uName];
+                              const isUnitCollapsed = !!collapsedUnits[`${sub.id}__${uName}`];
+
+                              return (
+                                <div
+                                  key={uName}
+                                  style={{
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: 'var(--radius-md)',
+                                    overflow: 'hidden',
+                                    background: '#FFFFFF',
+                                    boxShadow: isUnitCollapsed ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {/* Unit Header Bar (Clickable to Collapse/Expand) */}
+                                  <div
+                                    onClick={() => toggleUnitCollapse(sub.id, uName)}
                                     style={{
-                                      background: 'var(--primary-100)',
-                                      color: 'var(--primary-700)',
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      padding: '2px 8px',
-                                      borderRadius: '10px',
+                                      padding: '10px 14px',
+                                      background: isUnitCollapsed ? '#F8FAFC' : '#F1F5F9',
+                                      borderBottom: isUnitCollapsed ? 'none' : '1px solid var(--border-light)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      flexWrap: 'wrap',
+                                      gap: '8px',
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                      transition: 'background 0.15s ease',
                                     }}
+                                    title={isUnitCollapsed ? 'Click to expand topics' : 'Click to collapse topics'}
                                   >
-                                    {unitTopics.length} {unitTopics.length === 1 ? 'topic' : 'topics'}
-                                  </span>
-                                </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-muted)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          transition: 'transform 0.15s ease',
+                                        }}
+                                      >
+                                        {isUnitCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                                      </div>
+                                      <span style={{ fontSize: '1rem' }}>📑</span>
+                                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                        {uName}
+                                      </strong>
+                                      <span
+                                        style={{
+                                          background: isUnitCollapsed ? '#E2E8F0' : 'var(--primary-100)',
+                                          color: isUnitCollapsed ? '#475569' : 'var(--primary-700)',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '10px',
+                                        }}
+                                      >
+                                        {unitTopics.length} {unitTopics.length === 1 ? 'topic' : 'topics'}
+                                        {isUnitCollapsed ? ' (Collapsed)' : ''}
+                                      </span>
+                                    </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => handleOpenEditUnit(sub, uName)}
-                                    title="Edit Unit Name"
-                                    style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
-                                  >
-                                    <Edit size={12} />
-                                    <span>Edit Unit</span>
-                                  </button>
+                                    <div
+                                      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => handleOpenEditUnit(sub, uName)}
+                                        title="Edit Unit Name"
+                                        style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
+                                      >
+                                        <Edit size={12} />
+                                        <span>Edit Unit</span>
+                                      </button>
 
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
-                                    onClick={() => handleOpenAddTopic(sub, uName)}
-                                    title="Add Topic to this Unit"
-                                    style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
-                                  >
-                                    <Plus size={12} />
-                                    <span>Add Topic</span>
-                                  </button>
-                                </div>
-                              </div>
+                                      <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => handleOpenAddTopic(sub, uName)}
+                                        title="Add Topic to this Unit"
+                                        style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
+                                      >
+                                        <Plus size={12} />
+                                        <span>Add Topic</span>
+                                      </button>
+                                    </div>
+                                  </div>
 
-                              {/* Topics in this Unit */}
-                              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {unitTopics.map((tp, idx) => (
+                                  {/* Topics in this Unit (Collapsible) */}
+                                  {!isUnitCollapsed && (
+                                    <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      {unitTopics.map((tp, idx) => (
                                   <div
                                     key={tp.id}
                                     style={{
@@ -858,12 +920,15 @@ export const AdminSubjects = () => {
                                   </div>
                                 ))}
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
                 </div>
               )}
             </div>
