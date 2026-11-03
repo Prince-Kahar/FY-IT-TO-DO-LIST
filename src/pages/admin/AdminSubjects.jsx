@@ -11,6 +11,7 @@ import {
   Power,
   RotateCcw,
   Loader2,
+  X,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -33,7 +34,9 @@ export const AdminSubjects = () => {
   // Modals
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [subjectToEdit, setSubjectToEdit] = useState(null);
-  const [topicModalSubject, setTopicModalSubject] = useState(null);
+  const [topicModalConfig, setTopicModalConfig] = useState(null); // { subject, defaultUnit, topicToEdit }
+  const [unitModal, setUnitModal] = useState(null); // { subject, oldUnitName, isNew }
+  const [unitModalName, setUnitModalName] = useState('');
 
   const loadSubjects = async (isBackground = false) => {
     if (!isBackground && subjects.length === 0) setLoading(true);
@@ -139,6 +142,67 @@ export const AdminSubjects = () => {
       loadSubjects();
     } catch (err) {
       console.error('Error deleting topic:', err);
+    }
+  };
+
+  const handleOpenAddTopic = (subject, defaultUnit = '') => {
+    setTopicModalConfig({
+      subject,
+      defaultUnit,
+      topicToEdit: null,
+    });
+  };
+
+  const handleOpenEditTopic = (subject, topic) => {
+    setTopicModalConfig({
+      subject,
+      defaultUnit: topic.unit_name || '',
+      topicToEdit: topic,
+    });
+  };
+
+  const handleOpenAddUnit = (subject) => {
+    const existing = Array.from(new Set((subject.topics || []).map((t) => (t.unit_name || '').trim()).filter(Boolean)));
+    const nextNum = existing.length + 1;
+    setUnitModal({
+      subject,
+      oldUnitName: '',
+      isNew: true,
+    });
+    setUnitModalName(`Unit ${nextNum}: `);
+  };
+
+  const handleOpenEditUnit = (subject, oldUnitName) => {
+    setUnitModal({
+      subject,
+      oldUnitName,
+      isNew: false,
+    });
+    setUnitModalName(oldUnitName);
+  };
+
+  const handleSaveUnit = async (e) => {
+    e.preventDefault();
+    if (!unitModal || !unitModalName.trim()) return;
+    const cleanName = unitModalName.trim();
+    try {
+      if (unitModal.isNew) {
+        // Open topic modal directly for this newly created unit
+        const targetSub = unitModal.subject;
+        setUnitModal(null);
+        setTopicModalConfig({
+          subject: targetSub,
+          defaultUnit: cleanName,
+          topicToEdit: null,
+        });
+      } else {
+        await dataService.renameUnit(unitModal.subject.id, unitModal.oldUnitName, cleanName);
+        addToast(`Unit renamed to "${cleanName}"`, 'success');
+        setUnitModal(null);
+        loadSubjects(true);
+      }
+    } catch (err) {
+      addToast(err.message || 'Error updating unit.', 'error');
     }
   };
 
@@ -487,7 +551,18 @@ export const AdminSubjects = () => {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => setTopicModalSubject(sub)}
+                    onClick={() => handleOpenAddUnit(sub)}
+                    title="Add Unit to Subject"
+                    style={{ borderColor: 'var(--primary-300)', color: 'var(--primary-700)', fontWeight: 600 }}
+                  >
+                    <Plus size={14} />
+                    <span>Add Unit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleOpenAddTopic(sub)}
                     title="Add Topic"
                   >
                     <Plus size={14} />
@@ -555,62 +630,231 @@ export const AdminSubjects = () => {
                     </p>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      Topics Curriculum ({topics.length})
+                      Curriculum Units & Topics ({topics.length} Total Topics)
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleOpenAddUnit(sub)}
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                      >
+                        <Plus size={12} />
+                        <span>Add Unit</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleOpenAddTopic(sub)}
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                      >
+                        <Plus size={12} />
+                        <span>Add Topic</span>
+                      </button>
                     </div>
                   </div>
 
-                  {topics.length === 0 ? (
-                    <div
-                      style={{
-                        background: 'var(--bg-subtle)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '16px',
-                        textAlign: 'center',
-                        fontSize: '0.85rem',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      No topics added yet for this subject. Click "Add Topic" to create curriculum topics.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {topics.map((tp, idx) => (
+                  {(() => {
+                    const unitsMap = {};
+                    topics.forEach((tp) => {
+                      const u = (tp.unit_name || 'Unit 1: General Topics').trim();
+                      if (!unitsMap[u]) unitsMap[u] = [];
+                      unitsMap[u].push(tp);
+                    });
+                    const unitKeys = Object.keys(unitsMap);
+
+                    if (unitKeys.length === 0) {
+                      return (
                         <div
-                          key={tp.id}
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '10px 14px',
                             background: 'var(--bg-subtle)',
                             borderRadius: 'var(--radius-md)',
+                            padding: '24px',
+                            textAlign: 'center',
+                            fontSize: '0.85rem',
+                            color: 'var(--text-muted)',
                           }}
                         >
-                          <div>
-                            <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                              {idx + 1}. {tp.name}
-                            </span>
-                            {tp.description && (
-                              <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)', marginLeft: '10px' }}>
-                                ({tp.description})
-                              </span>
-                            )}
+                          <p style={{ margin: '0 0 12px', fontWeight: 600 }}>
+                            No units or topics added yet for this subject.
+                          </p>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleOpenAddUnit(sub)}
+                            >
+                              <Plus size={14} />
+                              <span>Add First Unit</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleOpenAddTopic(sub)}
+                            >
+                              <Plus size={14} />
+                              <span>Add Topic</span>
+                            </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTopic(tp.id, tp.name)}
-                            style={{ color: 'var(--text-subtle)', cursor: 'pointer' }}
-                            title="Remove Topic"
-                          >
-                            <Trash2 size={13} />
-                          </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {unitKeys.map((uName) => {
+                          const unitTopics = unitsMap[uName];
+                          return (
+                            <div
+                              key={uName}
+                              style={{
+                                border: '1px solid var(--border-light)',
+                                borderRadius: 'var(--radius-md)',
+                                overflow: 'hidden',
+                                background: '#FFFFFF',
+                              }}
+                            >
+                              {/* Unit Header Bar */}
+                              <div
+                                style={{
+                                  padding: '10px 14px',
+                                  background: '#F8FAFC',
+                                  borderBottom: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: '8px',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '1rem' }}>📑</span>
+                                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                    {uName}
+                                  </strong>
+                                  <span
+                                    style={{
+                                      background: 'var(--primary-100)',
+                                      color: 'var(--primary-700)',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '10px',
+                                    }}
+                                  >
+                                    {unitTopics.length} {unitTopics.length === 1 ? 'topic' : 'topics'}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => handleOpenEditUnit(sub, uName)}
+                                    title="Edit Unit Name"
+                                    style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
+                                  >
+                                    <Edit size={12} />
+                                    <span>Edit Unit</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => handleOpenAddTopic(sub, uName)}
+                                    title="Add Topic to this Unit"
+                                    style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600 }}
+                                  >
+                                    <Plus size={12} />
+                                    <span>Add Topic</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Topics in this Unit */}
+                              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {unitTopics.map((tp, idx) => (
+                                  <div
+                                    key={tp.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '10px 12px',
+                                      background: 'var(--bg-subtle)',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--border-light)',
+                                    }}
+                                  >
+                                    <div style={{ flex: 1, paddingRight: '12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                                          {idx + 1}. {tp.name}
+                                        </span>
+                                        {tp.subtopic && (
+                                          <span
+                                            style={{
+                                              background: '#EFF6FF',
+                                              color: '#1D4ED8',
+                                              border: '1px solid #BFDBFE',
+                                              fontSize: '0.72rem',
+                                              fontWeight: 600,
+                                              padding: '1px 7px',
+                                              borderRadius: '4px',
+                                            }}
+                                          >
+                                            Subtopic: {tp.subtopic}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {tp.description && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                          {tp.description}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditTopic(sub, tp)}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          color: 'var(--primary-600)',
+                                          cursor: 'pointer',
+                                          padding: '4px',
+                                        }}
+                                        title="Edit Topic & Subtopic"
+                                      >
+                                        <Edit size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteTopic(tp.id, tp.name)}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          color: 'var(--danger-main)',
+                                          cursor: 'pointer',
+                                          padding: '4px',
+                                        }}
+                                        title="Delete Topic"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -631,13 +875,79 @@ export const AdminSubjects = () => {
         />
       )}
 
-      {/* Topic Modal */}
-      {topicModalSubject && (
+      {/* Topic & Unit Modal */}
+      {topicModalConfig && (
         <TopicModal
-          subject={topicModalSubject}
-          onClose={() => setTopicModalSubject(null)}
+          subject={topicModalConfig.subject}
+          defaultUnit={topicModalConfig.defaultUnit}
+          topicToEdit={topicModalConfig.topicToEdit}
+          onClose={() => setTopicModalConfig(null)}
           onSuccess={handleSubjectSuccess}
         />
+      )}
+
+      {/* Add / Edit Unit Modal */}
+      {unitModal && (
+        <div className="modal-overlay" onClick={() => setUnitModal(null)}>
+          <div
+            className="modal-content"
+            style={{ maxWidth: '440px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">
+                  {unitModal.isNew ? 'Add Curriculum Unit' : 'Edit Unit Name'}
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Subject: <strong>{unitModal.subject?.name}</strong>
+                </p>
+              </div>
+              <button
+                className="photo-remove-btn"
+                onClick={() => setUnitModal(null)}
+                style={{ position: 'static' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUnit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Unit Title *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Unit 1: Introduction to Algorithms"
+                    value={unitModalName}
+                    onChange={(e) => setUnitModalName(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    {unitModal.isNew
+                      ? 'Enter the unit title. You can immediately add topics inside it.'
+                      : 'This will update the unit name across all existing topics in this subject.'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setUnitModal(null)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {unitModal.isNew ? 'Next: Add Topic' : 'Save Unit Name'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

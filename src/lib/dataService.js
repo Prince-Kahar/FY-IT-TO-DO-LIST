@@ -183,8 +183,10 @@ export const dataService = {
   getCachedSubjects() {
     let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects', []);
     let overrides = {};
+    let topicOverrides = {};
     try {
       overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+      topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
     } catch (e) {}
 
     const cleanMem = (Array.isArray(mem) ? mem : []).filter((s) => !isDummySubject(s));
@@ -195,12 +197,22 @@ export const dataService = {
         s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
       );
       const semester = ov.semester || s.semester || 'Sem 1';
+      const rawTopics = Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : (localTopics.filter((t) => t.subject_id === s.id) || []);
+      const enrichedTopics = rawTopics.map((t) => {
+        const tov = topicOverrides[t.id] || {};
+        return {
+          ...t,
+          ...tov,
+          unit_name: tov.unit_name || t.unit_name || 'Unit 1: General Topics',
+        };
+      });
+
       return {
         ...s,
         ...ov,
         stream,
         semester,
-        topics: Array.isArray(s.topics) && s.topics.length > 0 ? s.topics : (localTopics.filter((t) => t.subject_id === s.id) || []),
+        topics: enrichedTopics,
       };
     });
   },
@@ -443,6 +455,11 @@ export const dataService = {
       baseList = combined;
     }
 
+    let topicOverrides = {};
+    try {
+      topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+    } catch (e) {}
+
     baseList = baseList.filter((s) => !isDummySubject(s));
 
     const mapped = baseList.map((s) => {
@@ -452,14 +469,24 @@ export const dataService = {
         s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
       );
       const semester = ov.semester || s.semester || 'Sem 1';
+      const rawTopics = Array.isArray(s.topics) && s.topics.length > 0
+        ? s.topics
+        : (localTopics.filter((t) => t.subject_id === s.id) || []);
+      const enrichedTopics = rawTopics.map((t) => {
+        const tov = topicOverrides[t.id] || {};
+        return {
+          ...t,
+          ...tov,
+          unit_name: tov.unit_name || t.unit_name || 'Unit 1: General Topics',
+        };
+      });
+
       return {
         ...s,
         ...ov,
         stream,
         semester,
-        topics: Array.isArray(s.topics) && s.topics.length > 0
-          ? s.topics
-          : (localTopics.filter((t) => t.subject_id === s.id) || []),
+        topics: enrichedTopics,
       };
     });
 
@@ -761,6 +788,91 @@ export const dataService = {
     }
     this.notifyLocalChange('TOPIC_CREATED', newTopic);
     return newTopic;
+  },
+
+  async updateTopic(id, updates) {
+    const existing = (localTopics || []).find((t) => t.id === id);
+    const merged = { ...(existing || {}), ...updates, id, updated_at: new Date().toISOString() };
+
+    localTopics = (localTopics || []).map((t) => (t.id === id ? merged : t));
+    saveCache('topics', localTopics);
+
+    localSubjects = (localSubjects || []).map((s) => {
+      if (Array.isArray(s.topics)) {
+        return {
+          ...s,
+          topics: s.topics.map((t) => (t.id === id ? merged : t)),
+        };
+      }
+      return s;
+    });
+    saveCache('subjects', localSubjects);
+
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      overrides[id] = { ...(overrides[id] || {}), ...updates };
+      localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          name: updates.name,
+          description: updates.description,
+        };
+        const { error } = await supabase.from('topics').update(payload).eq('id', id);
+        if (error) console.warn('Supabase updateTopic notice:', error.message);
+      } catch (err) {
+        console.warn('Supabase updateTopic error:', err);
+      }
+    }
+
+    this.notifyLocalChange('TOPIC_UPDATED', merged);
+    return merged;
+  },
+
+  async renameUnit(subjectId, oldUnitName, newUnitName) {
+    if (!subjectId || !oldUnitName || !newUnitName) return false;
+    const cleanOld = oldUnitName.trim();
+    const cleanNew = newUnitName.trim();
+    if (cleanOld === cleanNew) return true;
+
+    localTopics = (localTopics || []).map((t) => {
+      if (t.subject_id === subjectId && (t.unit_name || 'Unit 1: General Topics').trim() === cleanOld) {
+        return { ...t, unit_name: cleanNew };
+      }
+      return t;
+    });
+    saveCache('topics', localTopics);
+
+    localSubjects = (localSubjects || []).map((s) => {
+      if (s.id === subjectId && Array.isArray(s.topics)) {
+        return {
+          ...s,
+          topics: s.topics.map((t) => {
+            if ((t.unit_name || 'Unit 1: General Topics').trim() === cleanOld) {
+              return { ...t, unit_name: cleanNew };
+            }
+            return t;
+          }),
+        };
+      }
+      return s;
+    });
+    saveCache('subjects', localSubjects);
+
+    try {
+      const topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      (localTopics || []).forEach((t) => {
+        if (t.subject_id === subjectId && (t.unit_name || '').trim() === cleanNew) {
+          topicOverrides[t.id] = { ...(topicOverrides[t.id] || {}), unit_name: cleanNew };
+        }
+      });
+      localStorage.setItem('fy_topic_overrides', JSON.stringify(topicOverrides));
+    } catch (e) {}
+
+    this.notifyLocalChange('UNIT_RENAMED', { subjectId, oldUnitName: cleanOld, newUnitName: cleanNew });
+    return true;
   },
 
   async deleteTopic(id) {
