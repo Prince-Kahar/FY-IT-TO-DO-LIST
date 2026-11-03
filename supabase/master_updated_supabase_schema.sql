@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.subjects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    stream TEXT NOT NULL DEFAULT 'IT',
     subject_code TEXT,
     description TEXT,
     teacher_name TEXT,
@@ -72,6 +73,9 @@ CREATE TABLE IF NOT EXISTS public.subjects (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Ensure backwards-compatibility column exists
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS stream TEXT DEFAULT 'IT';
 
 -- Table: public.topics
 CREATE TABLE IF NOT EXISTS public.topics (

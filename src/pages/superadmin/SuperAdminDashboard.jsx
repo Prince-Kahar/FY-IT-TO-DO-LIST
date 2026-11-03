@@ -1920,14 +1920,49 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
 // SUB-COMPONENT: SUPER ADMIN SUBJECT MODAL (Crisp Light Mode)
 // =========================================================================
 const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
+  const initialStream = subjectToEdit?.stream || (
+    subjectToEdit?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'
+  );
+  const [stream, setStream] = useState(initialStream);
   const [name, setName] = useState(subjectToEdit?.name || '');
-  const [subjectCode, setSubjectCode] = useState(subjectToEdit?.subject_code || '');
+  const [subjectCode, setSubjectCode] = useState(() => {
+    if (subjectToEdit?.subject_code) return subjectToEdit.subject_code;
+    return initialStream === 'DS' ? 'DS-' : 'IT-';
+  });
   const [teacherName, setTeacherName] = useState(subjectToEdit?.teacher_name || '');
   const [description, setDescription] = useState(subjectToEdit?.description || '');
   const [isActive, setIsActive] = useState(
     subjectToEdit?.is_active !== undefined ? subjectToEdit.is_active : true
   );
   const [error, setError] = useState('');
+
+  const handleStreamChange = (newStream) => {
+    setStream(newStream);
+    if (!subjectCode.trim() || subjectCode === 'IT-' || subjectCode === 'DS-') {
+      if (newStream === 'IT') setSubjectCode('IT-');
+      else if (newStream === 'DS') setSubjectCode('DS-');
+      else setSubjectCode('GEN-');
+      return;
+    }
+
+    if (newStream === 'DS') {
+      if (subjectCode.toUpperCase().startsWith('IT-')) {
+        setSubjectCode(subjectCode.replace(/^IT-/i, 'DS-'));
+      } else if (subjectCode.toUpperCase().startsWith('IT')) {
+        setSubjectCode(subjectCode.replace(/^IT/i, 'DS-'));
+      } else if (!subjectCode.toUpperCase().startsWith('DS')) {
+        setSubjectCode(`DS-${subjectCode.replace(/^[A-Za-z]+-?/, '')}`);
+      }
+    } else if (newStream === 'IT') {
+      if (subjectCode.toUpperCase().startsWith('DS-')) {
+        setSubjectCode(subjectCode.replace(/^DS-/i, 'IT-'));
+      } else if (subjectCode.toUpperCase().startsWith('DS')) {
+        setSubjectCode(subjectCode.replace(/^DS/i, 'IT-'));
+      } else if (!subjectCode.toUpperCase().startsWith('IT')) {
+        setSubjectCode(`IT-${subjectCode.replace(/^[A-Za-z]+-?/, '')}`);
+      }
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1936,9 +1971,25 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
       return;
     }
 
+    let cleanCode = subjectCode.trim();
+    if (stream === 'IT') {
+      if (!cleanCode.toUpperCase().startsWith('IT')) {
+        cleanCode = `IT-${cleanCode.replace(/^DS-?/i, '')}`;
+      } else if (!cleanCode.toUpperCase().startsWith('IT-')) {
+        cleanCode = cleanCode.replace(/^IT/i, 'IT-');
+      }
+    } else if (stream === 'DS') {
+      if (!cleanCode.toUpperCase().startsWith('DS')) {
+        cleanCode = `DS-${cleanCode.replace(/^IT-?/i, '')}`;
+      } else if (!cleanCode.toUpperCase().startsWith('DS-')) {
+        cleanCode = cleanCode.replace(/^DS/i, 'DS-');
+      }
+    }
+
     onSave({
       name: name.trim(),
-      subject_code: subjectCode.trim() || 'FYS-GEN',
+      stream,
+      subject_code: cleanCode || (stream === 'DS' ? 'DS-101' : 'IT-101'),
       teacher_name: teacherName.trim() || null,
       description: description.trim() || null,
       is_active: isActive,
@@ -1951,7 +2002,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: '500px',
+          maxWidth: '520px',
           background: '#FFFFFF',
           color: '#0F172A',
           border: '1px solid #E2E8F0',
@@ -1965,7 +2016,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
               {subjectToEdit ? 'Edit Academic Subject' : 'Add New Academic Subject'}
             </h3>
             <p style={{ fontSize: '0.775rem', color: '#64748B', margin: '2px 0 0 0' }}>
-              Configure syllabus title, subject code, and faculty instructor
+              Configure stream (IT / DS), syllabus title, code, and faculty instructor
             </p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}>
@@ -1991,6 +2042,66 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
               </div>
             )}
 
+            {/* Stream Selector */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Academic Stream *</span>
+                <span style={{ fontSize: '0.75rem', color: stream === 'IT' ? '#2563EB' : stream === 'DS' ? '#7C3AED' : '#059669', fontWeight: 700 }}>
+                  {stream === 'IT' ? 'Information Technology (IT)' : stream === 'DS' ? 'Data Science (DS)' : 'Both (Common)'}
+                </span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('IT')}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: '8px',
+                    border: stream === 'IT' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                    background: stream === 'IT' ? '#EFF6FF' : '#F8FAFC',
+                    color: stream === 'IT' ? '#1D4ED8' : '#64748B',
+                    fontWeight: stream === 'IT' ? 700 : 500,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  💻 IT Stream
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('DS')}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: '8px',
+                    border: stream === 'DS' ? '2px solid #7C3AED' : '1px solid #E2E8F0',
+                    background: stream === 'DS' ? '#FAF5FF' : '#F8FAFC',
+                    color: stream === 'DS' ? '#6D28D9' : '#64748B',
+                    fontWeight: stream === 'DS' ? 700 : 500,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  📊 DS Stream
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('Both')}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: '8px',
+                    border: stream === 'Both' ? '2px solid #059669' : '1px solid #E2E8F0',
+                    background: stream === 'Both' ? '#ECFDF5' : '#F8FAFC',
+                    color: stream === 'Both' ? '#047857' : '#64748B',
+                    fontWeight: stream === 'Both' ? 700 : 500,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🌐 Both
+                </button>
+              </div>
+            </div>
+
             <div className="form-group" style={{ marginBottom: '14px' }}>
               <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
                 Subject Name *
@@ -1998,7 +2109,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. C Programming / Database Management Systems"
+                placeholder={stream === 'DS' ? 'e.g. Machine Learning / Data Mining' : 'e.g. C Programming / Database Management Systems'}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -2009,12 +2120,15 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
             <div className="form-grid-2" style={{ marginBottom: '14px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600 }}>
-                  Subject Code
+                  Subject Code *{' '}
+                  <span style={{ fontSize: '0.72rem', color: stream === 'DS' ? '#7C3AED' : '#2563EB', fontWeight: 600 }}>
+                    ({stream === 'DS' ? 'DS- prefix' : stream === 'IT' ? 'IT- prefix' : 'code'})
+                  </span>
                 </label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="e.g. FYS101"
+                  placeholder={stream === 'DS' ? 'e.g. DS-101' : 'e.g. IT-101'}
                   value={subjectCode}
                   onChange={(e) => setSubjectCode(e.target.value)}
                   style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}

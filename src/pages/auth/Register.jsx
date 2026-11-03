@@ -167,7 +167,7 @@ export const Register = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. FYIT-021"
+                placeholder="e.g. 1001"
                 value={rollNumber}
                 onChange={(e) => setRollNumber(e.target.value)}
                 required
@@ -189,16 +189,18 @@ export const Register = () => {
             </div>
           </div>
 
-          {/* Class (Fixed) & Email */}
+          {/* Stream & Academic Program */}
           <div className="form-group">
-            <label className="form-label">Academic Program</label>
-            <input
-              type="text"
+            <label className="form-label">Academic Program & Stream *</label>
+            <select
               className="form-control"
               value={className}
-              disabled
-              style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
-            />
+              onChange={(e) => setClassName(e.target.value)}
+              required
+            >
+              <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+              <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+            </select>
           </div>
 
           {/* Mobile Number & Email */}

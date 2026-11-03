@@ -169,7 +169,7 @@ export const Login = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. Roll No (FYIT-001) or Mobile or Email"
+                placeholder="e.g. Roll No (1001) or Mobile or Email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"

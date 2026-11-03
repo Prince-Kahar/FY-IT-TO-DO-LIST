@@ -77,7 +77,10 @@ export const dataService = {
   // Synchronous getters for 0ms instantaneous rendering on initial page mount
   getCachedSubjects() {
     const mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
-    return Array.isArray(mem) ? mem : [];
+    return (Array.isArray(mem) ? mem : []).map((s) => ({
+      ...s,
+      stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
+    }));
   },
   getCachedTasks() {
     const mem = localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks');
@@ -161,6 +164,7 @@ export const dataService = {
         if (Array.isArray(data)) {
           const mapped = data.map((s) => ({
             ...s,
+            stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
             topics: Array.isArray(s.topics) ? s.topics : [],
           }));
           localSubjects = mapped;
@@ -173,16 +177,22 @@ export const dataService = {
     }
     return localSubjects.map((s) => ({
       ...s,
+      stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
       topics: localTopics.filter((t) => t.subject_id === s.id),
     }));
   },
 
   async createSubject(subjectData) {
     const subjectId = (subjectData.id && isValidUUID(subjectData.id)) ? subjectData.id : generateUUID();
+    const stream = subjectData.stream || (
+      subjectData.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+      subjectData.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'IT'
+    );
     const cleanSubject = {
       id: subjectId,
       name: subjectData.name,
-      subject_code: subjectData.subject_code || 'FYS-GEN',
+      stream,
+      subject_code: subjectData.subject_code || (stream === 'DS' ? 'DS-101' : 'IT-101'),
       description: subjectData.description || null,
       teacher_name: subjectData.teacher_name || null,
       is_active: subjectData.is_active !== undefined ? subjectData.is_active : true,
@@ -214,7 +224,11 @@ export const dataService = {
 
   async updateSubject(id, updates) {
     const { topics, ...cleanUpdates } = updates;
-    localSubjects = localSubjects.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    if (cleanUpdates.subject_code && !cleanUpdates.stream) {
+      cleanUpdates.stream = cleanUpdates.subject_code.toUpperCase().startsWith('DS') ? 'DS' :
+                            cleanUpdates.subject_code.toUpperCase().startsWith('IT') ? 'IT' : 'Both';
+    }
+    localSubjects = localSubjects.map((s) => (s.id === id ? { ...s, ...updates, ...cleanUpdates } : s));
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase

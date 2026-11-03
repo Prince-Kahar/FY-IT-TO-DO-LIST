@@ -71,6 +71,7 @@ export const AdminTasks = () => {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
   const [subjectFilter, setSubjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -153,6 +154,16 @@ export const AdminTasks = () => {
     }
 
     if (subjectFilter !== 'ALL' && t.subject_id !== subjectFilter) return false;
+
+    // Stream filter
+    if (streamFilter !== 'ALL') {
+      const taskSubject = (subjects || []).find((s) => s.id === t.subject_id);
+      const subStream = taskSubject?.stream || (
+        taskSubject?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+        t.subjects?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'
+      );
+      if (subStream !== streamFilter && taskSubject?.stream !== 'Both') return false;
+    }
 
     // Restrict task visibility if faculty is assigned specific subjects
     if (!isAllSubjects) {
@@ -285,16 +296,33 @@ export const AdminTasks = () => {
 
         <select
           className="form-control"
+          style={{ width: 'auto', minWidth: '135px' }}
+          value={streamFilter}
+          onChange={(e) => setStreamFilter(e.target.value)}
+        >
+          <option value="ALL">All Streams</option>
+          <option value="IT">💻 IT Stream</option>
+          <option value="DS">📊 DS Stream</option>
+        </select>
+
+        <select
+          className="form-control"
           style={{ width: 'auto', minWidth: '160px' }}
           value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
         >
           <option value="ALL">{isAllSubjects ? 'All Subjects' : 'All My Subjects'}</option>
-          {effectiveSubjects.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
+          {effectiveSubjects
+            .filter((s) => {
+              if (streamFilter === 'ALL') return true;
+              const sStream = s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+              return sStream === streamFilter || s.stream === 'Both';
+            })
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                [{s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT')}] {s.name}
+              </option>
+            ))}
         </select>
 
         <select
@@ -376,23 +404,49 @@ export const AdminTasks = () => {
                     )}
                   </td>
                   <td>
-                    <span
-                      style={{
-                        background: 'var(--primary-50)',
-                        color: 'var(--primary-700)',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {t.subjects?.name || 'Subject'}
-                    </span>
-                    {t.topics && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {t.topics.name}
-                      </div>
-                    )}
+                    {(() => {
+                      const taskSub = (subjects || []).find((s) => s.id === t.subject_id);
+                      const subStream = taskSub?.stream || (
+                        taskSub?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+                        t.subjects?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'
+                      );
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                background: subStream === 'DS' ? '#FAF5FF' : '#EFF6FF',
+                                color: subStream === 'DS' ? '#6D28D9' : '#1D4ED8',
+                                border: `1px solid ${subStream === 'DS' ? '#DDD6FE' : '#BFDBFE'}`,
+                                fontSize: '0.675rem',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {subStream}
+                            </span>
+                            <span
+                              style={{
+                                background: 'var(--primary-50)',
+                                color: 'var(--primary-700)',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              {t.subjects?.name || 'Subject'}
+                            </span>
+                          </div>
+                          {t.topics && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {t.topics.name}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

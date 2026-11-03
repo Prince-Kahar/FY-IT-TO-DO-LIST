@@ -222,11 +222,14 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                   required
                 >
                   <option value="">Select Subject</option>
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.subject_code || 'IT'})
-                    </option>
-                  ))}
+                  {subjects.map((sub) => {
+                    const st = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+                    return (
+                      <option key={sub.id} value={sub.id}>
+                        [{st}] {sub.name} ({sub.subject_code || st})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

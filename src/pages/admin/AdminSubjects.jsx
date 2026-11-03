@@ -21,6 +21,7 @@ export const AdminSubjects = () => {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSubjectId, setExpandedSubjectId] = useState(null);
+  const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
 
   // Modals
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -110,13 +111,22 @@ export const AdminSubjects = () => {
     }
   };
 
+  const itCount = (subjects || []).filter((s) => (s.stream === 'IT' || s.subject_code?.toUpperCase().startsWith('IT')) && s.stream !== 'Both').length;
+  const dsCount = (subjects || []).filter((s) => (s.stream === 'DS' || s.subject_code?.toUpperCase().startsWith('DS')) && s.stream !== 'Both').length;
+
+  const filteredSubjects = (subjects || []).filter((sub) => {
+    if (streamFilter === 'ALL') return true;
+    const sStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+    return sStream === streamFilter || sub.stream === 'Both';
+  });
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Manage Subjects & Topics</h1>
           <p className="page-description">
-            Dynamically configure FY B.Sc. IT academic curriculum, faculty assignments, and subject topics without modifying code.
+            Dynamically configure academic curriculum, faculty assignments, and subject topics for IT & DS streams.
           </p>
         </div>
 
@@ -133,90 +143,205 @@ export const AdminSubjects = () => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {(subjects || []).map((sub) => {
-          const isExpanded = expandedSubjectId === sub.id;
-          const topics = sub.topics || [];
+      {/* Stream Filter Pills */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+          background: '#FFFFFF',
+          padding: '8px 12px',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+        }}
+      >
+        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginRight: '4px' }}>
+          Filter Stream:
+        </span>
+        <button
+          type="button"
+          onClick={() => setStreamFilter('ALL')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: streamFilter === 'ALL' ? '1px solid var(--primary-600)' : '1px solid #E2E8F0',
+            background: streamFilter === 'ALL' ? 'var(--primary-50)' : 'transparent',
+            color: streamFilter === 'ALL' ? 'var(--primary-700)' : 'var(--text-muted)',
+            fontWeight: streamFilter === 'ALL' ? 700 : 500,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          All Streams ({subjects.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStreamFilter('IT')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: streamFilter === 'IT' ? '1px solid #2563EB' : '1px solid #E2E8F0',
+            background: streamFilter === 'IT' ? '#EFF6FF' : 'transparent',
+            color: streamFilter === 'IT' ? '#1D4ED8' : 'var(--text-muted)',
+            fontWeight: streamFilter === 'IT' ? 700 : 500,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>💻 IT Stream</span>
+          <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
+            {itCount}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStreamFilter('DS')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: streamFilter === 'DS' ? '1px solid #7C3AED' : '1px solid #E2E8F0',
+            background: streamFilter === 'DS' ? '#FAF5FF' : 'transparent',
+            color: streamFilter === 'DS' ? '#6D28D9' : 'var(--text-muted)',
+            fontWeight: streamFilter === 'DS' ? 700 : 500,
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>📊 DS Stream</span>
+          <span style={{ background: '#EDE9FE', color: '#5B21B6', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
+            {dsCount}
+          </span>
+        </button>
+      </div>
 
-          return (
-            <div
-              key={sub.id}
-              className="card"
-              style={{
-                opacity: sub.is_active ? 1 : 0.7,
-                borderLeft: `4px solid ${sub.is_active ? 'var(--primary-600)' : 'var(--text-subtle)'}`,
-              }}
-            >
-              {/* Subject Top Row */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {filteredSubjects.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+            <BookOpen size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+            <p style={{ margin: 0, fontWeight: 600 }}>No subjects found for {streamFilter === 'ALL' ? 'the selected filter' : `${streamFilter} stream`}.</p>
+          </div>
+        ) : (
+          filteredSubjects.map((sub) => {
+            const isExpanded = expandedSubjectId === sub.id;
+            const topics = sub.topics || [];
+            const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+
+            return (
               <div
+                key={sub.id}
+                className="card"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px',
+                  opacity: sub.is_active ? 1 : 0.7,
+                  borderLeft: `4px solid ${
+                    !sub.is_active
+                      ? 'var(--text-subtle)'
+                      : subStream === 'DS'
+                      ? '#7C3AED'
+                      : subStream === 'Both'
+                      ? '#059669'
+                      : '#2563EB'
+                  }`,
                 }}
               >
+                {/* Subject Top Row */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '14px',
-                    cursor: 'pointer',
-                    flex: 1,
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
                   }}
-                  onClick={() =>
-                    setExpandedSubjectId((prev) => (prev === sub.id ? null : sub.id))
-                  }
                 >
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--primary-50)',
-                      color: 'var(--primary-600)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: '14px',
+                      cursor: 'pointer',
+                      flex: 1,
                     }}
+                    onClick={() =>
+                      setExpandedSubjectId((prev) => (prev === sub.id ? null : sub.id))
+                    }
                   >
-                    <BookOpen size={20} />
-                  </div>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 'var(--radius-md)',
+                        background: subStream === 'DS' ? '#FAF5FF' : 'var(--primary-50)',
+                        color: subStream === 'DS' ? '#7C3AED' : 'var(--primary-600)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <BookOpen size={20} />
+                    </div>
 
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span
-                        style={{
-                          background: 'var(--primary-100)',
-                          color: 'var(--primary-700)',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                        }}
-                      >
-                        {sub.subject_code || 'IT'}
-                      </span>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{sub.name}</h3>
-                      {!sub.is_active && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Stream Badge */}
                         <span
                           style={{
-                            background: '#F1F5F9',
-                            color: 'var(--text-muted)',
+                            background: subStream === 'DS' ? '#FAF5FF' : subStream === 'Both' ? '#ECFDF5' : '#EFF6FF',
+                            color: subStream === 'DS' ? '#6D28D9' : subStream === 'Both' ? '#047857' : '#1D4ED8',
+                            border: `1px solid ${subStream === 'DS' ? '#DDD6FE' : subStream === 'Both' ? '#A7F3D0' : '#BFDBFE'}`,
                             fontSize: '0.7rem',
-                            fontWeight: 600,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          {subStream === 'DS' ? '📊 DS Stream' : subStream === 'Both' ? '🌐 IT & DS' : '💻 IT Stream'}
+                        </span>
+
+                        <span
+                          style={{
+                            background: 'var(--primary-100)',
+                            color: 'var(--primary-700)',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
                             padding: '2px 6px',
                             borderRadius: 4,
                           }}
                         >
-                          Inactive
+                          {sub.subject_code || 'IT'}
                         </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Faculty: <strong>{sub.teacher_name || 'N/A'}</strong> • {topics.length} Topics
-                    </div>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{sub.name}</h3>
+                        {!sub.is_active && (
+                          <span
+                            style={{
+                              background: '#F1F5F9',
+                              color: 'var(--text-muted)',
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Faculty: <strong>{sub.teacher_name || 'N/A'}</strong> • {topics.length} Topics
+                      </div>
                   </div>
                 </div>
 
@@ -353,8 +478,9 @@ export const AdminSubjects = () => {
               )}
             </div>
           );
-        })}
-      </div>
+        })
+      )}
+    </div>
 
       {/* Subject Modal */}
       {isSubjectModalOpen && (

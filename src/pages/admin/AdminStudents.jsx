@@ -34,6 +34,7 @@ export const AdminStudents = () => {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
   const [divisionFilter, setDivisionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
@@ -260,6 +261,13 @@ export const AdminStudents = () => {
     }
 
     if (divisionFilter !== 'ALL' && s.division !== divisionFilter) return false;
+    if (streamFilter === 'IT') {
+      const isIT = (s.class_name || '').toUpperCase().includes('IT') || !(s.class_name || '').toUpperCase().includes('DS');
+      if (!isIT) return false;
+    } else if (streamFilter === 'DS') {
+      const isDS = (s.class_name || '').toUpperCase().includes('DS');
+      if (!isDS) return false;
+    }
     if (statusFilter === 'ACTIVE' && !s.is_active) return false;
     if (statusFilter === 'INACTIVE' && s.is_active) return false;
 
@@ -297,6 +305,17 @@ export const AdminStudents = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        <select
+          className="form-control"
+          style={{ width: 'auto' }}
+          value={streamFilter}
+          onChange={(e) => setStreamFilter(e.target.value)}
+        >
+          <option value="ALL">All Streams</option>
+          <option value="IT">💻 IT Stream</option>
+          <option value="DS">📊 DS Stream</option>
+        </select>
 
         <select
           className="form-control"
@@ -385,19 +404,38 @@ export const AdminStudents = () => {
                       </div>
                     </td>
                     <td>
-                      <span>{st.class_name || 'FY B.Sc. IT'}</span>
-                      <span
-                        style={{
-                          background: 'var(--bg-subtle)',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          marginLeft: 6,
-                        }}
-                      >
-                        Div {st.division || 'A'}
-                      </span>
+                      {(() => {
+                        const isDS = (st.class_name || '').toUpperCase().includes('DS');
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span
+                              style={{
+                                background: isDS ? '#FAF5FF' : '#EFF6FF',
+                                color: isDS ? '#7C3AED' : '#1D4ED8',
+                                border: `1px solid ${isDS ? '#DDD6FE' : '#BFDBFE'}`,
+                                fontSize: '0.675rem',
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {isDS ? 'DS' : 'IT'}
+                            </span>
+                            <span style={{ fontSize: '0.825rem' }}>{st.class_name || 'FY B.Sc. IT'}</span>
+                            <span
+                              style={{
+                                background: 'var(--bg-subtle)',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Div {st.division || 'A'}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -853,13 +891,15 @@ export const AdminStudents = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Class</label>
-                    <input
-                      type="text"
+                    <label className="form-label">Stream & Class</label>
+                    <select
                       className="form-control"
                       value={newStudentForm.class_name}
                       onChange={(e) => setNewStudentForm({ ...newStudentForm, class_name: e.target.value })}
-                    />
+                    >
+                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                    </select>
                   </div>
 
                   <div className="form-group">
@@ -992,13 +1032,15 @@ export const AdminStudents = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Class</label>
-                    <input
-                      type="text"
+                    <label className="form-label">Stream & Class</label>
+                    <select
                       className="form-control"
                       value={editStudentForm.class_name}
                       onChange={(e) => setEditStudentForm({ ...editStudentForm, class_name: e.target.value })}
-                    />
+                    >
+                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                    </select>
                   </div>
 
                   <div className="form-group">
