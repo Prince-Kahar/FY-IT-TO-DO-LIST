@@ -201,7 +201,7 @@ export const dataService = {
       (s) => !isDummySubject(s) && !deletedSubjectIds.has(String(s.id).toLowerCase())
     );
 
-    return cleanMem.map((s) => {
+    const result = cleanMem.map((s) => {
       const ov = overrides[s.id] || {};
       const subjectCode = ov.subject_code || s.subject_code || s.code || (s.stream === 'DS' ? 'DS-101' : 'IT-101');
       const stream = ov.stream || s.stream || (
@@ -258,6 +258,23 @@ export const dataService = {
         topics: uniqueTopics,
       };
     });
+
+    let subjectOrder = [];
+    try {
+      subjectOrder = JSON.parse(localStorage.getItem('fy_subject_order') || '[]');
+    } catch (e) {}
+    if (subjectOrder.length > 0) {
+      result.sort((a, b) => {
+        const idxA = subjectOrder.indexOf(a.id);
+        const idxB = subjectOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+    }
+
+    return result;
   },
   checkAndAutoPublishScheduledTasks(tasks) {
     const list = Array.isArray(tasks) ? tasks : (localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks', []));
@@ -596,6 +613,21 @@ export const dataService = {
         topics: uniqueTopics,
       };
     });
+
+    let subjectOrder = [];
+    try {
+      subjectOrder = JSON.parse(localStorage.getItem('fy_subject_order') || '[]');
+    } catch (e) {}
+    if (subjectOrder.length > 0) {
+      mapped.sort((a, b) => {
+        const idxA = subjectOrder.indexOf(a.id);
+        const idxB = subjectOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+    }
 
     saveCache('topics', localTopics);
     localSubjects = mapped;
@@ -1150,6 +1182,31 @@ export const dataService = {
       return true;
     } catch (e) {
       console.warn('saveTopicOrder notice:', e);
+      return false;
+    }
+  },
+
+  saveSubjectOrder(orderedSubjectIds) {
+    try {
+      localStorage.setItem('fy_subject_order', JSON.stringify(orderedSubjectIds));
+      if (Array.isArray(localSubjects) && localSubjects.length > 0) {
+        localSubjects.sort((a, b) => {
+          const idxA = orderedSubjectIds.indexOf(a.id);
+          const idxB = orderedSubjectIds.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return 0;
+        });
+        saveCache('subjects', localSubjects);
+      }
+      this.notifyLocalChange('SUBJECTS_REORDERED', { orderedSubjectIds });
+      try {
+        window.dispatchEvent(new Event('fy_data_change'));
+      } catch (e) {}
+      return true;
+    } catch (e) {
+      console.warn('saveSubjectOrder notice:', e);
       return false;
     }
   },

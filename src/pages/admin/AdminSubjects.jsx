@@ -167,6 +167,66 @@ export const AdminSubjects = () => {
     }
   };
 
+  // Subject Drag-and-Drop and Arrow Reordering
+  const [draggedSubjectId, setDraggedSubjectId] = useState(null);
+  const [dragOverSubjectId, setDragOverSubjectId] = useState(null);
+
+  const moveSubjectToPosition = (sourceSubjectId, targetSubjectId) => {
+    if (!sourceSubjectId || !targetSubjectId || sourceSubjectId === targetSubjectId) return;
+
+    setSubjects((prevSubjects) => {
+      const currentSubjects = [...prevSubjects];
+      const sourceIndex = currentSubjects.findIndex((s) => s.id === sourceSubjectId);
+      const targetIndex = currentSubjects.findIndex((s) => s.id === targetSubjectId);
+      if (sourceIndex === -1 || targetIndex === -1) return prevSubjects;
+
+      const [movedSub] = currentSubjects.splice(sourceIndex, 1);
+      currentSubjects.splice(targetIndex, 0, movedSub);
+
+      dataService.saveSubjectOrder(currentSubjects.map((s) => s.id));
+      return currentSubjects;
+    });
+
+    addToast('Subject reordered successfully.', 'info');
+  };
+
+  const handleMoveSubjectArrow = (subjectId, direction) => {
+    const curIdx = filteredSubjects.findIndex((s) => s.id === subjectId);
+    if (curIdx === -1) return;
+    const targetIdx = curIdx + direction;
+    if (targetIdx < 0 || targetIdx >= filteredSubjects.length) return;
+    const targetSubjectId = filteredSubjects[targetIdx].id;
+    moveSubjectToPosition(subjectId, targetSubjectId);
+  };
+
+  const handleSubjectDragStart = (e, subjectId) => {
+    setDraggedSubjectId(subjectId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', subjectId);
+  };
+
+  const handleSubjectDragOver = (e, subjectId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverSubjectId !== subjectId) {
+      setDragOverSubjectId(subjectId);
+    }
+  };
+
+  const handleSubjectDragEnd = () => {
+    setDraggedSubjectId(null);
+    setDragOverSubjectId(null);
+  };
+
+  const handleSubjectDrop = (e, targetSubjectId) => {
+    e.preventDefault();
+    if (draggedSubjectId && draggedSubjectId !== targetSubjectId) {
+      moveSubjectToPosition(draggedSubjectId, targetSubjectId);
+    }
+    setDraggedSubjectId(null);
+    setDragOverSubjectId(null);
+  };
+
   // Drag and drop / Reordering State and Handlers
   const [draggedTopicId, setDraggedTopicId] = useState(null);
   const [dragOverTopicId, setDragOverTopicId] = useState(null);
@@ -505,17 +565,27 @@ export const AdminSubjects = () => {
             <p style={{ margin: 0, fontWeight: 600 }}>No subjects found for {streamFilter === 'ALL' ? 'the selected filter' : `${streamFilter} stream`}.</p>
           </div>
         ) : (
-          filteredSubjects.map((sub) => {
+          filteredSubjects.map((sub, sIdx) => {
             const isExpanded = expandedSubjectId === sub.id;
             const topics = sub.topics || [];
             const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+            const isSubDragging = draggedSubjectId === sub.id;
+            const isSubDragOver = dragOverSubjectId === sub.id;
 
             return (
               <div
                 key={sub.id}
                 className="card"
+                onDragOver={(e) => handleSubjectDragOver(e, sub.id)}
+                onDrop={(e) => handleSubjectDrop(e, sub.id)}
                 style={{
-                  opacity: sub.is_active ? 1 : 0.7,
+                  opacity: isSubDragging ? 0.5 : sub.is_active ? 1 : 0.7,
+                  border: isSubDragOver
+                    ? '2px dashed var(--primary-600)'
+                    : isSubDragging
+                    ? '1px dashed #3B82F6'
+                    : undefined,
+                  transition: 'all 0.15s ease',
                   borderLeft: `4px solid ${
                     !sub.is_active
                       ? 'var(--text-subtle)'
@@ -541,7 +611,7 @@ export const AdminSubjects = () => {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '14px',
+                      gap: '10px',
                       cursor: 'pointer',
                       flex: 1,
                     }}
@@ -549,6 +619,74 @@ export const AdminSubjects = () => {
                       setExpandedSubjectId((prev) => (prev === sub.id ? null : sub.id))
                     }
                   >
+                    {/* Drag Grip Handle & Up/Down Arrows for Subject */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        flexShrink: 0,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        draggable
+                        onDragStart={(e) => handleSubjectDragStart(e, sub.id)}
+                        onDragEnd={handleSubjectDragEnd}
+                        style={{
+                          cursor: 'grab',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '4px 2px',
+                          color: 'var(--text-muted)',
+                        }}
+                        title="Drag and drop to reorder subject"
+                      >
+                        <GripVertical size={18} />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                        <button
+                          type="button"
+                          disabled={sIdx === 0}
+                          onClick={() => handleMoveSubjectArrow(sub.id, -1)}
+                          title="Move subject up"
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            padding: '1px',
+                            cursor: sIdx === 0 ? 'not-allowed' : 'pointer',
+                            opacity: sIdx === 0 ? 0.25 : 0.7,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '3px',
+                          }}
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={sIdx === filteredSubjects.length - 1}
+                          onClick={() => handleMoveSubjectArrow(sub.id, 1)}
+                          title="Move subject down"
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            padding: '1px',
+                            cursor: sIdx === filteredSubjects.length - 1 ? 'not-allowed' : 'pointer',
+                            opacity: sIdx === filteredSubjects.length - 1 ? 0.25 : 0.7,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '3px',
+                          }}
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                    </div>
+
                     <div
                       style={{
                         width: 42,
@@ -559,6 +697,7 @@ export const AdminSubjects = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <BookOpen size={20} />
