@@ -14,7 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../lib/dataService';
-import { PhotoViewerModal } from './PhotoViewerModal';
+import { PhotoViewerModal, resolveSubmissionPhotoUrl } from './PhotoViewerModal';
 
 export const ReviewModal = ({ submission, onClose, onSuccess }) => {
   const { user } = useAuth();
@@ -216,20 +216,40 @@ export const ReviewModal = ({ submission, onClose, onSuccess }) => {
                 ) : (
                   <div className="photo-previews-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
                     {files.map((file, idx) => {
-                      const imgUrl = file.signed_url || file.storage_path;
+                      const imgUrl = resolveSubmissionPhotoUrl(file);
                       return (
                         <div
                           key={file.id || idx}
                           className="photo-preview-item"
                           onClick={() => setLightboxIndex(idx)}
-                          style={{ cursor: 'pointer' }}
+                          style={{
+                            cursor: 'pointer',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-light)',
+                            background: '#0f172a',
+                            minHeight: '110px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          title="Click to view full size photo"
                         >
-                          <img src={imgUrl} alt={file.original_file_name} />
+                          <img
+                            src={imgUrl}
+                            alt={file.original_file_name || `Proof page ${idx + 1}`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=400&q=80';
+                            }}
+                          />
                           <div
                             style={{
                               position: 'absolute',
                               inset: 0,
-                              background: 'rgba(0,0,0,0.3)',
+                              background: 'rgba(0,0,0,0.35)',
                               opacity: 0,
                               transition: 'opacity 0.2s',
                               display: 'flex',
@@ -240,7 +260,7 @@ export const ReviewModal = ({ submission, onClose, onSuccess }) => {
                             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
                             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
                           >
-                            <Eye size={20} />
+                            <Eye size={22} />
                           </div>
                         </div>
                       );
