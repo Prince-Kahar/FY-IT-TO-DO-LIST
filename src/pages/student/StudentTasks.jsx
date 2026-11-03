@@ -19,12 +19,34 @@ import { SubmitWorkModal } from '../../components/SubmitWorkModal';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 
 export const StudentTasks = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { addToast } = useToast();
 
   const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
   const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
   const [loading, setLoading] = useState(false);
+
+  const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+  const studentSemester = profile?.semester || 'Sem 1';
+
+  // Strict Stream & Semester isolation
+  const visibleSubjects = (subjects || []).filter((sub) => {
+    if (!sub.is_active) return false;
+    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+    const matchStream = subStream === 'Both' || subStream === studentStream;
+    const subSem = sub.semester || 'Sem 1';
+    const matchSem = subSem === 'ALL' || subSem === studentSemester;
+    return matchStream && matchSem;
+  });
+
+  const visibleSubjectIds = new Set(visibleSubjects.map((s) => s.id));
+  const visibleAssignments = (assignments || []).filter((a) => {
+    if (!a?.tasks) return false;
+    if (a.tasks.subject_id) {
+      return visibleSubjectIds.has(a.tasks.subject_id);
+    }
+    return true;
+  });
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -99,8 +121,8 @@ export const StudentTasks = () => {
     }
   };
 
-  // Filter & Search logic
-  const filteredAssignments = (assignments || []).filter((asg) => {
+  // Filter & Search logic from strictly isolated visible assignments
+  const filteredAssignments = (visibleAssignments || []).filter((asg) => {
     const task = asg?.tasks;
     if (!task) return false;
 
@@ -153,7 +175,7 @@ export const StudentTasks = () => {
         <div>
           <h1 className="page-title">My Academic Tasks</h1>
           <p className="page-description">
-            Complete daily subject practicals, notes, and assignments. Upload photo proofs for faculty review.
+            Enrolled: <strong>{studentStream === 'DS' ? 'Data Science (DS)' : 'Information Technology (IT)'}</strong> • <strong>{studentSemester}</strong>
           </p>
         </div>
       </div>
@@ -161,31 +183,31 @@ export const StudentTasks = () => {
       {/* Status Filter Tabs */}
       <div className="tab-scroll-bar" style={{ marginBottom: '16px' }}>
         {[
-          { key: 'ALL', label: 'All Tasks', count: assignments.length },
+          { key: 'ALL', label: 'All Tasks', count: visibleAssignments.length },
           {
             key: 'PENDING',
             label: 'To Do / In Progress',
-            count: assignments.filter((a) => ['Assigned', 'In Progress'].includes(a.status)).length,
+            count: visibleAssignments.filter((a) => ['Assigned', 'In Progress'].includes(a.status)).length,
           },
           {
             key: 'SUBMITTED',
             label: 'Submitted',
-            count: assignments.filter((a) => ['Submitted', 'Under Review'].includes(a.status)).length,
+            count: visibleAssignments.filter((a) => ['Submitted', 'Under Review'].includes(a.status)).length,
           },
           {
             key: 'APPROVED',
             label: 'Approved',
-            count: assignments.filter((a) => a.status === 'Approved').length,
+            count: visibleAssignments.filter((a) => a.status === 'Approved').length,
           },
           {
             key: 'NEEDS_CORRECTION',
             label: 'Needs Correction',
-            count: assignments.filter((a) => a.status === 'Needs Correction').length,
+            count: visibleAssignments.filter((a) => a.status === 'Needs Correction').length,
           },
           {
             key: 'OVERDUE',
             label: 'Overdue',
-            count: assignments.filter((a) => a.status === 'Overdue').length,
+            count: visibleAssignments.filter((a) => a.status === 'Overdue').length,
           },
         ].map((tab) => (
           <button
@@ -240,10 +262,10 @@ export const StudentTasks = () => {
           value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
         >
-          <option value="ALL">All Subjects</option>
-          {subjects.map((s) => (
+          <option value="ALL">All Subjects ({visibleSubjects.length})</option>
+          {visibleSubjects.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name}
+              {s.name} ({s.stream || 'Common'} • {s.semester || 'Sem 1'})
             </option>
           ))}
         </select>

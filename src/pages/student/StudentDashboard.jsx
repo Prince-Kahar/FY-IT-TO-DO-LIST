@@ -123,25 +123,47 @@ export const StudentDashboard = () => {
     }
   };
 
-  // Compute metrics
-  const totalTasks = assignments.length;
-  const approvedTasks = assignments.filter((a) => a.status === 'Approved').length;
-  const submittedTasks = assignments.filter((a) => ['Submitted', 'Under Review'].includes(a.status)).length;
-  const inProgressTasks = assignments.filter((a) => a.status === 'In Progress').length;
-  const pendingTasks = assignments.filter((a) => a.status === 'Assigned').length;
-  const overdueTasks = assignments.filter((a) => a.status === 'Overdue').length;
-  const needsCorrectionTasks = assignments.filter((a) => a.status === 'Needs Correction').length;
+  // Strict Stream & Semester isolation
+  const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+  const studentSemester = profile?.semester || 'Sem 1';
+
+  const visibleSubjects = (subjects || []).filter((sub) => {
+    if (!sub.is_active) return false;
+    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+    const matchStream = subStream === 'Both' || subStream === studentStream;
+    const subSem = sub.semester || 'Sem 1';
+    const matchSem = subSem === 'ALL' || subSem === studentSemester;
+    return matchStream && matchSem;
+  });
+
+  const visibleSubjectIds = new Set(visibleSubjects.map((s) => s.id));
+  const visibleAssignments = (assignments || []).filter((a) => {
+    if (!a?.tasks) return false;
+    if (a.tasks.subject_id) {
+      return visibleSubjectIds.has(a.tasks.subject_id);
+    }
+    return true;
+  });
+
+  // Compute metrics from strictly isolated visible assignments
+  const totalTasks = visibleAssignments.length;
+  const approvedTasks = visibleAssignments.filter((a) => a.status === 'Approved').length;
+  const submittedTasks = visibleAssignments.filter((a) => ['Submitted', 'Under Review'].includes(a.status)).length;
+  const inProgressTasks = visibleAssignments.filter((a) => a.status === 'In Progress').length;
+  const pendingTasks = visibleAssignments.filter((a) => a.status === 'Assigned').length;
+  const overdueTasks = visibleAssignments.filter((a) => a.status === 'Overdue').length;
+  const needsCorrectionTasks = visibleAssignments.filter((a) => a.status === 'Needs Correction').length;
 
   const completionRate = totalTasks > 0 ? Math.round((approvedTasks / totalTasks) * 100) : 0;
 
   // Upcoming deadlines (next 7 days, not yet submitted/approved)
-  const upcomingDeadlines = (assignments || [])
+  const upcomingDeadlines = (visibleAssignments || [])
     .filter((a) => a && !['Approved', 'Submitted'].includes(a.status) && a.tasks?.due_at)
     .sort((a, b) => new Date(a.tasks?.due_at) - new Date(b.tasks?.due_at))
     .slice(0, 4);
 
   // Recently reviewed submissions
-  const recentlyReviewed = (assignments || [])
+  const recentlyReviewed = (visibleAssignments || [])
     .filter((a) => a && Array.isArray(a.submissions) && a.submissions.some((s) => s?.reviewed_at))
     .slice(0, 3);
 
@@ -529,13 +551,18 @@ export const StudentDashboard = () => {
             gap: '16px',
           }}
         >
-          {subjects.map((sub) => {
-            const subjectAssignments = assignments.filter(
-              (a) => a.tasks?.subject_id === sub.id
-            );
-            const subTotal = subjectAssignments.length;
-            const subApproved = subjectAssignments.filter((a) => a.status === 'Approved').length;
-            const pct = subTotal > 0 ? Math.round((subApproved / subTotal) * 100) : 0;
+          {visibleSubjects.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1', padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No subjects enrolled for {studentStream} Stream ({studentSemester}).
+            </div>
+          ) : (
+            visibleSubjects.map((sub) => {
+              const subjectAssignments = visibleAssignments.filter(
+                (a) => a.tasks?.subject_id === sub.id
+              );
+              const subTotal = subjectAssignments.length;
+              const subApproved = subjectAssignments.filter((a) => a.status === 'Approved').length;
+              const pct = subTotal > 0 ? Math.round((subApproved / subTotal) * 100) : 0;
 
             return (
               <div
@@ -588,7 +615,7 @@ export const StudentDashboard = () => {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 

@@ -30,13 +30,25 @@ import { dataService } from '../../lib/dataService';
 import { PomodoroTimer } from '../../components/PomodoroTimer';
 
 export const StudentTodoList = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { addToast, triggerConfetti } = useToast();
 
   const [todos, setTodos] = useState(() => dataService.getCachedTodos(user?.id));
   const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
   const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
   const [loading, setLoading] = useState(false);
+
+  const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+  const studentSemester = profile?.semester || 'Sem 1';
+
+  const visibleSubjects = (subjects || []).filter((sub) => {
+    if (!sub.is_active) return false;
+    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+    const matchStream = subStream === 'Both' || subStream === studentStream;
+    const subSem = sub.semester || 'Sem 1';
+    const matchSem = subSem === 'ALL' || subSem === studentSemester;
+    return matchStream && matchSem;
+  });
 
   // Quick Add State
   const [quickTitle, setQuickTitle] = useState('');
@@ -459,7 +471,7 @@ export const StudentTodoList = () => {
                     onChange={(e) => setNewSubjectId(e.target.value)}
                   >
                     <option value="">General / Personal</option>
-                    {subjects.map((s) => (
+                    {visibleSubjects.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.subject_code || 'IT'})
                       </option>
@@ -654,8 +666,8 @@ export const StudentTodoList = () => {
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
           >
-            <option value="ALL">All Subjects</option>
-            {subjects.map((s) => (
+            <option value="ALL">All Subjects ({visibleSubjects.length})</option>
+            {visibleSubjects.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>

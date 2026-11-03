@@ -1073,6 +1073,30 @@ export const SuperAdminDashboard = () => {
                                 <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px', maxWidth: '340px' }}>
                                   {sub.description || 'Core academic syllabus course'}
                                 </div>
+                                <div style={{ display: 'flex', gap: '6px', marginTop: '5px' }}>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    background: sub.stream === 'DS' ? '#FAF5FF' : sub.stream === 'Both' ? '#ECFDF5' : '#EFF6FF',
+                                    color: sub.stream === 'DS' ? '#7C3AED' : sub.stream === 'Both' ? '#047857' : '#1D4ED8',
+                                    border: `1px solid ${sub.stream === 'DS' ? '#E9D5FF' : sub.stream === 'Both' ? '#A7F3D0' : '#BFDBFE'}`,
+                                    fontWeight: 700,
+                                  }}>
+                                    {sub.stream === 'DS' ? '📊 DS Stream' : sub.stream === 'Both' ? '🌐 IT & DS' : '💻 IT Stream'}
+                                  </span>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    background: '#EEF2FF',
+                                    color: '#4338CA',
+                                    border: '1px solid #C7D2FE',
+                                    fontWeight: 700,
+                                  }}>
+                                    📘 {sub.semester || 'Sem 1'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -1923,7 +1947,9 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
   const initialStream = subjectToEdit?.stream || (
     subjectToEdit?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'
   );
+  const initialSemester = subjectToEdit?.semester || 'Sem 1';
   const [stream, setStream] = useState(initialStream);
+  const [semester, setSemester] = useState(initialSemester);
   const [name, setName] = useState(subjectToEdit?.name || '');
   const [subjectCode, setSubjectCode] = useState(() => {
     if (subjectToEdit?.subject_code) return subjectToEdit.subject_code;
@@ -1989,6 +2015,7 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
     onSave({
       name: name.trim(),
       stream,
+      semester,
       subject_code: cleanCode || (stream === 'DS' ? 'DS-101' : 'IT-101'),
       teacher_name: teacherName.trim() || null,
       description: description.trim() || null,
@@ -2098,6 +2125,50 @@ const SuperSubjectModal = ({ subjectToEdit = null, onClose, onSave }) => {
                   }}
                 >
                   🌐 Both
+                </button>
+              </div>
+            </div>
+
+            {/* Semester Selector */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label" style={{ color: '#334155', fontSize: '0.85rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Academic Semester *</span>
+                <span style={{ fontSize: '0.75rem', color: '#4F46E5', fontWeight: 700 }}>
+                  {semester === 'Sem 1' ? 'First Semester (Sem 1)' : 'Second Semester (Sem 2)'}
+                </span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSemester('Sem 1')}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: '8px',
+                    border: semester === 'Sem 1' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+                    background: semester === 'Sem 1' ? '#EEF2FF' : '#F8FAFC',
+                    color: semester === 'Sem 1' ? '#4338CA' : '#64748B',
+                    fontWeight: semester === 'Sem 1' ? 700 : 500,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  📘 Semester 1 (Sem 1)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSemester('Sem 2')}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: '8px',
+                    border: semester === 'Sem 2' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+                    background: semester === 'Sem 2' ? '#EEF2FF' : '#F8FAFC',
+                    color: semester === 'Sem 2' ? '#4338CA' : '#64748B',
+                    fontWeight: semester === 'Sem 2' ? 700 : 500,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  📙 Semester 2 (Sem 2)
                 </button>
               </div>
             </div>

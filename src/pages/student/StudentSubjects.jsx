@@ -5,14 +5,24 @@ import { dataService } from '../../lib/dataService';
 import { StatusBadge } from '../../components/StatusBadge';
 
 export const StudentSubjects = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [subjects, setSubjects] = useState(() => dataService.getCachedSubjects());
   const [assignments, setAssignments] = useState(() => dataService.getCachedStudentAssignments(user?.id));
-  const [expandedSubjectId, setExpandedSubjectId] = useState(() => {
-    const cached = dataService.getCachedSubjects();
-    return cached.length > 0 ? cached[0].id : null;
-  });
+  const [expandedSubjectId, setExpandedSubjectId] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+  const studentSemester = profile?.semester || 'Sem 1';
+
+  // Strict Stream & Semester isolation: Student only sees subjects matching their stream and semester
+  const visibleSubjects = (subjects || []).filter((sub) => {
+    if (!sub.is_active) return false;
+    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+    const matchStream = subStream === 'Both' || subStream === studentStream;
+    const subSem = sub.semester || 'Sem 1';
+    const matchSem = subSem === 'ALL' || subSem === studentSemester;
+    return matchStream && matchSem;
+  });
 
   const loadCurriculum = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -69,13 +79,24 @@ export const StudentSubjects = () => {
         <div>
           <h1 className="page-title">Subjects & Academic Curriculum</h1>
           <p className="page-description">
-            Explore First Year B.Sc. IT course subjects, syllabus topics, and your completion status.
+            Enrolled Program: <strong>{studentStream === 'DS' ? 'Data Science (DS)' : 'Information Technology (IT)'}</strong> • <strong>{studentSemester}</strong>
           </p>
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {(subjects || []).map((sub) => {
+        {visibleSubjects.length === 0 ? (
+          <div className="card" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <BookOpen size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
+              No Subjects Configured Yet
+            </h3>
+            <p style={{ fontSize: '0.85rem', margin: 0 }}>
+              There are currently no active subjects assigned for {studentStream} Stream ({studentSemester}). Contact your faculty instructor or administrator.
+            </p>
+          </div>
+        ) : (
+          visibleSubjects.map((sub) => {
           const isExpanded = expandedSubjectId === sub.id;
           const subAssignments = (assignments || []).filter((a) => a?.tasks?.subject_id === sub.id);
           const approvedCount = subAssignments.filter((a) => a.status === 'Approved').length;
@@ -266,7 +287,7 @@ export const StudentSubjects = () => {
               )}
             </div>
           );
-        })}
+        }))}
       </div>
     </div>
   );

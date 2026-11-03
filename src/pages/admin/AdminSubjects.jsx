@@ -22,6 +22,7 @@ export const AdminSubjects = () => {
   const [loading, setLoading] = useState(true);
   const [expandedSubjectId, setExpandedSubjectId] = useState(null);
   const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
+  const [semesterFilter, setSemesterFilter] = useState('ALL'); // 'ALL' | 'Sem 1' | 'Sem 2'
 
   // Modals
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -115,9 +116,15 @@ export const AdminSubjects = () => {
   const dsCount = (subjects || []).filter((s) => (s.stream === 'DS' || s.subject_code?.toUpperCase().startsWith('DS')) && s.stream !== 'Both').length;
 
   const filteredSubjects = (subjects || []).filter((sub) => {
-    if (streamFilter === 'ALL') return true;
-    const sStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
-    return sStream === streamFilter || sub.stream === 'Both';
+    if (streamFilter !== 'ALL') {
+      const sStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+      if (sStream !== streamFilter && sub.stream !== 'Both') return false;
+    }
+    if (semesterFilter !== 'ALL') {
+      const sSem = sub.semester || 'Sem 1';
+      if (sSem !== semesterFilter && sSem !== 'ALL') return false;
+    }
+    return true;
   });
 
   return (
@@ -143,86 +150,148 @@ export const AdminSubjects = () => {
         </button>
       </div>
 
-      {/* Stream Filter Pills */}
+      {/* Stream & Semester Filter Pills */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          justifyContent: 'space-between',
+          gap: '12px',
           marginBottom: '20px',
           flexWrap: 'wrap',
           background: '#FFFFFF',
-          padding: '8px 12px',
+          padding: '10px 14px',
           borderRadius: '12px',
           border: '1px solid #E2E8F0',
         }}
       >
-        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginRight: '4px' }}>
-          Filter Stream:
-        </span>
-        <button
-          type="button"
-          onClick={() => setStreamFilter('ALL')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            border: streamFilter === 'ALL' ? '1px solid var(--primary-600)' : '1px solid #E2E8F0',
-            background: streamFilter === 'ALL' ? 'var(--primary-50)' : 'transparent',
-            color: streamFilter === 'ALL' ? 'var(--primary-700)' : 'var(--text-muted)',
-            fontWeight: streamFilter === 'ALL' ? 700 : 500,
-            fontSize: '0.8rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          All Streams ({subjects.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setStreamFilter('IT')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            border: streamFilter === 'IT' ? '1px solid #2563EB' : '1px solid #E2E8F0',
-            background: streamFilter === 'IT' ? '#EFF6FF' : 'transparent',
-            color: streamFilter === 'IT' ? '#1D4ED8' : 'var(--text-muted)',
-            fontWeight: streamFilter === 'IT' ? 700 : 500,
-            fontSize: '0.8rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <span>💻 IT Stream</span>
-          <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
-            {itCount}
+        {/* Stream Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginRight: '4px' }}>
+            Stream:
           </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setStreamFilter('DS')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            border: streamFilter === 'DS' ? '1px solid #7C3AED' : '1px solid #E2E8F0',
-            background: streamFilter === 'DS' ? '#FAF5FF' : 'transparent',
-            color: streamFilter === 'DS' ? '#6D28D9' : 'var(--text-muted)',
-            fontWeight: streamFilter === 'DS' ? 700 : 500,
-            fontSize: '0.8rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <span>📊 DS Stream</span>
-          <span style={{ background: '#EDE9FE', color: '#5B21B6', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
-            {dsCount}
+          <button
+            type="button"
+            onClick={() => setStreamFilter('ALL')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: streamFilter === 'ALL' ? '1px solid var(--primary-600)' : '1px solid #E2E8F0',
+              background: streamFilter === 'ALL' ? 'var(--primary-50)' : 'transparent',
+              color: streamFilter === 'ALL' ? 'var(--primary-700)' : 'var(--text-muted)',
+              fontWeight: streamFilter === 'ALL' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            All Streams ({subjects.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStreamFilter('IT')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: streamFilter === 'IT' ? '1px solid #2563EB' : '1px solid #E2E8F0',
+              background: streamFilter === 'IT' ? '#EFF6FF' : 'transparent',
+              color: streamFilter === 'IT' ? '#1D4ED8' : 'var(--text-muted)',
+              fontWeight: streamFilter === 'IT' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>💻 IT Stream</span>
+            <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
+              {itCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStreamFilter('DS')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: streamFilter === 'DS' ? '1px solid #7C3AED' : '1px solid #E2E8F0',
+              background: streamFilter === 'DS' ? '#FAF5FF' : 'transparent',
+              color: streamFilter === 'DS' ? '#6D28D9' : 'var(--text-muted)',
+              fontWeight: streamFilter === 'DS' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>📊 DS Stream</span>
+            <span style={{ background: '#EDE9FE', color: '#5B21B6', padding: '1px 6px', borderRadius: '10px', fontSize: '0.725rem' }}>
+              {dsCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Semester Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginRight: '4px' }}>
+            Semester:
           </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setSemesterFilter('ALL')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: semesterFilter === 'ALL' ? '1px solid #4F46E5' : '1px solid #E2E8F0',
+              background: semesterFilter === 'ALL' ? '#EEF2FF' : 'transparent',
+              color: semesterFilter === 'ALL' ? '#4338CA' : 'var(--text-muted)',
+              fontWeight: semesterFilter === 'ALL' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            All Semesters
+          </button>
+          <button
+            type="button"
+            onClick={() => setSemesterFilter('Sem 1')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: semesterFilter === 'Sem 1' ? '1px solid #4F46E5' : '1px solid #E2E8F0',
+              background: semesterFilter === 'Sem 1' ? '#EEF2FF' : 'transparent',
+              color: semesterFilter === 'Sem 1' ? '#4338CA' : 'var(--text-muted)',
+              fontWeight: semesterFilter === 'Sem 1' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            📘 Sem 1
+          </button>
+          <button
+            type="button"
+            onClick={() => setSemesterFilter('Sem 2')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: semesterFilter === 'Sem 2' ? '1px solid #4F46E5' : '1px solid #E2E8F0',
+              background: semesterFilter === 'Sem 2' ? '#EEF2FF' : 'transparent',
+              color: semesterFilter === 'Sem 2' ? '#4338CA' : 'var(--text-muted)',
+              fontWeight: semesterFilter === 'Sem 2' ? 700 : 500,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            📙 Sem 2
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -309,6 +378,24 @@ export const AdminSubjects = () => {
                           }}
                         >
                           {subStream === 'DS' ? '📊 DS Stream' : subStream === 'Both' ? '🌐 IT & DS' : '💻 IT Stream'}
+                        </span>
+
+                        {/* Semester Badge */}
+                        <span
+                          style={{
+                            background: '#EEF2FF',
+                            color: '#4338CA',
+                            border: '1px solid #C7D2FE',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          📘 {sub.semester || 'Sem 1'}
                         </span>
 
                         <span

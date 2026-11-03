@@ -9,8 +9,10 @@ export const SubjectModal = ({ subjectToEdit = null, onClose, onSuccess }) => {
   const initialStream = subjectToEdit?.stream || (
     subjectToEdit?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT'
   );
+  const initialSemester = subjectToEdit?.semester || 'Sem 1';
 
   const [stream, setStream] = useState(initialStream);
+  const [semester, setSemester] = useState(initialSemester);
   const [name, setName] = useState(subjectToEdit?.name || '');
   const [subjectCode, setSubjectCode] = useState(() => {
     if (subjectToEdit?.subject_code) return subjectToEdit.subject_code;
@@ -84,6 +86,7 @@ export const SubjectModal = ({ subjectToEdit = null, onClose, onSuccess }) => {
       const payload = {
         name: name.trim(),
         stream,
+        semester,
         subject_code: cleanCode || (stream === 'DS' ? 'DS-101' : 'IT-101'),
         teacher_name: teacherName.trim() || null,
         description: description.trim() || null,
@@ -92,10 +95,10 @@ export const SubjectModal = ({ subjectToEdit = null, onClose, onSuccess }) => {
 
       if (subjectToEdit) {
         await dataService.updateSubject(subjectToEdit.id, payload);
-        addToast(`Subject "${name.trim()}" updated successfully.`, 'success');
+        addToast(`Subject "${name.trim()}" (${stream} • ${semester}) updated successfully.`, 'success');
       } else {
         await dataService.createSubject(payload);
-        addToast(`New ${stream} subject "${name.trim()}" created successfully!`, 'success');
+        addToast(`New subject "${name.trim()}" (${stream} • ${semester}) created successfully!`, 'success');
       }
 
       if (onSuccess) onSuccess();
@@ -218,6 +221,60 @@ export const SubjectModal = ({ subjectToEdit = null, onClose, onSuccess }) => {
                   }}
                 >
                   <span>🌐 Both (All)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Semester Selector (Sem 1 vs Sem 2) */}
+            <div className="form-group" style={{ marginBottom: '18px' }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Academic Semester *</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4F46E5' }}>
+                  {semester === 'Sem 1' ? 'First Semester (Sem 1)' : 'Second Semester (Sem 2)'}
+                </span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSemester('Sem 1')}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: semester === 'Sem 1' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+                    background: semester === 'Sem 1' ? '#EEF2FF' : '#FFFFFF',
+                    color: semester === 'Sem 1' ? '#4338CA' : '#64748B',
+                    fontWeight: semester === 'Sem 1' ? 700 : 500,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>📘 Semester 1 (Sem 1)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSemester('Sem 2')}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: semester === 'Sem 2' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+                    background: semester === 'Sem 2' ? '#EEF2FF' : '#FFFFFF',
+                    color: semester === 'Sem 2' ? '#4338CA' : '#64748B',
+                    fontWeight: semester === 'Sem 2' ? 700 : 500,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>📙 Semester 2 (Sem 2)</span>
                 </button>
               </div>
             </div>

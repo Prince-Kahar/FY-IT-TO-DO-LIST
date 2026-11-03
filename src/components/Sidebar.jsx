@@ -134,11 +134,26 @@ export const Sidebar = ({ isOpen, onClose }) => {
       const asg = dataService.getCachedStudentAssignments(user?.id);
       const sb = dataService.getCachedSubjects();
       const notifs = dataService.getCachedAnnouncements();
+
+      const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+      const studentSemester = profile?.semester || 'Sem 1';
+
+      const filteredSb = (sb || []).filter((sub) => {
+        if (!sub.is_active) return false;
+        const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+        const matchStream = subStream === 'Both' || subStream === studentStream;
+        const subSem = sub.semester || 'Sem 1';
+        const matchSem = subSem === 'ALL' || subSem === studentSemester;
+        return matchStream && matchSem;
+      });
+      const validSubIds = new Set(filteredSb.map((s) => s.id));
+      const filteredAsg = (asg || []).filter((a) => !a?.tasks?.subject_id || validSubIds.has(a.tasks.subject_id));
+
       return {
         todos: td?.filter((item) => item.status !== 'Completed')?.length || 0,
-        tasks: asg?.length || 0,
-        subjects: sb?.length || 0,
-        submissions: asg?.filter((item) => ['Submitted', 'Approved', 'Needs Revision'].includes(item.status))?.length || 0,
+        tasks: filteredAsg?.length || 0,
+        subjects: filteredSb?.length || 0,
+        submissions: filteredAsg?.filter((item) => ['Submitted', 'Approved', 'Needs Revision'].includes(item.status))?.length || 0,
         notifications: notifs?.length || 0,
       };
     }
@@ -208,12 +223,26 @@ export const Sidebar = ({ isOpen, onClose }) => {
           const subjects = subjectsRes.status === 'fulfilled' && Array.isArray(subjectsRes.value) ? subjectsRes.value : dataService.getCachedSubjects();
           const notifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
 
+          const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+          const studentSemester = profile?.semester || 'Sem 1';
+
+          const filteredSb = (subjects || []).filter((sub) => {
+            if (!sub.is_active) return false;
+            const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+            const matchStream = subStream === 'Both' || subStream === studentStream;
+            const subSem = sub.semester || 'Sem 1';
+            const matchSem = subSem === 'ALL' || subSem === studentSemester;
+            return matchStream && matchSem;
+          });
+          const validSubIds = new Set(filteredSb.map((s) => s.id));
+          const filteredAsg = (assignments || []).filter((a) => !a?.tasks?.subject_id || validSubIds.has(a.tasks.subject_id));
+
           const unreadNotifs = notifs?.filter((n) => !n.is_read)?.length;
           setCounts({
             todos: todos?.filter((t) => t.status !== 'Completed')?.length || 0,
-            tasks: assignments?.length || 0,
-            subjects: subjects?.length || 0,
-            submissions: assignments?.filter((a) => ['Submitted', 'Approved', 'Needs Revision'].includes(a.status))?.length || 0,
+            tasks: filteredAsg?.length || 0,
+            subjects: filteredSb?.length || 0,
+            submissions: filteredAsg?.filter((a) => ['Submitted', 'Approved', 'Needs Revision'].includes(a.status))?.length || 0,
             notifications: (unreadNotifs != null && unreadNotifs > 0) ? unreadNotifs : (notifs?.length || 0),
           });
         }

@@ -77,10 +77,25 @@ export const dataService = {
   // Synchronous getters for 0ms instantaneous rendering on initial page mount
   getCachedSubjects() {
     const mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
-    return (Array.isArray(mem) ? mem : []).map((s) => ({
-      ...s,
-      stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
-    }));
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+    } catch (e) {}
+
+    return (Array.isArray(mem) ? mem : []).map((s) => {
+      const ov = overrides[s.id] || {};
+      const stream = ov.stream || s.stream || (
+        s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+        s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
+      );
+      const semester = ov.semester || s.semester || 'Sem 1';
+      return {
+        ...s,
+        ...ov,
+        stream,
+        semester,
+      };
+    });
   },
   checkAndAutoPublishScheduledTasks(tasks) {
     const list = Array.isArray(tasks) ? tasks : (localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks', []));
@@ -111,7 +126,18 @@ export const dataService = {
           // Generate student assignments if not present
           const existing = localAssignments.filter((a) => a.task_id === t.id);
           if (existing.length === 0) {
-            const activeStudents = localStudents.filter((s) => s.is_active);
+            const sub = (localSubjects || []).find((s) => s.id === t.subject_id) || t.subjects;
+            const subStream = sub?.stream || (sub?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+            const subSem = sub?.semester || 'Sem 1';
+
+            const activeStudents = localStudents.filter((s) => {
+              if (!s.is_active) return false;
+              const sStream = s.stream || (s.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+              const sSem = s.semester || 'Sem 1';
+              const matchStream = subStream === 'Both' || sStream === subStream;
+              const matchSem = subSem === 'ALL' || sSem === subSem;
+              return matchStream && matchSem;
+            });
             activeStudents.forEach((st) => {
               localAssignments.push({
                 id: 'asg-' + t.id + '-' + st.id,
@@ -243,6 +269,11 @@ export const dataService = {
   // SUBJECTS & TOPICS
   // =========================================================================
   async getSubjects() {
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+    } catch (e) {}
+
     if (isSupabaseConfigured()) {
       try {
         let { data, error } = await supabase
@@ -261,11 +292,27 @@ export const dataService = {
         }
 
         if (Array.isArray(data)) {
-          const mapped = data.map((s) => ({
-            ...s,
-            stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
-            topics: Array.isArray(s.topics) ? s.topics : [],
-          }));
+          const remoteIds = new Set(data.map((s) => s.id));
+          // Preserve locally created subjects that may not yet be in Supabase remote table
+          const localOnly = (localSubjects || []).filter((s) => !remoteIds.has(s.id));
+          const allRaw = [...data, ...localOnly];
+
+          const mapped = allRaw.map((s) => {
+            const ov = overrides[s.id] || {};
+            const stream = ov.stream || s.stream || (
+              s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+              s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
+            );
+            const semester = ov.semester || s.semester || 'Sem 1';
+            return {
+              ...s,
+              ...ov,
+              stream,
+              semester,
+              topics: Array.isArray(s.topics) ? s.topics : localTopics.filter((t) => t.subject_id === s.id),
+            };
+          });
+
           localSubjects = mapped;
           saveCache('subjects', mapped);
           return mapped;
@@ -274,11 +321,25 @@ export const dataService = {
         console.warn('Error fetching subjects from Supabase:', err);
       }
     }
-    return localSubjects.map((s) => ({
-      ...s,
-      stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
-      topics: localTopics.filter((t) => t.subject_id === s.id),
-    }));
+
+    // Fallback when Supabase offline or error
+    const mapped = (localSubjects || []).map((s) => {
+      const ov = overrides[s.id] || {};
+      const stream = ov.stream || s.stream || (
+        s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
+        s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'
+      );
+      const semester = ov.semester || s.semester || 'Sem 1';
+      return {
+        ...s,
+        ...ov,
+        stream,
+        semester,
+        topics: localTopics.filter((t) => t.subject_id === s.id),
+      };
+    });
+    saveCache('subjects', mapped);
+    return mapped;
   },
 
   async createSubject(subjectData) {
@@ -287,38 +348,105 @@ export const dataService = {
       subjectData.subject_code?.toUpperCase().startsWith('DS') ? 'DS' :
       subjectData.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'IT'
     );
-    const cleanSubject = {
+    const semester = subjectData.semester || 'Sem 1';
+
+    const fullSubject = {
       id: subjectId,
       name: subjectData.name,
       stream,
+      semester,
       subject_code: subjectData.subject_code || (stream === 'DS' ? 'DS-101' : 'IT-101'),
       description: subjectData.description || null,
       teacher_name: subjectData.teacher_name || null,
       is_active: subjectData.is_active !== undefined ? subjectData.is_active : true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      topics: [],
     };
-    localSubjects.push(cleanSubject);
 
+    // 1. Immediately store in local memory and cache so UI never loses the subject
+    const existingIndex = localSubjects.findIndex((s) => s.id === subjectId);
+    if (existingIndex >= 0) {
+      localSubjects[existingIndex] = fullSubject;
+    } else {
+      localSubjects.push(fullSubject);
+    }
+    saveCache('subjects', localSubjects);
+
+    // 2. Persist in localStorage fy_subject_overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+      overrides[subjectId] = {
+        id: subjectId,
+        name: fullSubject.name,
+        stream: fullSubject.stream,
+        semester: fullSubject.semester,
+        subject_code: fullSubject.subject_code,
+        teacher_name: fullSubject.teacher_name,
+        description: fullSubject.description,
+        is_active: fullSubject.is_active,
+        updated_at: new Date().toISOString(),
+      };
+      localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
+    // 3. Insert into Supabase if configured with graceful column fallback
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('subjects')
-          .insert([cleanSubject])
+          .insert([{
+            id: fullSubject.id,
+            name: fullSubject.name,
+            stream: fullSubject.stream,
+            semester: fullSubject.semester,
+            subject_code: fullSubject.subject_code,
+            description: fullSubject.description,
+            teacher_name: fullSubject.teacher_name,
+            is_active: fullSubject.is_active,
+            created_at: fullSubject.created_at,
+            updated_at: fullSubject.updated_at,
+          }])
           .select()
           .single();
+
         if (!error && data) {
-          this.notifyLocalChange('SUBJECT_CREATED', data);
-          return data;
+          const merged = { ...fullSubject, ...data };
+          this.notifyLocalChange('SUBJECT_CREATED', merged);
+          return merged;
         } else if (error) {
-          console.error('Supabase createSubject error:', error.message);
+          console.warn('Supabase insert with stream/semester failed, falling back to base columns:', error.message);
+          // Fallback attempt: base columns only (in case remote postgres schema has not added stream/semester columns yet)
+          const { data: baseData, error: baseError } = await supabase
+            .from('subjects')
+            .insert([{
+              id: fullSubject.id,
+              name: fullSubject.name,
+              subject_code: fullSubject.subject_code,
+              description: fullSubject.description,
+              teacher_name: fullSubject.teacher_name,
+              is_active: fullSubject.is_active,
+              created_at: fullSubject.created_at,
+              updated_at: fullSubject.updated_at,
+            }])
+            .select()
+            .single();
+
+          if (!baseError && baseData) {
+            const merged = { ...fullSubject, ...baseData };
+            this.notifyLocalChange('SUBJECT_CREATED', merged);
+            return merged;
+          } else if (baseError) {
+            console.error('Supabase base insert failed:', baseError.message);
+          }
         }
       } catch (err) {
-        console.error('Supabase createSubject notice:', err);
+        console.error('Supabase createSubject error:', err);
       }
     }
-    this.notifyLocalChange('SUBJECT_CREATED', cleanSubject);
-    return cleanSubject;
+
+    this.notifyLocalChange('SUBJECT_CREATED', fullSubject);
+    return fullSubject;
   },
 
   async updateSubject(id, updates) {
@@ -327,7 +455,21 @@ export const dataService = {
       cleanUpdates.stream = cleanUpdates.subject_code.toUpperCase().startsWith('DS') ? 'DS' :
                             cleanUpdates.subject_code.toUpperCase().startsWith('IT') ? 'IT' : 'Both';
     }
+
+    // Persist in overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+      overrides[id] = {
+        ...(overrides[id] || {}),
+        ...cleanUpdates,
+        updated_at: new Date().toISOString(),
+      };
+      localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
     localSubjects = localSubjects.map((s) => (s.id === id ? { ...s, ...updates, ...cleanUpdates } : s));
+    saveCache('subjects', localSubjects);
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -336,9 +478,25 @@ export const dataService = {
           .eq('id', id)
           .select()
           .single();
+
         if (!error && data) {
-          this.notifyLocalChange('SUBJECT_UPDATED', data);
-          return data;
+          const merged = { ...updates, ...cleanUpdates, ...data };
+          this.notifyLocalChange('SUBJECT_UPDATED', merged);
+          return merged;
+        } else if (error) {
+          // If update failed due to unknown columns (like stream/semester), strip them and retry
+          const { stream, semester, ...baseUpdates } = cleanUpdates;
+          const { data: bData, error: bErr } = await supabase
+            .from('subjects')
+            .update(baseUpdates)
+            .eq('id', id)
+            .select()
+            .single();
+          if (!bErr && bData) {
+            const merged = { ...updates, ...cleanUpdates, ...bData };
+            this.notifyLocalChange('SUBJECT_UPDATED', merged);
+            return merged;
+          }
         }
       } catch (err) {
         console.warn('Supabase updateSubject notice:', err);
@@ -403,9 +561,21 @@ export const dataService = {
       }
     }
 
+    // Clear from overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_subject_overrides') || '{}');
+      if (overrides[id]) {
+        delete overrides[id];
+        localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
+      }
+    } catch (e) {}
+
     localSubjects = localSubjects.filter((s) => s.id !== id);
+    saveCache('subjects', localSubjects);
     localTopics = localTopics.filter((t) => t.subject_id !== id);
+    saveCache('topics', localTopics);
     localTasks = localTasks.filter((t) => t.subject_id !== id);
+    saveCache('tasks', localTasks);
     this.notifyLocalChange('SUBJECT_DELETED', { id });
     return true;
   },
@@ -625,9 +795,20 @@ export const dataService = {
     saveCache('tasks', localTasks);
 
     if (newTask.publication_status === 'Published') {
+      const sub = (localSubjects || []).find((s) => s.id === newTask.subject_id);
+      const subStream = sub?.stream || (sub?.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+      const subSem = sub?.semester || 'Sem 1';
+
       const studentsToAssign =
         newTask.assignment_target === 'all' || !targetStudentIds.length
-          ? localStudents.filter((s) => s.is_active)
+          ? localStudents.filter((s) => {
+              if (!s.is_active) return false;
+              const sStream = s.stream || (s.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
+              const sSem = s.semester || 'Sem 1';
+              const matchStream = subStream === 'Both' || sStream === subStream;
+              const matchSem = subSem === 'ALL' || sSem === subSem;
+              return matchStream && matchSem;
+            })
           : localStudents.filter((s) => targetStudentIds.includes(s.id));
 
       studentsToAssign.forEach((st) => {
