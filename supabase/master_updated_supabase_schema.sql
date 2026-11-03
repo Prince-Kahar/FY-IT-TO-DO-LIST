@@ -20,12 +20,16 @@ CREATE TABLE IF NOT EXISTS public.students (
     mobile_number TEXT NOT NULL,
     email TEXT,
     class_name TEXT DEFAULT 'FY B.Sc. IT',
+    semester TEXT DEFAULT 'Sem 1',
     division TEXT DEFAULT 'A',
     password TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Ensure backwards-compatibility columns exist
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS semester TEXT DEFAULT 'Sem 1';
 
 -- Table: public.admins (Faculty administrators managed by Super Admin)
 CREATE TABLE IF NOT EXISTS public.admins (

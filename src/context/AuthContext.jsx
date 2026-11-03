@@ -396,6 +396,7 @@ export const AuthProvider = ({ children }) => {
     email,
     password,
     className = 'FY B.Sc. IT',
+    semester = 'Sem 1',
     division = 'A',
   }) => {
     setAuthError(null);
@@ -442,6 +443,7 @@ export const AuthProvider = ({ children }) => {
       password,
       role: 'student',
       class_name: className,
+      semester: semester || 'Sem 1',
       division,
       is_active: true,
       created_at: new Date().toISOString(),

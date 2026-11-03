@@ -35,8 +35,10 @@ export const AdminStudents = () => {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'IT' | 'DS'
+  const [semesterFilter, setSemesterFilter] = useState('ALL'); // 'ALL' | 'Sem 1' | 'Sem 2'
   const [divisionFilter, setDivisionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('ROLL_ASC'); // 'ROLL_ASC' | 'ROLL_DESC' | 'NAME_ASC' | 'NAME_DESC' | 'SEM_ASC'
 
   // Password Visibility & Copy States
   const [showAllPasswords, setShowAllPasswords] = useState(false);
@@ -74,6 +76,7 @@ export const AdminStudents = () => {
     mobile_number: '',
     email: '',
     class_name: 'FY B.Sc. IT',
+    semester: 'Sem 1',
     division: 'A',
     password: 'student@123',
   });
@@ -87,6 +90,7 @@ export const AdminStudents = () => {
     mobile_number: '',
     email: '',
     class_name: 'FY B.Sc. IT',
+    semester: 'Sem 1',
     division: 'A',
     password: '',
     is_active: true,
@@ -101,6 +105,7 @@ export const AdminStudents = () => {
       mobile_number: student.mobile_number || student.mobile || student.phone || '',
       email: student.email || '',
       class_name: student.class_name || 'FY B.Sc. IT',
+      semester: student.semester || 'Sem 1',
       division: student.division || 'A',
       password: student.password || 'student@123',
       is_active: student.is_active !== undefined ? student.is_active : true,
@@ -127,6 +132,7 @@ export const AdminStudents = () => {
           editStudentForm.email.trim() ||
           `${editStudentForm.roll_number.trim().toLowerCase()}@college.edu`,
         class_name: editStudentForm.class_name || 'FY B.Sc. IT',
+        semester: editStudentForm.semester || 'Sem 1',
         division: editStudentForm.division || 'A',
         password: editStudentForm.password || 'student@123',
         is_active: editStudentForm.is_active,
@@ -225,6 +231,7 @@ export const AdminStudents = () => {
         mobile_number: newStudentForm.mobile_number.trim(),
         email: newStudentForm.email.trim() || `${newStudentForm.roll_number.trim().toLowerCase()}@college.edu`,
         class_name: newStudentForm.class_name || 'FY B.Sc. IT',
+        semester: newStudentForm.semester || 'Sem 1',
         division: newStudentForm.division || 'A',
         password: newStudentForm.password || 'student@123',
       });
@@ -236,6 +243,7 @@ export const AdminStudents = () => {
         mobile_number: '',
         email: '',
         class_name: 'FY B.Sc. IT',
+        semester: 'Sem 1',
         division: 'A',
         password: 'student@123',
       });
@@ -261,6 +269,7 @@ export const AdminStudents = () => {
     }
 
     if (divisionFilter !== 'ALL' && s.division !== divisionFilter) return false;
+    if (semesterFilter !== 'ALL' && (s.semester || 'Sem 1') !== semesterFilter) return false;
     if (streamFilter === 'IT') {
       const isIT = (s.class_name || '').toUpperCase().includes('IT') || !(s.class_name || '').toUpperCase().includes('DS');
       if (!isIT) return false;
@@ -272,6 +281,25 @@ export const AdminStudents = () => {
     if (statusFilter === 'INACTIVE' && s.is_active) return false;
 
     return true;
+  });
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (sortBy === 'ROLL_ASC') {
+      return (a.roll_number || '').localeCompare(b.roll_number || '', undefined, { numeric: true });
+    }
+    if (sortBy === 'ROLL_DESC') {
+      return (b.roll_number || '').localeCompare(a.roll_number || '', undefined, { numeric: true });
+    }
+    if (sortBy === 'NAME_ASC') {
+      return (a.full_name || '').localeCompare(b.full_name || '');
+    }
+    if (sortBy === 'NAME_DESC') {
+      return (b.full_name || '').localeCompare(a.full_name || '');
+    }
+    if (sortBy === 'SEM_ASC') {
+      return (a.semester || 'Sem 1').localeCompare(b.semester || 'Sem 1');
+    }
+    return 0;
   });
 
   return (
@@ -320,6 +348,17 @@ export const AdminStudents = () => {
         <select
           className="form-control"
           style={{ width: 'auto' }}
+          value={semesterFilter}
+          onChange={(e) => setSemesterFilter(e.target.value)}
+        >
+          <option value="ALL">All Semesters</option>
+          <option value="Sem 1">Semester 1 (Sem 1)</option>
+          <option value="Sem 2">Semester 2 (Sem 2)</option>
+        </select>
+
+        <select
+          className="form-control"
+          style={{ width: 'auto' }}
           value={divisionFilter}
           onChange={(e) => setDivisionFilter(e.target.value)}
         >
@@ -339,10 +378,23 @@ export const AdminStudents = () => {
           <option value="ACTIVE">Active Students</option>
           <option value="INACTIVE">Deactivated Students</option>
         </select>
+
+        <select
+          className="form-control"
+          style={{ width: 'auto', minWidth: '160px' }}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="ROLL_ASC">🔢 Sort: Roll No (Low-High)</option>
+          <option value="ROLL_DESC">🔢 Sort: Roll No (High-Low)</option>
+          <option value="NAME_ASC">🔤 Sort: Name (A-Z)</option>
+          <option value="NAME_DESC">🔤 Sort: Name (Z-A)</option>
+          <option value="SEM_ASC">📅 Sort: Semester</option>
+        </select>
       </div>
 
       {/* Students Table */}
-      {filteredStudents.length === 0 ? (
+      {sortedStudents.length === 0 ? (
         <div className="card empty-state">
           <div className="empty-state-icon">
             <Users size={28} />
@@ -357,10 +409,22 @@ export const AdminStudents = () => {
           <table className="table">
             <thead>
               <tr>
-                <th>Student Name</th>
-                <th>Roll Number</th>
+                <th
+                  onClick={() => setSortBy((prev) => (prev === 'NAME_ASC' ? 'NAME_DESC' : 'NAME_ASC'))}
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  title="Click to sort by Name"
+                >
+                  Student Name {sortBy === 'NAME_ASC' ? '▲' : sortBy === 'NAME_DESC' ? '▼' : ''}
+                </th>
+                <th
+                  onClick={() => setSortBy((prev) => (prev === 'ROLL_ASC' ? 'ROLL_DESC' : 'ROLL_ASC'))}
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  title="Click to sort by Roll Number"
+                >
+                  Roll Number {sortBy === 'ROLL_ASC' ? '▲' : sortBy === 'ROLL_DESC' ? '▼' : ''}
+                </th>
                 <th>Mobile</th>
-                <th>Class & Division</th>
+                <th>Class, Sem & Div</th>
                 <th>Email</th>
                 <th>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -381,7 +445,7 @@ export const AdminStudents = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.map((st) => {
+              {sortedStudents.map((st) => {
                 const isPasswordRevealed = showAllPasswords || visiblePasswordIds[st.id];
                 const studentPass = st.password || 'student@123';
 
@@ -407,7 +471,7 @@ export const AdminStudents = () => {
                       {(() => {
                         const isDS = (st.class_name || '').toUpperCase().includes('DS');
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span
                               style={{
                                 background: isDS ? '#FAF5FF' : '#EFF6FF',
@@ -421,13 +485,26 @@ export const AdminStudents = () => {
                             >
                               {isDS ? 'DS' : 'IT'}
                             </span>
-                            <span style={{ fontSize: '0.825rem' }}>{st.class_name || 'FY B.Sc. IT'}</span>
+                            <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>{st.class_name || 'FY B.Sc. IT'}</span>
+                            <span
+                              style={{
+                                background: '#FEF3C7',
+                                color: '#B45309',
+                                border: '1px solid #FDE68A',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                fontSize: '0.725rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {st.semester || 'Sem 1'}
+                            </span>
                             <span
                               style={{
                                 background: 'var(--bg-subtle)',
-                                padding: '2px 6px',
+                                padding: '1px 6px',
                                 borderRadius: 4,
-                                fontSize: '0.75rem',
+                                fontSize: '0.725rem',
                                 fontWeight: 600,
                               }}
                             >
@@ -889,16 +966,28 @@ export const AdminStudents = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Stream & Class</label>
+                    <label className="form-label">Stream & Program</label>
                     <select
                       className="form-control"
                       value={newStudentForm.class_name}
                       onChange={(e) => setNewStudentForm({ ...newStudentForm, class_name: e.target.value })}
                     >
-                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
-                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT</option>
+                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Semester</label>
+                    <select
+                      className="form-control"
+                      value={newStudentForm.semester || 'Sem 1'}
+                      onChange={(e) => setNewStudentForm({ ...newStudentForm, semester: e.target.value })}
+                    >
+                      <option value="Sem 1">Semester 1 (Sem 1)</option>
+                      <option value="Sem 2">Semester 2 (Sem 2)</option>
                     </select>
                   </div>
 
@@ -1030,16 +1119,28 @@ export const AdminStudents = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label className="form-label">Stream & Class</label>
+                    <label className="form-label">Stream & Program</label>
                     <select
                       className="form-control"
                       value={editStudentForm.class_name}
                       onChange={(e) => setEditStudentForm({ ...editStudentForm, class_name: e.target.value })}
                     >
-                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
-                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
+                      <option value="FY B.Sc. IT">💻 FY B.Sc. IT</option>
+                      <option value="FY B.Sc. DS">📊 FY B.Sc. DS</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Semester</label>
+                    <select
+                      className="form-control"
+                      value={editStudentForm.semester || 'Sem 1'}
+                      onChange={(e) => setEditStudentForm({ ...editStudentForm, semester: e.target.value })}
+                    >
+                      <option value="Sem 1">Semester 1 (Sem 1)</option>
+                      <option value="Sem 2">Semester 2 (Sem 2)</option>
                     </select>
                   </div>
 

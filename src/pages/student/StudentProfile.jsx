@@ -122,11 +122,11 @@ export const StudentProfile = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Class</label>
+                <label className="form-label">Academic Program & Semester</label>
                 <input
                   type="text"
                   className="form-control"
-                  value={profile?.class_name || 'FY B.Sc. IT'}
+                  value={`${profile?.class_name || 'FY B.Sc. IT'} • ${profile?.semester || 'Sem 1'}`}
                   disabled
                   style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                 />

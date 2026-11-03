@@ -12,7 +12,8 @@ export const Register = () => {
   const [fullName, setFullName] = useState('');
   const [rollNumber, setRollNumber] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
-  const [className, setClassName] = useState('FY B.Sc. IT');
+  const [stream, setStream] = useState('IT'); // 'IT' or 'DS'
+  const [semester, setSemester] = useState('Sem 1'); // 'Sem 1' or 'Sem 2'
   const [division, setDivision] = useState('A');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,13 +53,15 @@ export const Register = () => {
         fullName: fullName.trim(),
         rollNumber: rollNumber.trim().toUpperCase(),
         mobileNumber: mobileNumber.trim(),
-        className,
+        className: stream === 'DS' ? 'FY B.Sc. DS' : 'FY B.Sc. IT',
+        stream,
+        semester,
         division,
         email: email.trim().toLowerCase(),
         password,
       });
 
-      addToast('Student registration successful! Welcome to FY IT Portal.', 'success');
+      addToast('Student registration successful! Welcome to Academic Portal.', 'success');
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
@@ -160,7 +163,7 @@ export const Register = () => {
             />
           </div>
 
-          {/* Roll Number & Division */}
+          {/* Roll Number & Academic Stream */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Roll Number *</label>
@@ -172,6 +175,35 @@ export const Register = () => {
                 onChange={(e) => setRollNumber(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Academic Stream *</label>
+              <select
+                className="form-control"
+                value={stream}
+                onChange={(e) => setStream(e.target.value)}
+                required
+              >
+                <option value="IT">💻 B.Sc. IT (Info Tech)</option>
+                <option value="DS">📊 B.Sc. DS (Data Science)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Semester & Division */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Semester *</label>
+              <select
+                className="form-control"
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                required
+              >
+                <option value="Sem 1">Semester 1 (Sem 1)</option>
+                <option value="Sem 2">Semester 2 (Sem 2)</option>
+              </select>
             </div>
 
             <div className="form-group">
@@ -187,20 +219,6 @@ export const Register = () => {
                 <option value="C">Division C</option>
               </select>
             </div>
-          </div>
-
-          {/* Stream & Academic Program */}
-          <div className="form-group">
-            <label className="form-label">Academic Program & Stream *</label>
-            <select
-              className="form-control"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              required
-            >
-              <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
-              <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
-            </select>
           </div>
 
           {/* Mobile Number & Email */}

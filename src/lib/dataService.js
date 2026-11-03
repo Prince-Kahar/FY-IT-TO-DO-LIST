@@ -103,7 +103,10 @@ export const dataService = {
   },
   getCachedStudents() {
     const mem = localStudents && localStudents.length > 0 ? localStudents : loadCache('students');
-    return Array.isArray(mem) ? mem : [];
+    return (Array.isArray(mem) ? mem : []).map((s) => ({
+      ...s,
+      semester: s.semester || 'Sem 1',
+    }));
   },
   getCachedSubmissions() {
     let allSubs = [];
@@ -1322,6 +1325,7 @@ export const dataService = {
           saveCache('students', data);
           return data.map((st) => ({
             ...st,
+            semester: st.semester || 'Sem 1',
             task_assignments: localAssignments.filter((a) => a.student_id === st.id),
           }));
         }
@@ -1333,6 +1337,7 @@ export const dataService = {
     const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
     return localRegistered.map((st) => ({
       ...st,
+      semester: st.semester || 'Sem 1',
       task_assignments: localAssignments.filter((a) => a.student_id === st.id),
     }));
   },
@@ -1410,6 +1415,7 @@ export const dataService = {
         if (updates.mobile_number !== undefined) payload.mobile_number = updates.mobile_number;
         if (updates.email !== undefined) payload.email = updates.email;
         if (updates.class_name !== undefined) payload.class_name = updates.class_name;
+        if (updates.semester !== undefined) payload.semester = updates.semester;
         if (updates.division !== undefined) payload.division = updates.division;
         if (updates.password !== undefined) payload.password = updates.password;
         if (updates.is_active !== undefined) payload.is_active = updates.is_active;
@@ -1440,6 +1446,7 @@ export const dataService = {
   async addStudent(studentData) {
     const newStudent = {
       ...studentData,
+      semester: studentData.semester || 'Sem 1',
       id: 'student-' + Date.now(),
       role: 'student',
       is_active: true,
