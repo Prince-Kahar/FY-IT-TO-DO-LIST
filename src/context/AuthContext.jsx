@@ -424,6 +424,7 @@ export const AuthProvider = ({ children }) => {
     mobileNumber = '',
     email,
     password,
+    stream = 'IT',
     className = 'FY B.Sc. IT',
     semester = 'Sem 1',
     division = 'A',
