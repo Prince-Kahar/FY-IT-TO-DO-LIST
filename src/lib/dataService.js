@@ -849,16 +849,36 @@ export const dataService = {
       saveCache('subjects', localSubjects);
     }
 
+    // Persist full metadata (unit_name, subtopic, etc.) in overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+      overrides[newTopic.id] = {
+        id: newTopic.id,
+        name: newTopic.name,
+        unit_name: newTopic.unit_name || 'Unit 1: General Topics',
+        subtopic: newTopic.subtopic || null,
+        description: newTopic.description || null,
+      };
+      localStorage.setItem('fy_topic_overrides', JSON.stringify(overrides));
+    } catch (e) {}
+
     if (isSupabaseConfigured()) {
       try {
+        const payload = {
+          id: newTopic.id,
+          subject_id: newTopic.subject_id,
+          name: newTopic.name,
+          description: newTopic.description || (newTopic.subtopic ? `Subtopic: ${newTopic.subtopic}` : null),
+        };
         const { data, error } = await supabase
           .from('topics')
-          .insert([newTopic])
+          .insert([payload])
           .select()
           .single();
         if (!error && data) {
-          this.notifyLocalChange('TOPIC_CREATED', data);
-          return data;
+          const mergedTopic = { ...newTopic, ...data };
+          this.notifyLocalChange('TOPIC_CREATED', mergedTopic);
+          return mergedTopic;
         } else if (error) {
           console.error('Supabase createTopic error:', error.message);
         }
@@ -868,6 +888,17 @@ export const dataService = {
     }
     this.notifyLocalChange('TOPIC_CREATED', newTopic);
     return newTopic;
+  },
+
+  async createMultipleTopics(topicsList) {
+    if (!Array.isArray(topicsList) || topicsList.length === 0) return [];
+    const results = [];
+    for (const t of topicsList) {
+      if (!t.name || !t.name.trim()) continue;
+      const res = await this.createTopic(t);
+      results.push(res);
+    }
+    return results;
   },
 
   async updateTopic(id, updates) {
@@ -898,7 +929,7 @@ export const dataService = {
       try {
         const payload = {
           name: updates.name,
-          description: updates.description,
+          description: updates.description || (updates.subtopic ? `Subtopic: ${updates.subtopic}` : null),
         };
         const { error } = await supabase.from('topics').update(payload).eq('id', id);
         if (error) console.warn('Supabase updateTopic notice:', error.message);

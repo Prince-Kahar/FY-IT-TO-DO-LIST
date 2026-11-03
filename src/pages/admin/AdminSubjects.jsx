@@ -794,19 +794,28 @@ export const AdminSubjects = () => {
                                           {idx + 1}. {tp.name}
                                         </span>
                                         {tp.subtopic && (
-                                          <span
-                                            style={{
-                                              background: '#EFF6FF',
-                                              color: '#1D4ED8',
-                                              border: '1px solid #BFDBFE',
-                                              fontSize: '0.72rem',
-                                              fontWeight: 600,
-                                              padding: '1px 7px',
-                                              borderRadius: '4px',
-                                            }}
-                                          >
-                                            Subtopic: {tp.subtopic}
-                                          </span>
+                                          <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                            {tp.subtopic.split(/[,;\n]+/).map((st, sIdx) => {
+                                              const cleanSub = st.trim();
+                                              if (!cleanSub) return null;
+                                              return (
+                                                <span
+                                                  key={sIdx}
+                                                  style={{
+                                                    background: '#EFF6FF',
+                                                    color: '#1D4ED8',
+                                                    border: '1px solid #BFDBFE',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 600,
+                                                    padding: '1px 7px',
+                                                    borderRadius: '4px',
+                                                  }}
+                                                >
+                                                  {cleanSub}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
                                         )}
                                       </div>
                                       {tp.description && (

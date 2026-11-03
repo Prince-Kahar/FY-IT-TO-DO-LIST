@@ -216,8 +216,34 @@ export const StudentSubjects = () => {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                                  {idx + 1}. {tp.name}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                    {idx + 1}. {tp.name}
+                                  </span>
+                                  {tp.subtopic && (
+                                    <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap' }}>
+                                      {tp.subtopic.split(/[,;\n]+/).map((st, sIdx) => {
+                                        const clean = st.trim();
+                                        if (!clean) return null;
+                                        return (
+                                          <span
+                                            key={sIdx}
+                                            style={{
+                                              background: '#EFF6FF',
+                                              color: '#1D4ED8',
+                                              border: '1px solid #BFDBFE',
+                                              fontSize: '0.7rem',
+                                              fontWeight: 600,
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                            }}
+                                          >
+                                            {clean}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                                 {tp.description && (
                                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
