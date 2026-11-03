@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, BookOpen, Layers } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
-import { parseSubtopicsHierarchy } from '../utils/syllabusUtils';
+import { parseSubtopicsHierarchy, flattenDescendants } from '../utils/syllabusUtils';
 
 // Helper to format Date into datetime-local value using LOCAL system time (preventing UTC offset shift)
 const formatToLocalDateTimeInput = (dateInput) => {
@@ -228,6 +228,13 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
   const activeSubtopicObj = useMemo(() => {
     return parsedHierarchy.find((s) => s.title === selectedSubtopic);
   }, [parsedHierarchy, selectedSubtopic]);
+
+  const flattenedChildOptions = useMemo(() => {
+    if (!activeSubtopicObj || !Array.isArray(activeSubtopicObj.items) || activeSubtopicObj.items.length === 0) {
+      return [];
+    }
+    return flattenDescendants(activeSubtopicObj.items);
+  }, [activeSubtopicObj]);
 
   // Handle unit change
   const handleUnitChange = (newUnit) => {
@@ -605,11 +612,11 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                     <option value="__custom__">✏️ Custom Subtopic (Type manually)...</option>
                   </select>
 
-                  {/* Nested Sub-subtopic (Subtopic ka subtopic dropdown) */}
-                  {activeSubtopicObj && Array.isArray(activeSubtopicObj.items) && activeSubtopicObj.items.length > 0 && (
+                  {/* Nested Sub-subtopic (Subtopic ka subtopic dropdown with arbitrary depth) */}
+                  {flattenedChildOptions.length > 0 && (
                     <div style={{ paddingLeft: '14px', borderLeft: '3px solid #93C5FD', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1D4ED8', margin: 0 }}>
-                        ↳ Specific Method / Concept under "{activeSubtopicObj.title}":
+                        ↳ Specific Method / Concept under "{activeSubtopicObj?.title}":
                       </label>
                       <select
                         className="form-control"
@@ -617,10 +624,10 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                         onChange={(e) => setSelectedChildSubtopic(e.target.value)}
                         style={{ fontSize: '0.85rem', borderColor: '#93C5FD' }}
                       >
-                        <option value="">-- All Concepts under {activeSubtopicObj.title} --</option>
-                        {activeSubtopicObj.items.map((subItem, itIdx) => (
-                          <option key={itIdx} value={subItem}>
-                            🎯 {subItem}
+                        <option value="">-- All Concepts under {activeSubtopicObj?.title} --</option>
+                        {flattenedChildOptions.map((opt, itIdx) => (
+                          <option key={itIdx} value={opt.path}>
+                            🎯 {opt.path}
                           </option>
                         ))}
                       </select>

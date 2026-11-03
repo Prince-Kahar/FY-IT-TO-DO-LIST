@@ -3,6 +3,7 @@ import { BookOpen, User, CheckCircle2, ChevronDown, ChevronRight, Layers, FileTe
 import { useAuth } from '../../context/AuthContext';
 import { dataService } from '../../lib/dataService';
 import { StatusBadge } from '../../components/StatusBadge';
+import { RenderSubtopicNode } from '../../components/RenderSubtopicNode';
 import { parseSubtopicsHierarchy } from '../../utils/syllabusUtils';
 
 export const StudentSubjects = () => {
@@ -356,65 +357,9 @@ export const StudentSubjects = () => {
                                                     if (subHierarchy.length === 0) return null;
                                                     return (
                                                       <div style={{ display: 'inline-flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                        {subHierarchy.map((st, sIdx) => {
-                                                          const hasChildren = Array.isArray(st.items) && st.items.length > 0;
-                                                          if (!hasChildren) {
-                                                            return (
-                                                              <span
-                                                                key={sIdx}
-                                                                style={{
-                                                                  background: '#EFF6FF',
-                                                                  color: '#1D4ED8',
-                                                                  border: '1px solid #BFDBFE',
-                                                                  fontSize: '0.7rem',
-                                                                  fontWeight: 600,
-                                                                  padding: '1px 6px',
-                                                                  borderRadius: '4px',
-                                                                }}
-                                                              >
-                                                                {st.title}
-                                                              </span>
-                                                            );
-                                                          }
-
-                                                          return (
-                                                            <span
-                                                              key={sIdx}
-                                                              style={{
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: '4px',
-                                                                background: '#EFF6FF',
-                                                                color: '#1D4ED8',
-                                                                border: '1px solid #BFDBFE',
-                                                                fontSize: '0.7rem',
-                                                                padding: '1px 6px',
-                                                                borderRadius: '4px',
-                                                              }}
-                                                            >
-                                                              <span style={{ fontWeight: 700 }}>{st.title}</span>
-                                                              <span style={{ color: '#60A5FA', fontSize: '0.68rem', fontWeight: 800 }}>›</span>
-                                                              <span style={{ display: 'inline-flex', gap: '3px', flexWrap: 'wrap' }}>
-                                                                {st.items.map((subItem, itIdx) => (
-                                                                  <span
-                                                                    key={itIdx}
-                                                                    style={{
-                                                                      background: '#FFFFFF',
-                                                                      color: '#1E40AF',
-                                                                      border: '1px solid #DBEAFE',
-                                                                      borderRadius: '3px',
-                                                                      padding: '0 4px',
-                                                                      fontSize: '0.65rem',
-                                                                      fontWeight: 600,
-                                                                    }}
-                                                                  >
-                                                                    {subItem}
-                                                                  </span>
-                                                                ))}
-                                                              </span>
-                                                            </span>
-                                                          );
-                                                        })}
+                                                        {subHierarchy.map((st, sIdx) => (
+                                                          <RenderSubtopicNode key={st.id || sIdx} node={st} depth={1} />
+                                                        ))}
                                                       </div>
                                                     );
                                                   })()}

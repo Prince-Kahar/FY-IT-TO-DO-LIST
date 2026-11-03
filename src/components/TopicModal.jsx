@@ -2,7 +2,153 @@ import React, { useState } from 'react';
 import { X, CheckCircle2, Loader2, AlertCircle, Plus, Trash2, Layers, CornerDownRight, Tag } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
-import { parseSubtopicsHierarchy, formatSubtopicsToString } from '../utils/syllabusUtils';
+import { parseSubtopicsHierarchy, formatSubtopicsToString, parseRecursiveString } from '../utils/syllabusUtils';
+
+// Recursive item component for arbitrary nesting depth
+const SubtopicTreeItem = ({
+  node,
+  depth = 1,
+  onTitleChange,
+  onAddChild,
+  onRemove,
+  isOnlyItem,
+}) => {
+  const hasChildren = Array.isArray(node.items) && node.items.length > 0;
+
+  // Visual styling adapted dynamically by depth level
+  const levelStyles = {
+    1: { bg: '#FFFFFF', border: '#E2E8F0', tagColor: '#3B82F6', badgeBg: '#EFF6FF', badgeColor: '#1D4ED8', label: 'Subtopic' },
+    2: { bg: '#F8FAFC', border: '#BFDBFE', tagColor: '#2563EB', badgeBg: '#DBEAFE', badgeColor: '#1E40AF', label: 'Child Subtopic' },
+    3: { bg: '#FAF5FF', border: '#DDD6FE', tagColor: '#7C3AED', badgeBg: '#EDE9FE', badgeColor: '#6D28D9', label: 'Level 3 Concept' },
+    4: { bg: '#F0FDF4', border: '#A7F3D0', tagColor: '#059669', badgeBg: '#D1FAE5', badgeColor: '#047857', label: 'Level 4 Concept' },
+  }[Math.min(depth, 4)];
+
+  return (
+    <div
+      style={{
+        background: levelStyles.bg,
+        border: `1px solid ${levelStyles.border}`,
+        borderRadius: '8px',
+        padding: depth === 1 ? '10px 12px' : '8px 10px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        boxShadow: depth === 1 ? '0 1px 2px rgba(0,0,0,0.03)' : 'none',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span
+          style={{
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            background: levelStyles.badgeBg,
+            color: levelStyles.badgeColor,
+            padding: '2px 6px',
+            borderRadius: '4px',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3px',
+          }}
+          title={`Depth Level ${depth}`}
+        >
+          {depth > 1 && <CornerDownRight size={10} />}
+          L{depth}
+        </span>
+
+        <input
+          type="text"
+          className="form-control"
+          placeholder={
+            depth === 1
+              ? 'Subtopic title e.g. Arithmetic mean (or use { } for sub-items)'
+              : `Level ${depth} concept or subtopic...`
+          }
+          value={node.title}
+          onChange={(e) => onTitleChange(node.id, e.target.value)}
+          style={{
+            background: '#FFFFFF',
+            fontSize: depth === 1 ? '0.85rem' : '0.8rem',
+            fontWeight: depth === 1 ? 600 : 500,
+            padding: '5px 10px',
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() => onAddChild(node.id)}
+          title={`Add nested sub-level under "${node.title || 'this item'}"`}
+          style={{
+            background: '#F0FDF4',
+            border: '1px solid #BBF7D0',
+            color: '#166534',
+            borderRadius: '6px',
+            padding: '5px 8px',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <CornerDownRight size={13} />
+          <span>+ Sub-level</span>
+        </button>
+
+        {!isOnlyItem && (
+          <button
+            type="button"
+            onClick={() => onRemove(node.id)}
+            title="Delete this subtopic"
+            style={{
+              width: '30px',
+              height: '30px',
+              borderRadius: '6px',
+              border: '1px solid #FECACA',
+              background: '#FEF2F2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+
+      {hasChildren && (
+        <div
+          style={{
+            marginLeft: '14px',
+            paddingLeft: '10px',
+            borderLeft: `2px dashed ${levelStyles.tagColor}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            marginTop: '2px',
+          }}
+        >
+          {node.items.map((childNode) => (
+            <SubtopicTreeItem
+              key={childNode.id}
+              node={childNode}
+              depth={depth + 1}
+              onTitleChange={onTitleChange}
+              onAddChild={onAddChild}
+              onRemove={onRemove}
+              isOnlyItem={false}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onClose, onSuccess }) => {
   const { addToast } = useToast();
@@ -23,17 +169,26 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
 
   const [unitName, setUnitName] = useState(initialUnitName);
 
+  // Helper to assign IDs recursively to a tree of nodes
+  let nodeCounter = 0;
+  const assignNodeIds = (nodes) => {
+    return (nodes || []).map((n) => {
+      nodeCounter++;
+      return {
+        id: n.id || `node-${Date.now()}-${nodeCounter}-${Math.random().toString(36).slice(2, 6)}`,
+        title: typeof n === 'string' ? n : (n.title || ''),
+        items: Array.isArray(n.items) ? assignNodeIds(n.items) : [],
+      };
+    });
+  };
+
   // Helper to parse subtopics for editing
   const parseInitialHierarchy = (rawSub, subData) => {
     const parsed = parseSubtopicsHierarchy(rawSub, subData);
     if (parsed.length === 0) {
-      return [{ id: 'sub-' + Date.now(), title: '', items: [] }];
+      return [{ id: 'node-' + Date.now() + '-1', title: '', items: [] }];
     }
-    return parsed.map((p, idx) => ({
-      id: 'sub-' + Date.now() + '-' + idx,
-      title: p.title,
-      items: Array.isArray(p.items) ? p.items : [],
-    }));
+    return assignNodeIds(parsed);
   };
 
   // State for multiple topics
@@ -53,7 +208,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       {
         id: 'new-' + Date.now(),
         name: '',
-        subtopics: [{ id: 'sub-' + Date.now(), title: '', items: [] }],
+        subtopics: [{ id: 'node-' + Date.now() + '-init', title: '', items: [] }],
         description: '',
         isExisting: false,
       },
@@ -72,7 +227,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       {
         id: 'new-' + Date.now() + '-' + prev.length,
         name: '',
-        subtopics: [{ id: 'sub-' + Date.now() + '-' + prev.length, title: '', items: [] }],
+        subtopics: [{ id: 'node-' + Date.now() + '-' + prev.length, title: '', items: [] }],
         description: '',
         isExisting: false,
       },
@@ -93,7 +248,60 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
     if (errorMsg) setErrorMsg('');
   };
 
-  // Subtopic Management (Parent Level)
+  // Recursive tree update helpers
+  const updateNodeTitleInTree = (nodes, targetId, newTitle) => {
+    return nodes.map((node) => {
+      if (node.id === targetId) {
+        return { ...node, title: newTitle };
+      }
+      if (node.items && node.items.length > 0) {
+        return {
+          ...node,
+          items: updateNodeTitleInTree(node.items, targetId, newTitle),
+        };
+      }
+      return node;
+    });
+  };
+
+  const addChildNodeInTree = (nodes, parentId) => {
+    return nodes.map((node) => {
+      if (node.id === parentId) {
+        const newChild = {
+          id: 'node-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+          title: '',
+          items: [],
+        };
+        return {
+          ...node,
+          items: [...(node.items || []), newChild],
+        };
+      }
+      if (node.items && node.items.length > 0) {
+        return {
+          ...node,
+          items: addChildNodeInTree(node.items, parentId),
+        };
+      }
+      return node;
+    });
+  };
+
+  const removeNodeFromTree = (nodes, targetId) => {
+    return nodes
+      .filter((node) => node.id !== targetId)
+      .map((node) => {
+        if (node.items && node.items.length > 0) {
+          return {
+            ...node,
+            items: removeNodeFromTree(node.items, targetId),
+          };
+        }
+        return node;
+      });
+  };
+
+  // Subtopic Management Actions
   const handleAddSubtopic = (tIdx) => {
     setTopics((prev) =>
       prev.map((t, idx) => {
@@ -102,83 +310,53 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
           ...t,
           subtopics: [
             ...t.subtopics,
-            { id: 'sub-' + Date.now() + '-' + t.subtopics.length, title: '', items: [] },
+            {
+              id: 'node-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+              title: '',
+              items: [],
+            },
           ],
         };
       })
     );
   };
 
-  const handleRemoveSubtopic = (tIdx, sIdx) => {
+  const handleNodeTitleChange = (tIdx, nodeId, newTitle) => {
     setTopics((prev) =>
       prev.map((t, idx) => {
         if (idx !== tIdx) return t;
-        const filtered = t.subtopics.filter((_, sIndex) => sIndex !== sIdx);
+        return {
+          ...t,
+          subtopics: updateNodeTitleInTree(t.subtopics, nodeId, newTitle),
+        };
+      })
+    );
+  };
+
+  const handleAddChildNode = (tIdx, parentId) => {
+    setTopics((prev) =>
+      prev.map((t, idx) => {
+        if (idx !== tIdx) return t;
+        return {
+          ...t,
+          subtopics: addChildNodeInTree(t.subtopics, parentId),
+        };
+      })
+    );
+  };
+
+  const handleRemoveNode = (tIdx, nodeId) => {
+    setTopics((prev) =>
+      prev.map((t, idx) => {
+        if (idx !== tIdx) return t;
+        const updated = removeNodeFromTree(t.subtopics, nodeId);
         return {
           ...t,
           subtopics:
-            filtered.length > 0
-              ? filtered
-              : [{ id: 'sub-' + Date.now(), title: '', items: [] }],
+            updated.length > 0
+              ? updated
+              : [{ id: 'node-' + Date.now(), title: '', items: [] }],
         };
-      })
-    );
-  };
-
-  const handleSubtopicTitleChange = (tIdx, sIdx, value) => {
-    setTopics((prev) =>
-      prev.map((t, idx) => {
-        if (idx !== tIdx) return t;
-        const updated = [...t.subtopics];
-        updated[sIdx] = { ...updated[sIdx], title: value };
-        return { ...t, subtopics: updated };
-      })
-    );
-  };
-
-  // Nested Sub-subtopic Management (Child Level: Subtopic ka bhi subtopic)
-  const handleAddChildItem = (tIdx, sIdx) => {
-    setTopics((prev) =>
-      prev.map((t, idx) => {
-        if (idx !== tIdx) return t;
-        const updatedSub = [...t.subtopics];
-        const currentItems = Array.isArray(updatedSub[sIdx].items) ? updatedSub[sIdx].items : [];
-        updatedSub[sIdx] = {
-          ...updatedSub[sIdx],
-          items: [...currentItems, ''],
-        };
-        return { ...t, subtopics: updatedSub };
-      })
-    );
-  };
-
-  const handleRemoveChildItem = (tIdx, sIdx, itemIdx) => {
-    setTopics((prev) =>
-      prev.map((t, idx) => {
-        if (idx !== tIdx) return t;
-        const updatedSub = [...t.subtopics];
-        const currentItems = Array.isArray(updatedSub[sIdx].items) ? updatedSub[sIdx].items : [];
-        updatedSub[sIdx] = {
-          ...updatedSub[sIdx],
-          items: currentItems.filter((_, idx2) => idx2 !== itemIdx),
-        };
-        return { ...t, subtopics: updatedSub };
-      })
-    );
-  };
-
-  const handleChildItemChange = (tIdx, sIdx, itemIdx, value) => {
-    setTopics((prev) =>
-      prev.map((t, idx) => {
-        if (idx !== tIdx) return t;
-        const updatedSub = [...t.subtopics];
-        const currentItems = [...(updatedSub[sIdx].items || [])];
-        currentItems[itemIdx] = value;
-        updatedSub[sIdx] = {
-          ...updatedSub[sIdx],
-          items: currentItems,
-        };
-        return { ...t, subtopics: updatedSub };
       })
     );
   };
@@ -231,27 +409,43 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
     setIsSubmitting(true);
 
     try {
+      // Helper to clean and normalize a node recursively
+      const cleanNode = (n) => {
+        const rawTitle = (n.title || '').trim();
+        if (!rawTitle) return null;
+
+        // If user typed { } directly in the title, recursively parse it
+        if (rawTitle.includes('{') && rawTitle.includes('}')) {
+          const parsed = parseRecursiveString(rawTitle);
+          if (parsed.length > 0) {
+            const existingChildren = Array.isArray(n.items)
+              ? n.items.map(cleanNode).filter(Boolean)
+              : [];
+            return {
+              title: parsed[0].title,
+              items: [...(parsed[0].items || []), ...existingChildren],
+            };
+          }
+        }
+
+        const childItems = Array.isArray(n.items)
+          ? n.items.map(cleanNode).filter(Boolean)
+          : [];
+
+        return {
+          title: rawTitle,
+          items: childItems,
+        };
+      };
+
       // Build batch list of topics with cleaned subtopics
       const preparedList = topics.map((t) => {
         const cleanName = t.name.trim();
         const cleanHierarchy = [];
         (t.subtopics || []).forEach((st) => {
-          const rawTitle = (st.title || '').trim();
-          if (!rawTitle) return;
-
-          const subParsed = parseSubtopicsHierarchy(rawTitle);
-          if (subParsed.length > 0 && subParsed[0].items.length > 0 && (!st.items || st.items.length === 0)) {
-            cleanHierarchy.push(subParsed[0]);
-          } else {
-            const cleanChildren = (st.items || [])
-              .flatMap((item) => String(item).split(/[,;\n]+/))
-              .map((i) => i.trim())
-              .filter(Boolean);
-
-            cleanHierarchy.push({
-              title: rawTitle,
-              items: cleanChildren,
-            });
+          const cleaned = cleanNode(st);
+          if (cleaned) {
+            cleanHierarchy.push(cleaned);
           }
         });
 
@@ -292,7 +486,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '640px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: '660px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
       >
         {/* Modal Header */}
         <div className="modal-header" style={{ paddingBottom: '12px' }}>
@@ -352,7 +546,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                 type="text"
                 list="subject-units-list"
                 className="form-control"
-                placeholder="e.g. Unit 1: The Fundamentals of Communication"
+                placeholder="e.g. Unit 1: The Fundamentals of Communication:(Theory)"
                 value={unitName}
                 onChange={(e) => {
                   setUnitName(e.target.value);
@@ -476,7 +670,7 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="e.g. Measures of Central Tendency"
+                    placeholder="e.g. Communication: An Overview or Measures of Central Tendency"
                     value={topic.name}
                     onChange={(e) => handleTopicChange(tIdx, 'name', e.target.value)}
                     required
@@ -484,12 +678,17 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                   />
                 </div>
 
-                {/* Subtopics and Sub-subtopics Section */}
+                {/* Subtopics & Nested Concepts Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 600, margin: 0 }}>
-                      Subtopics & Nested Concepts (Optional)
-                    </label>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 600, margin: 0 }}>
+                        Subtopics & Nested Concepts (Optional)
+                      </label>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                        Tip: Click <strong>+ Sub-level</strong> or type <code>&#123; &#125;</code> for unlimited nesting depth. <code>( )</code> are preserved as normal text.
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleAddSubtopic(tIdx)}
@@ -499,200 +698,32 @@ export const TopicModal = ({ subject, topicToEdit = null, defaultUnit = '', onCl
                         color: '#4338CA',
                         fontSize: '0.75rem',
                         fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: '4px',
+                        padding: '3px 9px',
+                        borderRadius: '5px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
                         cursor: 'pointer',
+                        flexShrink: 0,
                       }}
-                      title="Add another subtopic"
+                      title="Add another root subtopic"
                     >
-                      <Plus size={12} />
+                      <Plus size={13} />
                       <span>+ Add Subtopic</span>
                     </button>
                   </div>
 
-                  {topic.subtopics.map((sub, sIdx) => {
-                    const hasChildItems = Array.isArray(sub.items) && sub.items.length > 0;
-                    return (
-                      <div
-                        key={sub.id || sIdx}
-                        style={{
-                          background: '#FFFFFF',
-                          border: '1px solid #E2E8F0',
-                          borderRadius: '8px',
-                          padding: '10px 12px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                        }}
-                      >
-                        {/* Parent Subtopic Row */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Tag size={14} color="#3B82F6" style={{ flexShrink: 0 }} />
-                          <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Subtopic e.g. Arithmetic mean"
-                            value={sub.title}
-                            onChange={(e) => handleSubtopicTitleChange(tIdx, sIdx, e.target.value)}
-                            style={{ background: '#F8FAFC', fontSize: '0.85rem', fontWeight: 600 }}
-                          />
-
-                          {/* Button to add Nested Subtopic (Sub-concept) */}
-                          <button
-                            type="button"
-                            onClick={() => handleAddChildItem(tIdx, sIdx)}
-                            title="Add sub-concept under this subtopic"
-                            style={{
-                              background: '#F0FDF4',
-                              border: '1px solid #BBF7D0',
-                              color: '#166534',
-                              borderRadius: '6px',
-                              padding: '5px 8px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              cursor: 'pointer',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <CornerDownRight size={13} />
-                            <span>+ Sub-item</span>
-                          </button>
-
-                          {/* Remove Subtopic button */}
-                          {topic.subtopics.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSubtopic(tIdx, sIdx)}
-                              title="Delete subtopic"
-                              style={{
-                                width: '30px',
-                                height: '30px',
-                                borderRadius: '6px',
-                                border: '1px solid #FECACA',
-                                background: '#FEF2F2',
-                                color: '#DC2626',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Nested Sub-subtopics (Child Concepts under this subtopic) */}
-                        {hasChildItems && (
-                          <div
-                            style={{
-                              marginLeft: '20px',
-                              paddingLeft: '10px',
-                              borderLeft: '2px dashed #93C5FD',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '6px',
-                            }}
-                          >
-                            <div style={{ fontSize: '0.72rem', color: '#1D4ED8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CornerDownRight size={12} />
-                              <span>Nested Sub-topics / Concepts under "{sub.title || 'this subtopic'}":</span>
-                            </div>
-
-                            {sub.items.map((childItem, cIdx) => (
-                              <div key={cIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  placeholder="e.g. Direct method, Shortcut method, Step deviation"
-                                  value={childItem}
-                                  onChange={(e) => handleChildItemChange(tIdx, sIdx, cIdx, e.target.value)}
-                                  style={{
-                                    background: '#FFFFFF',
-                                    fontSize: '0.8rem',
-                                    padding: '5px 8px',
-                                    borderColor: '#BFDBFE',
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddChildItem(tIdx, sIdx)}
-                                  title="Add next sub-item"
-                                  style={{
-                                    width: '28px',
-                                    height: '28px',
-                                    borderRadius: '5px',
-                                    border: '1px solid #CBD5E1',
-                                    background: '#FFFFFF',
-                                    color: 'var(--primary-600)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  <Plus size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveChildItem(tIdx, sIdx, cIdx)}
-                                  title="Remove sub-item"
-                                  style={{
-                                    width: '28px',
-                                    height: '28px',
-                                    borderRadius: '5px',
-                                    border: '1px solid #FECACA',
-                                    background: '#FEF2F2',
-                                    color: '#DC2626',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  <X size={13} />
-                                </button>
-                              </div>
-                            ))}
-
-                            <button
-                              type="button"
-                              onClick={() => handleAddChildItem(tIdx, sIdx)}
-                              style={{
-                                alignSelf: 'flex-start',
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#2563EB',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                padding: '2px 4px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <Plus size={12} />
-                              <span>+ Add another concept under {sub.title || 'subtopic'}</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                    💡 <strong>Tip:</strong> Click <strong>+ Sub-item</strong> to add child concepts (e.g. Arithmetic mean › Direct method, Shortcut method).
-                  </span>
+                  {topic.subtopics.map((sub) => (
+                    <SubtopicTreeItem
+                      key={sub.id}
+                      node={sub}
+                      depth={1}
+                      onTitleChange={(nodeId, val) => handleNodeTitleChange(tIdx, nodeId, val)}
+                      onAddChild={(parentId) => handleAddChildNode(tIdx, parentId)}
+                      onRemove={(nodeId) => handleRemoveNode(tIdx, nodeId)}
+                      isOnlyItem={topic.subtopics.length === 1 && (!sub.items || sub.items.length === 0)}
+                    />
+                  ))}
                 </div>
 
                 {/* Description (Optional) */}
