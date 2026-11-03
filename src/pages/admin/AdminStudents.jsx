@@ -188,10 +188,10 @@ export const AdminStudents = () => {
   useEffect(() => {
     loadStudents();
 
-    // 1. Continuous Live Polling every 1 second from Supabase
+    // 1. Continuous Live Polling every 5 seconds from Supabase
     const pollInterval = setInterval(() => {
       loadStudents(true);
-    }, 1000);
+    }, 5000);
 
     // 2. Auto refetch when user switches tab or window gains focus
     const handleFocus = () => loadStudents(true);

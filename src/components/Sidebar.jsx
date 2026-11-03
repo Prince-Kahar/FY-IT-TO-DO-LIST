@@ -240,7 +240,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
     };
 
     fetchCounts();
-    const interval = setInterval(fetchCounts, 1000);
+    const interval = setInterval(fetchCounts, 5000);
     const unsub = dataService.subscribeRealtime(fetchCounts);
 
     const handleSync = () => fetchCounts();

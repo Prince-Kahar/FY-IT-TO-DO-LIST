@@ -97,10 +97,10 @@ export const SuperAdminDashboard = () => {
   useEffect(() => {
     loadData();
 
-    // 1. Live polling every 1 second
+    // 1. Live polling every 5 seconds
     const interval = setInterval(() => {
       loadData(true);
-    }, 1000);
+    }, 5000);
 
     // 2. Realtime subscription & cross-tab sync
     const unsub = dataService.subscribeRealtime(() => {

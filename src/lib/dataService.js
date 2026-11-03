@@ -3218,11 +3218,11 @@ export const dataService = {
   },
 };
 
-// Start persistent live auto-publish runner for scheduled tasks (runs every 1 second)
+// Start persistent live auto-publish runner for scheduled tasks (runs every 5 seconds)
 if (typeof window !== 'undefined' && !window.__fy_scheduled_task_runner) {
   window.__fy_scheduled_task_runner = setInterval(() => {
     try {
       dataService.checkAndAutoPublishScheduledTasks();
     } catch (e) {}
-  }, 1000);
+  }, 5000);
 }

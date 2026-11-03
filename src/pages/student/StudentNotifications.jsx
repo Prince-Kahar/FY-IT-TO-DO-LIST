@@ -86,10 +86,10 @@ export const StudentNotifications = () => {
   useEffect(() => {
     loadNotifications();
 
-    // 1. Continuous live polling every 1 second
+    // 1. Continuous live polling every 5 seconds
     const pollInterval = setInterval(() => {
       loadNotifications(true);
-    }, 1000);
+    }, 5000);
 
     // 2. Realtime listener
     const unsub = dataService.subscribeRealtime(() => {

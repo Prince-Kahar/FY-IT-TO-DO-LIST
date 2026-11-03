@@ -39,7 +39,7 @@ export const Navbar = ({ onMenuClick }) => {
     };
 
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 1000); // Check every 1s
+    const interval = setInterval(fetchNotifs, 5000); // Check every 5s
     const unsub = dataService.subscribeRealtime(fetchNotifs);
     return () => {
       clearInterval(interval);
