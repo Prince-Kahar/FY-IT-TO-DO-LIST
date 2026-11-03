@@ -431,7 +431,7 @@ export const dataService = {
           .order('created_at', { ascending: true });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase subject query timeout (2.5s)')), 2500)
+          setTimeout(() => reject(new Error('Supabase subject query timeout (8s)')), 8000)
         );
 
         const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
@@ -443,7 +443,10 @@ export const dataService = {
             .from('subjects')
             .select('*')
             .order('created_at', { ascending: true });
-          const { data: plainData, error: plainError } = await Promise.race([plainQuery, timeoutPromise]);
+          const timeoutFallback = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Supabase subject fallback timeout (6s)')), 6000)
+          );
+          const { data: plainData, error: plainError } = await Promise.race([plainQuery, timeoutFallback]);
           if (!plainError && Array.isArray(plainData) && plainData.length > 0) {
             remoteData = plainData;
           }
@@ -517,12 +520,21 @@ export const dataService = {
         }
       });
 
+      uniqueTopics.forEach((ut) => {
+        if (ut && ut.id && !localTopics.some((lt) => lt.id === ut.id)) {
+          localTopics.push(ut);
+        }
+      });
+
+      const className = stream === 'DS' ? 'FY B.Sc. DS' : 'FY M.Sc. IT';
+
       return {
         ...s,
         ...ov,
         name: ov.name || s.name,
         subject_code: subjectCode,
         stream,
+        class_name: className,
         semester,
         teacher_name: ov.teacher_name || s.teacher_name || s.faculty_name || s.teacher || 'Department Faculty',
         description: ov.description !== undefined ? ov.description : (s.description || ''),
@@ -531,6 +543,7 @@ export const dataService = {
       };
     });
 
+    saveCache('topics', localTopics);
     localSubjects = mapped;
     saveCache('subjects', mapped);
     return mapped;
@@ -974,10 +987,16 @@ export const dataService = {
 
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        const queryPromise = supabase
           .from('tasks')
           .select('*, subjects(name, subject_code), topics(name)')
           .order('created_at', { ascending: false });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase getTasks timeout (8s)')), 8000)
+        );
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
         if (!error && Array.isArray(data)) {
           const subjects = this.getCachedSubjects();
           const merged = data.map((t) => {
@@ -1784,7 +1803,7 @@ export const dataService = {
           .order('submitted_at', { ascending: false });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase getAllSubmissions timeout')), 2500)
+          setTimeout(() => reject(new Error('Supabase getAllSubmissions timeout (8s)')), 8000)
         );
 
         const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
@@ -1793,6 +1812,20 @@ export const dataService = {
           allSubs = [...data, ...allSubs];
           localSubmissions = allSubs;
           saveCache('submissions', allSubs);
+        } else if (error) {
+          const plainQuery = supabase
+            .from('submissions')
+            .select('*, submission_files(*)')
+            .order('submitted_at', { ascending: false });
+          const timeoutFallback = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Supabase plain submissions timeout (6s)')), 6000)
+          );
+          const { data: plainData, error: plainErr } = await Promise.race([plainQuery, timeoutFallback]);
+          if (!plainErr && Array.isArray(plainData) && plainData.length > 0) {
+            allSubs = [...plainData, ...allSubs];
+            localSubmissions = allSubs;
+            saveCache('submissions', allSubs);
+          }
         }
       } catch (err) {
         console.warn('Supabase getAllSubmissions notice:', err.message);
@@ -2050,14 +2083,14 @@ export const dataService = {
 
     if (isSupabaseConfigured()) {
       try {
-        // Query dedicated students table directly from Supabase with guard timeout
+        // Query dedicated students table directly from Supabase with generous 8s timeout
         const queryPromise = supabase
           .from('students')
           .select('*')
           .order('roll_number', { ascending: true });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase getStudents timeout (2s)')), 2000)
+          setTimeout(() => reject(new Error('Supabase getStudents timeout (8s)')), 8000)
         );
 
         const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
@@ -2067,7 +2100,27 @@ export const dataService = {
           const mapped = nonDeleted.map(mapStudent);
           localStudents = mapped;
           saveCache('students', mapped);
+          try {
+            localStorage.setItem('fy_registered_students', JSON.stringify(mapped));
+          } catch (e) {}
           return mapped;
+        } else if (error) {
+          // Retry without order in case roll_number ordering has schema issues
+          const fallbackQuery = supabase.from('students').select('*');
+          const timeoutFb = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Supabase getStudents fallback timeout (6s)')), 6000)
+          );
+          const { data: fbData, error: fbErr } = await Promise.race([fallbackQuery, timeoutFb]);
+          if (!fbErr && Array.isArray(fbData)) {
+            const nonDeleted = fbData.filter((s) => !isStudentDeleted(s));
+            const mapped = nonDeleted.map(mapStudent);
+            localStudents = mapped;
+            saveCache('students', mapped);
+            try {
+              localStorage.setItem('fy_registered_students', JSON.stringify(mapped));
+            } catch (e) {}
+            return mapped;
+          }
         }
       } catch (err) {
         console.warn('Supabase getStudents notice (falling back to local cache):', err.message);
@@ -2338,25 +2391,28 @@ export const dataService = {
     // 6. Notify event bus immediately for 0ms reactive UI update
     this.notifyLocalChange('STUDENT_DELETED', { id: studentId, roll_number: rollNumber });
 
-    // 7. Background cascade delete from Supabase (runs asynchronously without blocking UI)
+    // 7. Await cascade delete from Supabase with safety timeout so database is cleanly updated
     if (isSupabaseConfigured()) {
-      (async () => {
-        try {
-          if (studentId) {
-            await supabase.from('task_assignments').delete().eq('student_id', studentId);
-            await supabase.from('submissions').delete().eq('student_id', studentId);
-            await supabase.from('notifications').delete().eq('user_id', studentId);
-            await supabase.from('students').delete().eq('id', studentId);
-            await supabase.from('profiles').delete().eq('id', studentId);
-          }
-          if (rollNumber) {
-            await supabase.from('students').delete().eq('roll_number', rollNumber);
-            await supabase.from('profiles').delete().eq('roll_number', rollNumber);
-          }
-        } catch (err) {
-          console.warn('Background Supabase deleteStudent notice:', err?.message);
+      try {
+        const deleteOps = [];
+        if (studentId) {
+          deleteOps.push(supabase.from('task_assignments').delete().eq('student_id', studentId));
+          deleteOps.push(supabase.from('submissions').delete().eq('student_id', studentId));
+          deleteOps.push(supabase.from('notifications').delete().eq('user_id', studentId));
+          deleteOps.push(supabase.from('students').delete().eq('id', studentId));
+          deleteOps.push(supabase.from('profiles').delete().eq('id', studentId));
         }
-      })();
+        if (rollNumber) {
+          deleteOps.push(supabase.from('students').delete().eq('roll_number', rollNumber));
+          deleteOps.push(supabase.from('profiles').delete().eq('roll_number', rollNumber));
+        }
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase deleteStudent timeout')), 6000)
+        );
+        await Promise.race([Promise.allSettled(deleteOps), timeoutPromise]);
+      } catch (err) {
+        console.warn('Supabase deleteStudent notice:', err?.message);
+      }
     }
 
     return true;
@@ -2376,10 +2432,16 @@ export const dataService = {
   async fetchAdminsFromSupabase() {
     if (!isSupabaseConfigured()) return this.getAdmins();
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('admins')
         .select('*')
         .order('created_at', { ascending: true });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase fetch admins timeout (8s)')), 8000)
+      );
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (!error && Array.isArray(data)) {
         localStorage.setItem('fy_it_admin_accounts', JSON.stringify(data));
@@ -2549,10 +2611,16 @@ export const dataService = {
     let rawList = [];
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        const queryPromise = supabase
           .from('announcements')
           .select('*')
           .order('published_at', { ascending: false });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase getAnnouncements timeout (8s)')), 8000)
+        );
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
         if (!error && Array.isArray(data)) {
           rawList = data;
         }

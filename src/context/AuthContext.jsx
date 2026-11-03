@@ -443,7 +443,7 @@ export const AuthProvider = ({ children }) => {
           .or(`email.ilike.${cleanEmail},roll_number.ilike.${cleanRoll}${cleanMobile ? `,mobile_number.eq.${cleanMobile}` : ''}`);
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase existence check timeout')), 2500)
+          setTimeout(() => reject(new Error('Supabase existence check timeout (8s)')), 8000)
         );
 
         const { data, error } = await Promise.race([checkQuery, timeoutPromise]);
@@ -532,7 +532,7 @@ export const AuthProvider = ({ children }) => {
         }]).select();
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase insert timeout')), 2500)
+          setTimeout(() => reject(new Error('Supabase insert timeout (8s)')), 8000)
         );
 
         const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
@@ -546,6 +546,10 @@ export const AuthProvider = ({ children }) => {
         console.warn('Supabase register error (account preserved locally):', supaErr.message);
       }
     }
+
+    try {
+      dataService.notifyLocalChange('STUDENT_CREATED', newStudent);
+    } catch (e) {}
 
     setUser({ id: newStudent.id, email: newStudent.email });
     setProfile(newStudent);
