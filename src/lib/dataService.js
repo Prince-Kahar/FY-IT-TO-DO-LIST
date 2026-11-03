@@ -28,7 +28,15 @@ let localAssignments = loadCache('assignments');
 let localSubmissions = loadCache('submissions');
 let localAnnouncements = loadCache('announcements');
 let localNotifications = loadCache('notifications');
-let localTodos = loadCache('todos');
+let localTodos = (() => {
+  const c = loadCache('todos');
+  if (Array.isArray(c) && c.length > 0) return c;
+  try {
+    const raw = localStorage.getItem('fy_student_todos');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+})();
 
 // RFC4122 v4 UUID helpers for Supabase PostgreSQL compatibility
 export const generateUUID = () => {
@@ -390,55 +398,32 @@ export const dataService = {
       localStorage.setItem('fy_subject_overrides', JSON.stringify(overrides));
     } catch (e) {}
 
-    // 3. Insert into Supabase if configured with graceful column fallback
+    // 3. Insert into Supabase if configured with clean base schema columns
     if (isSupabaseConfigured()) {
       try {
+        const supabasePayload = {
+          id: fullSubject.id,
+          name: fullSubject.name,
+          subject_code: fullSubject.subject_code,
+          description: fullSubject.description,
+          teacher_name: fullSubject.teacher_name,
+          is_active: fullSubject.is_active,
+          created_at: fullSubject.created_at,
+          updated_at: fullSubject.updated_at,
+        };
+
         const { data, error } = await supabase
           .from('subjects')
-          .insert([{
-            id: fullSubject.id,
-            name: fullSubject.name,
-            stream: fullSubject.stream,
-            semester: fullSubject.semester,
-            subject_code: fullSubject.subject_code,
-            description: fullSubject.description,
-            teacher_name: fullSubject.teacher_name,
-            is_active: fullSubject.is_active,
-            created_at: fullSubject.created_at,
-            updated_at: fullSubject.updated_at,
-          }])
+          .insert([supabasePayload])
           .select()
           .single();
 
         if (!error && data) {
-          const merged = { ...fullSubject, ...data };
+          const merged = { ...fullSubject, ...data, stream: fullSubject.stream, semester: fullSubject.semester };
           this.notifyLocalChange('SUBJECT_CREATED', merged);
           return merged;
         } else if (error) {
-          console.warn('Supabase insert with stream/semester failed, falling back to base columns:', error.message);
-          // Fallback attempt: base columns only (in case remote postgres schema has not added stream/semester columns yet)
-          const { data: baseData, error: baseError } = await supabase
-            .from('subjects')
-            .insert([{
-              id: fullSubject.id,
-              name: fullSubject.name,
-              subject_code: fullSubject.subject_code,
-              description: fullSubject.description,
-              teacher_name: fullSubject.teacher_name,
-              is_active: fullSubject.is_active,
-              created_at: fullSubject.created_at,
-              updated_at: fullSubject.updated_at,
-            }])
-            .select()
-            .single();
-
-          if (!baseError && baseData) {
-            const merged = { ...fullSubject, ...baseData };
-            this.notifyLocalChange('SUBJECT_CREATED', merged);
-            return merged;
-          } else if (baseError) {
-            console.error('Supabase base insert failed:', baseError.message);
-          }
+          console.warn('Supabase createSubject warning:', error.message);
         }
       } catch (err) {
         console.error('Supabase createSubject error:', err);
@@ -472,9 +457,10 @@ export const dataService = {
 
     if (isSupabaseConfigured()) {
       try {
+        const { stream, semester, ...baseUpdates } = cleanUpdates;
         const { data, error } = await supabase
           .from('subjects')
-          .update(cleanUpdates)
+          .update(baseUpdates)
           .eq('id', id)
           .select()
           .single();
@@ -483,20 +469,6 @@ export const dataService = {
           const merged = { ...updates, ...cleanUpdates, ...data };
           this.notifyLocalChange('SUBJECT_UPDATED', merged);
           return merged;
-        } else if (error) {
-          // If update failed due to unknown columns (like stream/semester), strip them and retry
-          const { stream, semester, ...baseUpdates } = cleanUpdates;
-          const { data: bData, error: bErr } = await supabase
-            .from('subjects')
-            .update(baseUpdates)
-            .eq('id', id)
-            .select()
-            .single();
-          if (!bErr && bData) {
-            const merged = { ...updates, ...cleanUpdates, ...bData };
-            this.notifyLocalChange('SUBJECT_UPDATED', merged);
-            return merged;
-          }
         }
       } catch (err) {
         console.warn('Supabase updateSubject notice:', err);
@@ -2219,40 +2191,57 @@ export const dataService = {
   // STUDENT DAILY TO-DO LIST & STUDY PLANNER
   // =========================================================================
   async getTodos(userId) {
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('student_todos')
-        .select('*, subjects(id, name, subject_code)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+    try {
+      const stored = localStorage.getItem('fy_student_todos');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localTodos = parsed;
+        }
+      }
+    } catch (e) {}
 
-      if (error) {
-        console.warn('student_todos table not available yet, using local store:', error.message);
-        return localTodos
-          .filter((t) => t.user_id === userId)
-          .map((t) => ({
+    let list = localTodos.filter((t) => t.user_id === userId);
+
+    if (isSupabaseConfigured() && isValidUUID(userId)) {
+      try {
+        const { data, error } = await supabase
+          .from('student_todos')
+          .select('*, subjects(id, name, subject_code)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          const remoteMap = new Map(data.map((item) => [item.id, item]));
+          list.forEach((lt) => {
+            if (!remoteMap.has(lt.id)) remoteMap.set(lt.id, lt);
+          });
+          const combined = Array.from(remoteMap.values()).map((t) => ({
             ...t,
-            subjects: localSubjects.find((s) => s.id === t.subject_id) || null,
+            subjects: t.subjects || localSubjects.find((s) => s.id === t.subject_id) || null,
           }));
+          saveCache('todos_' + userId, combined);
+          return combined;
+        }
+      } catch (err) {
+        console.warn('Supabase getTodos notice:', err);
       }
-      if (Array.isArray(data)) {
-        saveCache('todos_' + userId, data);
-      }
-      return data || [];
     }
 
-    return localTodos
-      .filter((t) => t.user_id === userId)
+    const mapped = list
       .map((t) => ({
         ...t,
         subjects: localSubjects.find((s) => s.id === t.subject_id) || null,
       }))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    saveCache('todos_' + userId, mapped);
+    return mapped;
   },
 
   async createTodo(todoData) {
     let created = null;
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(todoData.user_id)) {
       try {
         const { data, error } = await supabase
           .from('student_todos')
@@ -2268,9 +2257,14 @@ export const dataService = {
     if (!created) {
       const newTodo = {
         ...todoData,
-        id: 'todo-' + Date.now(),
+        id: 'todo-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
         status: todoData.status || 'pending',
-        subtasks: todoData.subtasks || [],
+        subtasks: (todoData.subtasks || []).map((st) => ({
+          ...st,
+          id: st.id || 'st-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+          completed: !!st.completed,
+          completed_at: st.completed ? (st.completed_at || new Date().toISOString()) : null,
+        })),
         time_spent_minutes: 0,
         completed_at: null,
         created_at: new Date().toISOString(),
@@ -2281,13 +2275,22 @@ export const dataService = {
         subjects: localSubjects.find((s) => s.id === newTodo.subject_id) || null,
       };
     }
+
+    saveCache('todos', localTodos);
+    if (todoData.user_id) {
+      saveCache('todos_' + todoData.user_id, localTodos.filter((t) => t.user_id === todoData.user_id));
+    }
+    try {
+      localStorage.setItem('fy_student_todos', JSON.stringify(localTodos));
+    } catch (e) {}
+
     this.notifyLocalChange('TODO_CREATED', created);
     return created;
   },
 
   async updateTodo(id, updates) {
     let updated = null;
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(id)) {
       try {
         const { data, error } = await supabase
           .from('student_todos')
@@ -2303,6 +2306,15 @@ export const dataService = {
 
     localTodos = localTodos.map((t) => (t.id === id ? { ...t, ...updates } : t));
     const localUpdated = localTodos.find((t) => t.id === id);
+
+    saveCache('todos', localTodos);
+    if (localUpdated?.user_id) {
+      saveCache('todos_' + localUpdated.user_id, localTodos.filter((t) => t.user_id === localUpdated.user_id));
+    }
+    try {
+      localStorage.setItem('fy_student_todos', JSON.stringify(localTodos));
+    } catch (e) {}
+
     const result = updated || {
       ...localUpdated,
       subjects: localSubjects.find((s) => s.id === localUpdated?.subject_id) || null,
@@ -2326,11 +2338,35 @@ export const dataService = {
     const todo = localTodos.find((t) => t.id === todoId);
     if (!todo) return null;
 
-    const updatedSubtasks = (todo.subtasks || []).map((st) =>
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
+    const nowIso = new Date().toISOString();
+    const updatedSubtasks = (todo.subtasks || []).map((st) => {
+      if (st.id === subtaskId) {
+        const nextCompleted = !st.completed;
+        return {
+          ...st,
+          completed: nextCompleted,
+          completed_at: nextCompleted ? (st.completed_at || nowIso) : null,
+        };
+      }
+      return st;
+    });
 
-    return this.updateTodo(todoId, { subtasks: updatedSubtasks });
+    const allCompleted = updatedSubtasks.length > 0 && updatedSubtasks.every((st) => st.completed);
+    const anyPending = updatedSubtasks.some((st) => !st.completed);
+
+    const updates = {
+      subtasks: updatedSubtasks,
+    };
+
+    if (allCompleted) {
+      updates.status = 'completed';
+      updates.completed_at = nowIso;
+    } else if (anyPending && todo.status === 'completed') {
+      updates.status = 'in_progress';
+      updates.completed_at = null;
+    }
+
+    return this.updateTodo(todoId, updates);
   },
 
   async addSubtask(todoId, text) {
@@ -2338,9 +2374,11 @@ export const dataService = {
     if (!todo) return null;
 
     const newSubtask = {
-      id: 'st-' + Date.now(),
+      id: 'st-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       text: text.trim(),
       completed: false,
+      completed_at: null,
+      created_at: new Date().toISOString(),
     };
 
     const updatedSubtasks = [...(todo.subtasks || []), newSubtask];
@@ -2356,7 +2394,7 @@ export const dataService = {
   },
 
   async deleteTodo(id) {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(id)) {
       try {
         const { error } = await supabase.from('student_todos').delete().eq('id', id);
         if (error) console.warn('Supabase todo delete notice:', error.message);
@@ -2365,6 +2403,10 @@ export const dataService = {
       }
     }
     localTodos = localTodos.filter((t) => t.id !== id);
+    saveCache('todos', localTodos);
+    try {
+      localStorage.setItem('fy_student_todos', JSON.stringify(localTodos));
+    } catch (e) {}
     this.notifyLocalChange('TODO_DELETED', { id });
     return true;
   },

@@ -62,13 +62,35 @@ export const AdminSubjects = () => {
       loadSubjects(true);
     });
 
+    // 4. Instant custom event & cross-tab sync
+    const handleSync = () => loadSubjects(true);
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  const handleSubjectSuccess = (savedSubject) => {
+    if (savedSubject) {
+      setSubjects((prev) => {
+        const list = Array.isArray(prev) ? [...prev] : [];
+        const idx = list.findIndex((s) => s.id === savedSubject.id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...savedSubject };
+          return list;
+        }
+        return [...list, savedSubject];
+      });
+    }
+    loadSubjects(true);
+  };
 
   const handleToggleActive = async (sub) => {
     try {
@@ -577,7 +599,7 @@ export const AdminSubjects = () => {
             setIsSubjectModalOpen(false);
             setSubjectToEdit(null);
           }}
-          onSuccess={loadSubjects}
+          onSuccess={handleSubjectSuccess}
         />
       )}
 
@@ -586,7 +608,7 @@ export const AdminSubjects = () => {
         <TopicModal
           subject={topicModalSubject}
           onClose={() => setTopicModalSubject(null)}
-          onSuccess={loadSubjects}
+          onSuccess={handleSubjectSuccess}
         />
       )}
     </div>

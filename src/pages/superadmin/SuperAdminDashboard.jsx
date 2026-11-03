@@ -1456,15 +1456,21 @@ export const SuperAdminDashboard = () => {
           }}
           onSave={async (payload) => {
             if (subjectToEdit) {
-              await dataService.updateSubject(subjectToEdit.id, payload);
+              const updated = await dataService.updateSubject(subjectToEdit.id, payload);
               addToast(`Subject "${payload.name}" updated successfully!`, 'success');
+              if (updated) {
+                setAvailableSubjects((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+              }
             } else {
-              await dataService.createSubject(payload);
+              const created = await dataService.createSubject(payload);
               addToast(`New subject "${payload.name}" added to curriculum!`, 'success');
+              if (created) {
+                setAvailableSubjects((prev) => [...prev, created]);
+              }
             }
             setIsSubjectModalOpen(false);
             setSubjectToEdit(null);
-            loadData(false);
+            loadData(true);
           }}
         />
       )}

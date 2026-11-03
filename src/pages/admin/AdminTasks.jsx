@@ -118,13 +118,35 @@ export const AdminTasks = () => {
       loadTasksData(true);
     });
 
+    // 4. Instant custom event & cross-tab sync
+    const handleSync = () => loadTasksData(true);
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  const handleTaskSuccess = async (savedTask) => {
+    if (savedTask) {
+      setTasks((prev) => {
+        const list = Array.isArray(prev) ? [...prev] : [];
+        const idx = list.findIndex((t) => t.id === savedTask.id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...savedTask };
+          return list;
+        }
+        return [savedTask, ...list];
+      });
+    }
+    loadTasksData(true);
+  };
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return;
@@ -564,7 +586,7 @@ export const AdminTasks = () => {
             setIsTaskModalOpen(false);
             setTaskToEdit(null);
           }}
-          onSuccess={loadTasksData}
+          onSuccess={handleTaskSuccess}
         />
       )}
 

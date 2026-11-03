@@ -68,9 +68,31 @@ export const StudentTodoList = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedTodoIds, setExpandedTodoIds] = useState([]);
 
-  // Pomodoro Timer State
+  // Pomodoro Timer State (persists across page switching & hide/show)
   const [activeTimerTask, setActiveTimerTask] = useState(null);
-  const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [isTimerOpen, setIsTimerOpen] = useState(() => {
+    return localStorage.getItem('fy_pomodoro_open') !== 'false';
+  });
+
+  const toggleTimerOpen = (val) => {
+    setIsTimerOpen(val);
+    try {
+      localStorage.setItem('fy_pomodoro_open', String(val));
+    } catch (e) {}
+  };
+
+  const formatCompletionTime = (isoStr) => {
+    if (!isoStr) return 'Just now';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return 'Just now';
+    return d.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
 
   // Inline Subtask Add State
   const [inlineSubtaskText, setInlineSubtaskText] = useState({});
@@ -115,10 +137,17 @@ export const StudentTodoList = () => {
       loadTodoData(true);
     });
 
+    // 4. Instant event sync
+    const handleSync = () => loadTodoData(true);
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (unsubscribe) unsubscribe();
     };
   }, [user]);
@@ -171,16 +200,24 @@ export const StudentTodoList = () => {
     setSubtaskInput('');
   };
 
-  // Toggle Todo Status
+  // Toggle Todo Status with Instant Optimistic UI & Timestamp
   const handleToggleTodo = async (id, currentStatus) => {
     try {
+      const nowIso = new Date().toISOString();
       const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+      const completedAt = newStatus === 'completed' ? nowIso : null;
+
+      // Optimistic instant state update
+      setTodos((prev) =>
+        (prev || []).map((t) => (t.id === id ? { ...t, status: newStatus, completed_at: completedAt } : t))
+      );
+
       if (newStatus === 'completed') {
         triggerConfetti();
         addToast('🎯 Task completed! Great academic progress!', 'success');
       }
       await dataService.toggleTodoStatus(id);
-      loadTodoData();
+      loadTodoData(true);
     } catch (err) {
       console.error('Toggle todo error:', err);
     }
@@ -197,17 +234,58 @@ export const StudentTodoList = () => {
         status: newStatus,
         completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
       });
-      loadTodoData();
+      loadTodoData(true);
     } catch (err) {
       console.error('Update status error:', err);
     }
   };
 
-  // Toggle Subtask
+  // Toggle Subtask with Instant Optimistic UI & Subtask Timestamp
   const handleToggleSubtask = async (todoId, subtaskId) => {
+    const nowIso = new Date().toISOString();
+
+    // Optimistically update checkbox and progress immediately
+    setTodos((prev) =>
+      (prev || []).map((t) => {
+        if (t.id === todoId) {
+          const updatedSts = (t.subtasks || []).map((st) => {
+            if (st.id === subtaskId) {
+              const nextCompleted = !st.completed;
+              return {
+                ...st,
+                completed: nextCompleted,
+                completed_at: nextCompleted ? (st.completed_at || nowIso) : null,
+              };
+            }
+            return st;
+          });
+
+          const allDone = updatedSts.length > 0 && updatedSts.every((s) => s.completed);
+          const anyPending = updatedSts.some((s) => !s.completed);
+          let newStatus = t.status;
+          let newCompletedAt = t.completed_at;
+          if (allDone) {
+            newStatus = 'completed';
+            newCompletedAt = nowIso;
+          } else if (anyPending && t.status === 'completed') {
+            newStatus = 'in_progress';
+            newCompletedAt = null;
+          }
+
+          return {
+            ...t,
+            subtasks: updatedSts,
+            status: newStatus,
+            completed_at: newCompletedAt,
+          };
+        }
+        return t;
+      })
+    );
+
     try {
       await dataService.toggleSubtask(todoId, subtaskId);
-      loadTodoData();
+      loadTodoData(true);
     } catch (err) {
       console.error('Subtask toggle error:', err);
     }
@@ -331,7 +409,7 @@ export const StudentTodoList = () => {
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => setIsTimerOpen(!isTimerOpen)}
+            onClick={() => toggleTimerOpen(!isTimerOpen)}
             style={{ background: isTimerOpen ? '#4338CA' : 'var(--primary-600)' }}
           >
             <Flame size={15} color="#FFD700" />
@@ -340,16 +418,14 @@ export const StudentTodoList = () => {
         </div>
       </div>
 
-      {/* Embedded Pomodoro Timer (if toggled) */}
-      {isTimerOpen && (
-        <div style={{ marginBottom: '24px' }}>
-          <PomodoroTimer
-            currentTask={activeTimerTask}
-            onLogStudyTime={handleLogStudyTime}
-            onClose={() => setIsTimerOpen(false)}
-          />
-        </div>
-      )}
+      {/* Embedded Pomodoro Timer (keeps ticking & state even when hidden) */}
+      <div style={{ marginBottom: isTimerOpen ? '24px' : '0px', display: isTimerOpen ? 'block' : 'none' }}>
+        <PomodoroTimer
+          currentTask={activeTimerTask}
+          onLogStudyTime={handleLogStudyTime}
+          onClose={() => toggleTimerOpen(false)}
+        />
+      </div>
 
       {/* Daily Progress & Streak Widget */}
       <div
@@ -857,6 +933,26 @@ export const StudentTodoList = () => {
                               ⏱️ {todo.time_spent_minutes}m focused
                             </span>
                           )}
+
+                          {todo.completed_at && (
+                            <span
+                              style={{
+                                fontSize: '0.725rem',
+                                fontWeight: 700,
+                                color: '#047857',
+                                background: '#D1FAE5',
+                                border: '1px solid #A7F3D0',
+                                padding: '2px 8px',
+                                borderRadius: 'var(--radius-full)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <CheckCircle2 size={12} color="#059669" />
+                              <span>Completed: {formatCompletionTime(todo.completed_at)}</span>
+                            </span>
+                          )}
                         </div>
 
                         {/* Title */}
@@ -949,24 +1045,60 @@ export const StudentTodoList = () => {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            justifyContent: 'space-between',
+                            gap: '10px',
                             fontSize: '0.825rem',
+                            padding: '3px 6px',
+                            borderRadius: '6px',
+                            background: st.completed ? '#F8FAFC' : 'transparent',
                           }}
                         >
-                          <input
-                            type="checkbox"
-                            checked={st.completed}
-                            onChange={() => handleToggleSubtask(todo.id, st.id)}
-                            style={{ cursor: 'pointer' }}
-                          />
-                          <span
+                          <label
                             style={{
-                              color: st.completed ? 'var(--text-muted)' : 'var(--text-main)',
-                              textDecoration: st.completed ? 'line-through' : 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              cursor: 'pointer',
+                              flex: 1,
+                              userSelect: 'none',
                             }}
                           >
-                            {st.text}
-                          </span>
+                            <input
+                              type="checkbox"
+                              checked={!!st.completed}
+                              onChange={() => handleToggleSubtask(todo.id, st.id)}
+                              style={{ cursor: 'pointer', width: 15, height: 15, accentColor: '#4F46E5' }}
+                            />
+                            <span
+                              style={{
+                                color: st.completed ? 'var(--text-muted)' : 'var(--text-main)',
+                                textDecoration: st.completed ? 'line-through' : 'none',
+                                fontWeight: st.completed ? 400 : 500,
+                              }}
+                            >
+                              {st.text}
+                            </span>
+                          </label>
+
+                          {st.completed && (
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                color: '#047857',
+                                background: '#ECFDF5',
+                                border: '1px solid #A7F3D0',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                            >
+                              ✓ {formatCompletionTime(st.completed_at)}
+                            </span>
+                          )}
                         </div>
                       ))}
 
@@ -1148,6 +1280,11 @@ export const StudentTodoList = () => {
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, textDecoration: 'line-through', color: 'var(--text-muted)', margin: '4px 0' }}>
                       {todo.title}
                     </div>
+                    {todo.completed_at && (
+                      <div style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 600, marginBottom: '6px' }}>
+                        ✓ Completed: {formatCompletionTime(todo.completed_at)}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleChangeStatus(todo.id, 'pending')}

@@ -162,11 +162,12 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
         assignment_target: assignmentTarget,
       };
 
+      let saved = null;
       if (taskToEdit) {
-        await dataService.updateTask(taskToEdit.id, taskPayload);
+        saved = await dataService.updateTask(taskToEdit.id, taskPayload);
         addToast('Task updated successfully.', 'success');
       } else {
-        await dataService.createTask(taskPayload, selectedStudentIds);
+        saved = await dataService.createTask(taskPayload, selectedStudentIds);
         addToast(
           publicationStatus === 'Published'
             ? 'Task created and assigned to students!'
@@ -177,7 +178,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
         );
       }
 
-      if (onSuccess) onSuccess();
+      if (onSuccess) await onSuccess(saved);
       onClose();
     } catch (err) {
       console.error('Task save error:', err);

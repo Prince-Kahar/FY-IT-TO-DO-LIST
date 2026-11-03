@@ -93,15 +93,16 @@ export const SubjectModal = ({ subjectToEdit = null, onClose, onSuccess }) => {
         is_active: isActive,
       };
 
+      let saved = null;
       if (subjectToEdit) {
-        await dataService.updateSubject(subjectToEdit.id, payload);
+        saved = await dataService.updateSubject(subjectToEdit.id, payload);
         addToast(`Subject "${name.trim()}" (${stream} • ${semester}) updated successfully.`, 'success');
       } else {
-        await dataService.createSubject(payload);
+        saved = await dataService.createSubject(payload);
         addToast(`New subject "${name.trim()}" (${stream} • ${semester}) created successfully!`, 'success');
       }
 
-      if (onSuccess) onSuccess();
+      if (onSuccess) await onSuccess(saved);
       onClose();
     } catch (err) {
       console.error('Subject error:', err);

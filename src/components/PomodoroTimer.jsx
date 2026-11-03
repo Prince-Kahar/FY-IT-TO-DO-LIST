@@ -3,32 +3,95 @@ import { Play, Pause, RotateCcw, Coffee, BookOpen, Volume2, VolumeX, X, Flame } 
 import { useToast } from '../context/ToastContext';
 import { pushService } from '../lib/pushNotificationService';
 
+const POMODORO_STORAGE_KEY = 'fy_pomodoro_state';
+
+const loadSavedPomodoro = () => {
+  try {
+    const raw = localStorage.getItem(POMODORO_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const mode = parsed.mode || 'focus';
+      const defaultTotal = mode === 'focus' ? 25 * 60 : 5 * 60;
+      let left = typeof parsed.timeLeft === 'number' ? parsed.timeLeft : defaultTotal;
+      let running = !!parsed.isRunning;
+      const sessions = typeof parsed.completedSessions === 'number' ? parsed.completedSessions : 0;
+
+      if (running && parsed.targetTimestamp) {
+        const diffSec = Math.round((parsed.targetTimestamp - Date.now()) / 1000);
+        if (diffSec <= 0) {
+          left = 0;
+          running = false;
+        } else {
+          left = diffSec;
+        }
+      }
+      return {
+        mode,
+        timeLeft: left,
+        isRunning: running,
+        completedSessions: sessions,
+      };
+    }
+  } catch (e) {}
+
+  return {
+    mode: 'focus',
+    timeLeft: 25 * 60,
+    isRunning: false,
+    completedSessions: 0,
+  };
+};
+
 export const PomodoroTimer = ({ currentTask = null, onLogStudyTime = null, onClose = null }) => {
   const { addToast, triggerConfetti } = useToast();
 
-  const [mode, setMode] = useState('focus'); // 'focus' (25 min) or 'break' (5 min)
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [completedSessions, setCompletedSessions] = useState(0);
+  const [initialState] = useState(() => loadSavedPomodoro());
+  const [mode, setMode] = useState(initialState.mode); // 'focus' (25 min) or 'break' (5 min)
+  const [timeLeft, setTimeLeft] = useState(initialState.timeLeft);
+  const [isRunning, setIsRunning] = useState(initialState.isRunning);
+  const [completedSessions, setCompletedSessions] = useState(initialState.completedSessions);
+
+  // Sync state to localStorage whenever anything changes
+  const saveState = (m, left, running, sessions) => {
+    try {
+      localStorage.setItem(
+        POMODORO_STORAGE_KEY,
+        JSON.stringify({
+          mode: m,
+          timeLeft: left,
+          isRunning: running,
+          targetTimestamp: running ? Date.now() + left * 1000 : null,
+          completedSessions: sessions,
+          savedAt: Date.now(),
+        })
+      );
+    } catch (e) {}
+  };
 
   useEffect(() => {
     let timer = null;
     if (isRunning && timeLeft > 0) {
       timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        setTimeLeft((prev) => {
+          const next = prev - 1;
+          saveState(mode, next, true, completedSessions);
+          return next;
+        });
       }, 1000);
     } else if (timeLeft === 0) {
       if (mode === 'focus') {
         triggerConfetti();
         addToast('🎉 25-minute study focus session completed! Take a 5-minute breather.', 'success');
         pushService.notifyPomodoroFinished(currentTask?.title || 'Academic Study Session');
-        setCompletedSessions((prev) => prev + 1);
+        const nextSessions = completedSessions + 1;
+        setCompletedSessions(nextSessions);
         if (currentTask && onLogStudyTime) {
           onLogStudyTime(currentTask.id, 25);
         }
         setMode('break');
         setTimeLeft(5 * 60);
         setIsRunning(false);
+        saveState('break', 5 * 60, false, nextSessions);
       } else {
         addToast('☕ Break over! Ready for the next focus sprint?', 'info');
         pushService.sendNotification('☕ Break Time Over!', {
@@ -38,23 +101,60 @@ export const PomodoroTimer = ({ currentTask = null, onLogStudyTime = null, onClo
         setMode('focus');
         setTimeLeft(25 * 60);
         setIsRunning(false);
+        saveState('focus', 25 * 60, false, completedSessions);
       }
     }
 
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isRunning, timeLeft, mode, currentTask]);
+  }, [isRunning, timeLeft, mode, currentTask, completedSessions]);
+
+  // Recalculate accurately when user refocuses tab or page unhides
+  useEffect(() => {
+    const handleSyncOnResume = () => {
+      try {
+        const raw = localStorage.getItem(POMODORO_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed.isRunning && parsed.targetTimestamp) {
+          const diffSec = Math.round((parsed.targetTimestamp - Date.now()) / 1000);
+          if (diffSec <= 0) {
+            setTimeLeft(0);
+          } else {
+            setTimeLeft(diffSec);
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('focus', handleSyncOnResume);
+    document.addEventListener('visibilitychange', handleSyncOnResume);
+    return () => {
+      window.removeEventListener('focus', handleSyncOnResume);
+      document.removeEventListener('visibilitychange', handleSyncOnResume);
+    };
+  }, []);
 
   const switchMode = (newMode) => {
+    const newTotal = newMode === 'focus' ? 25 * 60 : 5 * 60;
     setMode(newMode);
     setIsRunning(false);
-    setTimeLeft(newMode === 'focus' ? 25 * 60 : 5 * 60);
+    setTimeLeft(newTotal);
+    saveState(newMode, newTotal, false, completedSessions);
   };
 
   const handleReset = () => {
+    const total = mode === 'focus' ? 25 * 60 : 5 * 60;
     setIsRunning(false);
-    setTimeLeft(mode === 'focus' ? 25 * 60 : 5 * 60);
+    setTimeLeft(total);
+    saveState(mode, total, false, completedSessions);
+  };
+
+  const toggleRunning = () => {
+    const nextRunning = !isRunning;
+    setIsRunning(nextRunning);
+    saveState(mode, timeLeft, nextRunning, completedSessions);
   };
 
   const minutes = Math.floor(timeLeft / 60);
@@ -233,7 +333,7 @@ export const PomodoroTimer = ({ currentTask = null, onLogStudyTime = null, onClo
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
         <button
           type="button"
-          onClick={() => setIsRunning(!isRunning)}
+          onClick={toggleRunning}
           style={{
             background: isRunning ? '#EF4444' : '#10B981',
             color: '#FFFFFF',

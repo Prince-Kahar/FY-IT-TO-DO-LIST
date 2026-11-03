@@ -79,10 +79,17 @@ export const StudentDashboard = () => {
       loadData(true);
     });
 
+    // 4. Instant event sync
+    const handleSync = () => loadData(true);
+    window.addEventListener('fy_data_change', handleSync);
+    window.addEventListener('storage', handleSync);
+
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('fy_data_change', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (unsubscribe) unsubscribe();
     };
   }, [user]);
