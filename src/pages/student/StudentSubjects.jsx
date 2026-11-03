@@ -15,14 +15,9 @@ export const StudentSubjects = () => {
   const studentSemester = profile?.semester || 'Sem 1';
 
   // Strict Stream & Semester isolation: Student only sees subjects matching their stream and semester
-  const visibleSubjects = (subjects || []).filter((sub) => {
-    if (!sub.is_active) return false;
-    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
-    const matchStream = subStream === 'Both' || subStream === studentStream;
-    const subSem = sub.semester || 'Sem 1';
-    const matchSem = subSem === 'ALL' || subSem === studentSemester;
-    return matchStream && matchSem;
-  });
+  const visibleSubjects = (subjects || []).filter((sub) =>
+    dataService.isSubjectForStudent(sub, studentStream, studentSemester)
+  );
 
   const loadCurriculum = async (isBackground = false) => {
     if (!isBackground) setLoading(true);

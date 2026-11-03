@@ -30,14 +30,9 @@ export const StudentTasks = () => {
   const studentSemester = profile?.semester || 'Sem 1';
 
   // Strict Stream & Semester isolation
-  const visibleSubjects = (subjects || []).filter((sub) => {
-    if (!sub.is_active) return false;
-    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
-    const matchStream = subStream === 'Both' || subStream === studentStream;
-    const subSem = sub.semester || 'Sem 1';
-    const matchSem = subSem === 'ALL' || subSem === studentSemester;
-    return matchStream && matchSem;
-  });
+  const visibleSubjects = (subjects || []).filter((sub) =>
+    dataService.isSubjectForStudent(sub, studentStream, studentSemester)
+  );
 
   const visibleSubjectIds = new Set(visibleSubjects.map((s) => s.id));
   const visibleAssignments = (assignments || []).filter((a) => {

@@ -331,6 +331,32 @@ let realtimeChannel = null;
 let realtimeListeners = new Set();
 
 export const dataService = {
+  // Strict stream & semester isolation validator
+  isSubjectForStudent(sub, studentStream, studentSemester = 'Sem 1') {
+    if (!sub || !sub.is_active) return false;
+    const rawStream = (sub.stream || '').toUpperCase();
+    const rawCode = (sub.subject_code || '').toUpperCase();
+    const rawName = (sub.name || '').toUpperCase();
+
+    const isDS = rawStream === 'DS' || rawCode.startsWith('DS') || rawName.includes('DATA SCIENCE');
+    const isIT = rawStream === 'IT' || rawCode.startsWith('IT') || rawName.includes('IMPERATIVE') || rawName.includes('DIGITAL ELECTRONICS') || rawName.includes('OPERATING SYSTEMS') || rawName.includes('MICROPROCESSOR') || rawName.includes('WEB PROGRAMMING');
+
+    const normStudentStream = (studentStream || 'IT').toUpperCase();
+
+    if (normStudentStream === 'IT') {
+      if (isDS) return false; // Strictly NEVER show DS subjects to IT student
+    } else if (normStudentStream === 'DS') {
+      if (isIT && !isDS) return false; // Strictly NEVER show IT subjects to DS student
+    }
+
+    if (studentSemester && studentSemester !== 'ALL') {
+      const subSem = sub.semester || 'Sem 1';
+      if (subSem !== 'ALL' && subSem !== studentSemester) return false;
+    }
+
+    return true;
+  },
+
   // Synchronous getters for 0ms instantaneous rendering on initial page mount
   getCachedSubjects() {
     let mem = localSubjects && localSubjects.length > 0 ? localSubjects : loadCache('subjects');
@@ -2111,6 +2137,60 @@ export const dataService = {
 
     this.notifyLocalChange('STUDENT_CREATED', newStudent);
     return newStudent;
+  },
+
+  async deleteStudent(studentId) {
+    // 1. Delete from Supabase if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase deleteStudent timeout')), 3000)
+        );
+
+        // Delete assignments
+        const delAsgs = supabase.from('task_assignments').delete().eq('student_id', studentId);
+        await Promise.race([delAsgs, timeoutPromise]).catch(() => {});
+
+        // Delete student
+        const delStudent = supabase.from('students').delete().eq('id', studentId);
+        const { error } = await Promise.race([delStudent, timeoutPromise]);
+        if (error) console.warn('Supabase deleteStudent notice:', error.message);
+      } catch (err) {
+        console.warn('Supabase deleteStudent error:', err.message);
+      }
+    }
+
+    // 2. Remove from local memory
+    localStudents = localStudents.filter((s) => s.id !== studentId);
+    saveCache('students', localStudents);
+
+    // 3. Remove from localStorage fy_registered_students
+    try {
+      const localRegistered = JSON.parse(localStorage.getItem('fy_registered_students') || '[]');
+      const updated = localRegistered.filter((s) => s.id !== studentId);
+      localStorage.setItem('fy_registered_students', JSON.stringify(updated));
+    } catch (e) {}
+
+    // 4. Remove from overrides
+    try {
+      const overrides = JSON.parse(localStorage.getItem('fy_student_overrides') || '{}');
+      if (overrides[studentId]) {
+        delete overrides[studentId];
+        localStorage.setItem('fy_student_overrides', JSON.stringify(overrides));
+      }
+    } catch (e) {}
+
+    // 5. Clean up active student session if this student was logged in
+    try {
+      const sess = JSON.parse(localStorage.getItem('fy_it_student_session') || '{}');
+      if (sess.id === studentId) {
+        localStorage.removeItem('fy_it_student_session');
+        sessionStorage.removeItem('fy_it_student_session');
+      }
+    } catch (e) {}
+
+    this.notifyLocalChange('STUDENT_DELETED', { id: studentId });
+    return true;
   },
 
   // =========================================================================

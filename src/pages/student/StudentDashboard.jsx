@@ -134,14 +134,9 @@ export const StudentDashboard = () => {
   const studentStream = profile?.stream || (profile?.class_name?.toUpperCase().includes('DS') ? 'DS' : 'IT');
   const studentSemester = profile?.semester || 'Sem 1';
 
-  const visibleSubjects = (subjects || []).filter((sub) => {
-    if (!sub.is_active) return false;
-    const subStream = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
-    const matchStream = subStream === 'Both' || subStream === studentStream;
-    const subSem = sub.semester || 'Sem 1';
-    const matchSem = subSem === 'ALL' || subSem === studentSemester;
-    return matchStream && matchSem;
-  });
+  const visibleSubjects = (subjects || []).filter((sub) =>
+    dataService.isSubjectForStudent(sub, studentStream, studentSemester)
+  );
 
   const visibleSubjectIds = new Set(visibleSubjects.map((s) => s.id));
   const visibleAssignments = (assignments || []).filter((a) => {

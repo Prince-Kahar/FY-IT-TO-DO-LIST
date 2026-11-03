@@ -433,20 +433,26 @@ export const AuthProvider = ({ children }) => {
     const cleanRoll = rollNumber.trim().toUpperCase();
     const cleanMobile = mobileNumber.trim();
 
-    // Check if student already exists in Supabase public.students table
+    // Check if student already exists in Supabase public.students table with 2.5s guard timeout
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        const checkQuery = supabase
           .from('students')
           .select('id, roll_number, email, mobile_number')
           .or(`email.ilike.${cleanEmail},roll_number.ilike.${cleanRoll}${cleanMobile ? `,mobile_number.eq.${cleanMobile}` : ''}`);
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase existence check timeout')), 2500)
+        );
+
+        const { data, error } = await Promise.race([checkQuery, timeoutPromise]);
 
         if (!error && Array.isArray(data) && data.length > 0) {
           throw new Error('A student with this Roll Number, Email, or Mobile Number is already registered. Please login.');
         }
       } catch (supaCheckErr) {
         if (supaCheckErr.message?.includes('already registered')) throw supaCheckErr;
-        console.warn('Supabase existence check notice:', supaCheckErr);
+        console.warn('Supabase existence check notice (falling back):', supaCheckErr.message);
       }
     }
 
@@ -499,10 +505,10 @@ export const AuthProvider = ({ children }) => {
     localRegistered.push(newStudent);
     localStorage.setItem('fy_registered_students', JSON.stringify(localRegistered));
 
-    // Save directly to dedicated public.students table in Supabase
+    // Save directly to dedicated public.students table in Supabase with guard timeout
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('students').insert([{
+        const insertPromise = supabase.from('students').insert([{
           id: newStudent.id,
           full_name: newStudent.full_name,
           roll_number: newStudent.roll_number,
@@ -515,13 +521,19 @@ export const AuthProvider = ({ children }) => {
           created_at: newStudent.created_at,
         }]).select();
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Supabase insert timeout')), 2500)
+        );
+
+        const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
+
         if (error) {
           console.warn('Supabase students table insert notice:', error.message);
         } else {
           console.log('Student successfully saved to Supabase students table:', data);
         }
       } catch (supaErr) {
-        console.warn('Supabase register error:', supaErr);
+        console.warn('Supabase register error (account preserved locally):', supaErr.message);
       }
     }
 

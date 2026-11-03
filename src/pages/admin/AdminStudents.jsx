@@ -20,6 +20,7 @@ import {
   Check,
   ShieldCheck,
   Edit,
+  Trash2,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { useToast } from '../../context/ToastContext';
@@ -217,6 +218,30 @@ export const AdminStudents = () => {
     } catch (err) {
       console.error('Failed to toggle status:', err);
       addToast(err.message || 'Error updating student access.', 'error');
+    }
+  };
+
+  const handleDeleteStudent = async (student) => {
+    if (!student) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete student "${student.full_name}" (${student.roll_number || 'N/A'})? This will erase all their assignment progress and account records.`
+      )
+    ) {
+      return;
+    }
+    try {
+      // Instant 0ms optimistic UI update
+      setStudents((prev) => prev.filter((s) => s.id !== student.id));
+      if (selectedStudent && selectedStudent.id === student.id) {
+        setSelectedStudent(null);
+      }
+      await dataService.deleteStudent(student.id);
+      addToast(`Student "${student.full_name}" deleted successfully.`, 'info');
+      loadStudents(true);
+    } catch (err) {
+      console.error('Failed to delete student:', err);
+      addToast(err.message || 'Error deleting student.', 'error');
     }
   };
 
@@ -635,6 +660,19 @@ export const AdminStudents = () => {
                         >
                           <Power size={14} />
                         </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleDeleteStudent(st)}
+                          title="Delete Student Record"
+                          style={{
+                            color: '#DC2626',
+                            borderColor: '#FECACA',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -708,6 +746,16 @@ export const AdminStudents = () => {
                 >
                   <Edit size={14} />
                   <span>Edit Details</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleDeleteStudent(selectedStudent)}
+                  title="Delete Student"
+                  style={{ color: '#DC2626', fontWeight: 600, borderColor: '#FECACA' }}
+                >
+                  <Trash2 size={14} />
+                  <span>Delete</span>
                 </button>
                 <button
                   className="photo-remove-btn"
