@@ -3,6 +3,20 @@ import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock } from 'lucide-r
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
 
+// Helper to format Date into datetime-local value using LOCAL system time (preventing UTC offset shift)
+const formatToLocalDateTimeInput = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess }) => {
   const { addToast } = useToast();
 
@@ -13,17 +27,16 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
   const [taskType, setTaskType] = useState(taskToEdit?.task_type || 'Assignment');
   const [priority, setPriority] = useState(taskToEdit?.priority || 'Medium');
 
-  // Format initial due date for datetime-local input
+  // Format initial due date for datetime-local input using exact local time
   const getFormattedDueDate = () => {
     if (taskToEdit?.due_at) {
-      const d = new Date(taskToEdit.due_at);
-      return d.toISOString().slice(0, 16);
+      return formatToLocalDateTimeInput(taskToEdit.due_at);
     }
-    // Default 3 days ahead
+    // Default 3 days ahead at 11:59 PM
     const d = new Date();
     d.setDate(d.getDate() + 3);
     d.setHours(23, 59, 0, 0);
-    return d.toISOString().slice(0, 16);
+    return formatToLocalDateTimeInput(d);
   };
 
   const [dueAt, setDueAt] = useState(getFormattedDueDate());
@@ -32,16 +45,15 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     taskToEdit?.publication_status || 'Published'
   );
 
-  // Format initial scheduled release date (default tomorrow 9:00 AM)
+  // Format initial scheduled release date using exact local time
   const getFormattedScheduledDate = () => {
     if (taskToEdit?.scheduled_at) {
-      const d = new Date(taskToEdit.scheduled_at);
-      return d.toISOString().slice(0, 16);
+      return formatToLocalDateTimeInput(taskToEdit.scheduled_at);
     }
     const d = new Date();
     d.setDate(d.getDate() + 1);
     d.setHours(9, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    return formatToLocalDateTimeInput(d);
   };
 
   const [scheduledAt, setScheduledAt] = useState(getFormattedScheduledDate());
@@ -66,8 +78,14 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
       try {
         const topics = await dataService.getTopicsBySubject(subjectId);
         setAvailableTopics(topics);
-        if (!taskToEdit || taskToEdit.subject_id !== subjectId) {
-          setTopicId(topics[0]?.id || '');
+        if (taskToEdit && taskToEdit.subject_id === subjectId && taskToEdit.topic_id) {
+          setTopicId(taskToEdit.topic_id);
+        } else if (topics && topics.length > 0) {
+          if (!topicId || !topics.some((t) => t.id === topicId)) {
+            setTopicId(topics[0].id);
+          }
+        } else {
+          setTopicId('');
         }
       } catch (err) {
         console.error('Error loading topics:', err);
@@ -103,6 +121,10 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     }
     if (!subjectId) {
       setErrorMsg('Please select a subject.');
+      return;
+    }
+    if (!topicId || !topicId.trim()) {
+      setErrorMsg('Please select a topic. Topic is compulsory for every academic task.');
       return;
     }
     if (!dueAt) {
@@ -234,19 +256,30 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
 
               <div className="form-group">
-                <label className="form-label">Topic (Under Subject)</label>
+                <label className="form-label">
+                  Topic (Under Subject) <span style={{ color: '#DC2626' }}>*</span>
+                </label>
                 <select
                   className="form-control"
                   value={topicId}
-                  onChange={(e) => setTopicId(e.target.value)}
+                  onChange={(e) => {
+                    setTopicId(e.target.value);
+                    if (errorMsg) setErrorMsg('');
+                  }}
+                  required
                 >
-                  <option value="">Select Topic (Optional)</option>
+                  <option value="">Select Topic (Compulsory) *</option>
                   {availableTopics.map((top) => (
                     <option key={top.id} value={top.id}>
                       {top.name}
                     </option>
                   ))}
                 </select>
+                {availableTopics.length === 0 && (
+                  <span style={{ fontSize: '0.75rem', color: '#DC2626', marginTop: '4px', display: 'block' }}>
+                    ⚠️ No topics found for this subject. Please add a topic in Manage Subjects first.
+                  </span>
+                )}
               </div>
             </div>
 

@@ -82,6 +82,101 @@ export const dataService = {
       stream: s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : s.subject_code?.toUpperCase().startsWith('IT') ? 'IT' : 'Both'),
     }));
   },
+  checkAndAutoPublishScheduledTasks(tasks) {
+    const list = Array.isArray(tasks) ? tasks : (localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks', []));
+    if (!list || list.length === 0) return list;
+
+    const now = new Date();
+    let overrides = {};
+    try {
+      overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
+    } catch (e) {}
+
+    let hasChanges = false;
+    const updated = list.map((t) => {
+      const ov = overrides[t.id];
+      const pubStatus = ov?.publication_status !== undefined ? ov.publication_status : t.publication_status;
+      const schedAt = ov?.scheduled_at !== undefined ? ov.scheduled_at : t.scheduled_at;
+
+      if (pubStatus === 'Scheduled' && schedAt) {
+        const releaseTime = new Date(schedAt);
+        if (!isNaN(releaseTime.getTime()) && now >= releaseTime) {
+          hasChanges = true;
+          overrides[t.id] = {
+            ...(overrides[t.id] || {}),
+            publication_status: 'Published',
+            updated_at: new Date().toISOString(),
+          };
+
+          // Generate student assignments if not present
+          const existing = localAssignments.filter((a) => a.task_id === t.id);
+          if (existing.length === 0) {
+            const activeStudents = localStudents.filter((s) => s.is_active);
+            activeStudents.forEach((st) => {
+              localAssignments.push({
+                id: 'asg-' + t.id + '-' + st.id,
+                task_id: t.id,
+                student_id: st.id,
+                status: 'Assigned',
+                assigned_at: new Date().toISOString(),
+                started_at: null,
+                completed_at: null,
+                is_late: false,
+              });
+            });
+            saveCache('assignments', localAssignments);
+          }
+
+          // Broadcast announcement for students
+          try {
+            const sub = (localSubjects || []).find((s) => s.id === t.subject_id) || t.subjects;
+            const subName = sub ? (sub.subject_code ? `${sub.subject_code} - ${sub.name}` : sub.name) : 'Academic Course';
+            const formattedDueDate = t.due_at
+              ? new Date(t.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+              : 'No deadline';
+
+            this.createAnnouncement({
+              title: `📝 Scheduled Task Released: ${t.title}`,
+              message: `A new practical task has been released for ${subName}. Due Date: ${formattedDueDate}. Please check instructions and submit on time.`,
+              content: `A new practical task has been released for ${subName}. Due Date: ${formattedDueDate}. Please check instructions and submit on time.`,
+              author_name: 'Academic Faculty',
+              priority: 'High',
+              target_audience: 'All',
+            }).catch(() => {});
+          } catch (e) {}
+
+          // Update Supabase if configured
+          if (isSupabaseConfigured()) {
+            supabase
+              .from('tasks')
+              .update({ publication_status: 'Published', updated_at: new Date().toISOString() })
+              .eq('id', t.id)
+              .then(() => {})
+              .catch((err) => console.warn('Auto publish Supabase notice:', err));
+          }
+
+          return {
+            ...t,
+            ...(ov || {}),
+            publication_status: 'Published',
+          };
+        }
+      }
+      return t;
+    });
+
+    if (hasChanges) {
+      try {
+        localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
+      } catch (e) {}
+      localTasks = updated;
+      saveCache('tasks', updated);
+      this.notifyLocalChange('TASK_AUTO_PUBLISHED', { timestamp: Date.now() });
+    }
+
+    return updated;
+  },
+
   getCachedTasks() {
     const mem = localTasks && localTasks.length > 0 ? localTasks : loadCache('tasks');
     let overrides = {};
@@ -89,7 +184,7 @@ export const dataService = {
       overrides = JSON.parse(localStorage.getItem('fy_task_overrides') || '{}');
     } catch (e) {}
     const subjects = this.getCachedSubjects();
-    return (Array.isArray(mem) ? mem : []).map((t) => {
+    const mapped = (Array.isArray(mem) ? mem : []).map((t) => {
       const ov = overrides[t.id];
       const taskObj = ov ? { ...t, ...ov } : { ...t };
       if (!taskObj.subjects && taskObj.subject_id) {
@@ -100,6 +195,7 @@ export const dataService = {
       }
       return taskObj;
     });
+    return this.checkAndAutoPublishScheduledTasks(mapped);
   },
   getCachedStudents() {
     const mem = localStudents && localStudents.length > 0 ? localStudents : loadCache('students');
@@ -441,14 +537,14 @@ export const dataService = {
           });
           localTasks = merged;
           saveCache('tasks', merged);
-          return merged;
+          return this.checkAndAutoPublishScheduledTasks(merged);
         }
       } catch (err) {
         console.warn('Supabase getTasks notice:', err);
       }
     }
     const subjects = this.getCachedSubjects();
-    return localTasks.map((t) => {
+    const localResult = localTasks.map((t) => {
       const sub = t.subjects || subjects.find((s) => s.id === t.subject_id) || localSubjects.find((s) => s.id === t.subject_id);
       const top = t.topics || localTopics.find((tp) => tp.id === t.topic_id);
       const ov = overrides[t.id];
@@ -459,6 +555,7 @@ export const dataService = {
         topics: top ? (top.name ? top : { name: top.name }) : null,
       };
     });
+    return this.checkAndAutoPublishScheduledTasks(localResult);
   },
 
   async createTask(taskData, targetStudentIds = []) {
@@ -2205,3 +2302,12 @@ export const dataService = {
     }
   },
 };
+
+// Start persistent live auto-publish runner for scheduled tasks (runs every 1 second)
+if (typeof window !== 'undefined' && !window.__fy_scheduled_task_runner) {
+  window.__fy_scheduled_task_runner = setInterval(() => {
+    try {
+      dataService.checkAndAutoPublishScheduledTasks();
+    } catch (e) {}
+  }, 1000);
+}
