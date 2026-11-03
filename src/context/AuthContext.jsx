@@ -425,7 +425,7 @@ export const AuthProvider = ({ children }) => {
     email,
     password,
     stream = 'IT',
-    className = 'FY B.Sc. IT',
+    className = 'FY M.Sc. IT',
     semester = 'Sem 1',
     division = 'A',
   }) => {
@@ -472,7 +472,7 @@ export const AuthProvider = ({ children }) => {
 
     const isDS = stream === 'DS' || (className && className.toUpperCase().includes('DS'));
     const finalStream = isDS ? 'DS' : 'IT';
-    const finalClassName = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+    const finalClassName = isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT';
     const finalSemester = semester || 'Sem 1';
 
     const newStudent = {

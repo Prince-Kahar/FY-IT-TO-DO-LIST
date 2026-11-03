@@ -132,7 +132,7 @@ export const Login = () => {
             }}
           >
             <GraduationCap size={16} />
-            <span>FY B.Sc. IT & BCA Student Portal</span>
+            <span>FY M.Sc. IT & B.Sc. DS Student Portal</span>
           </div>
 
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '6px' }}>
@@ -251,7 +251,7 @@ export const Login = () => {
             paddingTop: '18px',
           }}
         >
-          <span>New FY B.Sc. IT / BCA Student? </span>
+          <span>New FY M.Sc. IT / B.Sc. DS Student? </span>
           <Link to="/register" style={{ fontWeight: 600, color: 'var(--primary-600)' }}>
             Register Your Account Here
           </Link>

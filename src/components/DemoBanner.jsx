@@ -44,7 +44,7 @@ export const DemoBanner = () => {
           Evaluation Mode
         </span>
         <span>
-          Supabase credentials not yet placed in <code>.env</code>. You are previewing with interactive FY B.Sc. IT academic test data.
+          Supabase credentials not yet placed in <code>.env</code>. You are previewing with interactive FY M.Sc. IT & B.Sc. DS academic test data.
         </span>
       </div>
 

@@ -1782,7 +1782,7 @@ const AdminModal = ({ title, initialData = null, availableSubjects = [], onClose
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="e.g. IT / BCA"
+                  placeholder="e.g. M.Sc. IT / B.Sc. DS"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                   style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: '8px' }}

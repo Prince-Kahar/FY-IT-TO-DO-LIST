@@ -178,7 +178,7 @@ export const StudentDashboard = () => {
             Welcome back, {profile?.full_name || 'Student'}! 👋
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '4px' }}>
-            Roll No: <strong>{profile?.roll_number || 'FYIT'}</strong> • Class: {profile?.class_name || 'FY B.Sc. IT'} • {profile?.semester || 'Sem 1'} (Div {profile?.division || 'A'})
+            Roll No: <strong>{profile?.roll_number || 'FYIT'}</strong> • Class: {profile?.class_name || (profile?.stream === 'DS' ? 'FY B.Sc. DS' : 'FY M.Sc. IT')} • {profile?.semester || 'Sem 1'} (Div {profile?.division || 'A'})
           </p>
         </div>
 

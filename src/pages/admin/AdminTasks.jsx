@@ -222,7 +222,7 @@ export const AdminTasks = () => {
         <div>
           <h1 className="page-title">Manage Academic Tasks</h1>
           <p className="page-description">
-            Create, schedule, edit, and assign subject practicals, journal assignments, and homework to FY B.Sc. IT students.
+            Create, schedule, edit, and assign subject practicals, journal assignments, and homework to FY M.Sc. IT & B.Sc. DS students.
           </p>
         </div>
 

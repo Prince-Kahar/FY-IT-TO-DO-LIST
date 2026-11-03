@@ -73,8 +73,8 @@ export const Navbar = ({ onMenuClick }) => {
             }}
           />
           <span className="navbar-brand-text">
-            <span className="navbar-title-full">STERS • FY B.Sc. IT & BCA</span>
-            <span className="navbar-title-short">STERS FYIT</span>
+            <span className="navbar-title-full">STERS • FY M.Sc. IT & B.Sc. DS</span>
+            <span className="navbar-title-short">STERS FY</span>
           </span>
         </div>
       </div>

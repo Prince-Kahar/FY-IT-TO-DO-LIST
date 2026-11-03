@@ -66,7 +66,7 @@ export const AdminAnnouncements = () => {
         <div>
           <h1 className="page-title">Class Announcements</h1>
           <p className="page-description">
-            Broadcast urgent notices, unit test schedules, and submission guidelines to all FY B.Sc. IT students.
+            Broadcast urgent notices, unit test schedules, and submission guidelines to all FY M.Sc. IT & B.Sc. DS students.
           </p>
         </div>
 

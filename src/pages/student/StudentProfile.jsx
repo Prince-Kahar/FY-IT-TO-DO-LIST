@@ -126,7 +126,7 @@ export const StudentProfile = () => {
                 <input
                   type="text"
                   className="form-control"
-                  value={`${profile?.class_name || 'FY B.Sc. IT'} • ${profile?.semester || 'Sem 1'}`}
+                  value={`${profile?.class_name || (profile?.stream === 'DS' ? 'FY B.Sc. DS' : 'FY M.Sc. IT')} • ${profile?.semester || 'Sem 1'}`}
                   disabled
                   style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                 />

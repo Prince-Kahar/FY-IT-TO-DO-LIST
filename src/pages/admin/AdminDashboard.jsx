@@ -114,7 +114,7 @@ export const AdminDashboard = () => {
             Class Head & Administration Dashboard 🎓
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '4px' }}>
-            FY B.Sc. Information Technology • Academic Task Administration & Review Portal
+            FY M.Sc. IT & B.Sc. DS • Academic Task Administration & Review Portal
           </p>
         </div>
 

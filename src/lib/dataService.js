@@ -1895,10 +1895,10 @@ export const dataService = {
 
     const mapStudent = (st) => {
       const ov = studentOverrides[st.id] || {};
-      const rawClass = ov.class_name || st.class_name || 'FY B.Sc. IT';
+      const rawClass = ov.class_name || st.class_name || 'FY M.Sc. IT';
       const isDS = ov.stream === 'DS' || rawClass.toUpperCase().includes('DS');
       const stream = isDS ? 'DS' : 'IT';
-      const className = isDS ? 'FY B.Sc. DS' : (rawClass.toUpperCase().includes('IT') ? 'FY B.Sc. IT' : rawClass);
+      const className = isDS ? 'FY B.Sc. DS' : (rawClass.toUpperCase().includes('IT') ? 'FY M.Sc. IT' : rawClass);
       const semester = ov.semester || st.semester || 'Sem 1';
 
       return {
@@ -1982,7 +1982,7 @@ export const dataService = {
     const rawClass = updates.class_name || '';
     const isDS = updates.stream === 'DS' || rawClass.toUpperCase().includes('DS');
     const stream = isDS ? 'DS' : 'IT';
-    const className = updates.class_name || (isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT');
+    const className = updates.class_name || (isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT');
     const semester = updates.semester || 'Sem 1';
 
     const normalizedUpdates = {
@@ -2089,7 +2089,7 @@ export const dataService = {
     const rawClass = studentData.class_name || '';
     const isDS = studentData.stream === 'DS' || rawClass.toUpperCase().includes('DS');
     const stream = isDS ? 'DS' : 'IT';
-    const className = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+    const className = isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT';
     const semester = studentData.semester || 'Sem 1';
 
     const newStudent = {

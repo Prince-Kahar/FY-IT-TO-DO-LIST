@@ -53,7 +53,7 @@ export const Register = () => {
         fullName: fullName.trim(),
         rollNumber: rollNumber.trim().toUpperCase(),
         mobileNumber: mobileNumber.trim(),
-        className: stream === 'DS' ? 'FY B.Sc. DS' : 'FY B.Sc. IT',
+        className: stream === 'DS' ? 'FY B.Sc. DS' : 'FY M.Sc. IT',
         stream,
         semester,
         division,
@@ -125,7 +125,7 @@ export const Register = () => {
             Student Registration
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Create your FY B.Sc. IT & BCA student account
+            Create your FY M.Sc. IT & B.Sc. DS student account
           </p>
         </div>
 
@@ -185,7 +185,7 @@ export const Register = () => {
                 onChange={(e) => setStream(e.target.value)}
                 required
               >
-                <option value="IT">💻 B.Sc. IT (Info Tech)</option>
+                <option value="IT">💻 M.Sc. IT (Inforamation Technology)</option>
                 <option value="DS">📊 B.Sc. DS (Data Science)</option>
               </select>
             </div>

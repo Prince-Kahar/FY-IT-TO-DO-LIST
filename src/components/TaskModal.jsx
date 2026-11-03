@@ -393,7 +393,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                   value={assignmentTarget}
                   onChange={(e) => setAssignmentTarget(e.target.value)}
                 >
-                  <option value="all">All FY B.Sc. IT Students</option>
+                  <option value="all">All Enrolled Students (Stream-wise)</option>
                   <option value="selected">Selected Students Only</option>
                 </select>
               </div>

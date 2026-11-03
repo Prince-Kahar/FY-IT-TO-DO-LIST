@@ -1,7 +1,7 @@
 {
-  "name": "STERS FY IT & BCA Portal",
+  "name": "STERS FY M.Sc. IT & B.Sc. DS Portal",
   "short_name": "STERS Portal",
-  "description": "The Surat Technical Education & Research Society - FY B.Sc. IT & BCA Academic Portal",
+  "description": "The Surat Technical Education & Research Society - FY M.Sc. IT & B.Sc. DS Academic Portal",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

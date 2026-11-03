@@ -71,7 +71,7 @@ export const AdminReports = () => {
     const rows = studentStats.map((st) => [
       `"${st.roll_number || ''}"`,
       `"${st.full_name}"`,
-      `"${st.class_name || 'FY B.Sc. IT'}"`,
+      `"${st.class_name || (st.stream === 'DS' ? 'FY B.Sc. DS' : 'FY M.Sc. IT')}"`,
       `"${st.division || 'A'}"`,
       `"${st.email}"`,
       st.is_active ? 'YES' : 'NO',

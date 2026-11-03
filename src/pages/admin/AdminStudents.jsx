@@ -76,7 +76,7 @@ export const AdminStudents = () => {
     roll_number: '',
     mobile_number: '',
     email: '',
-    class_name: 'FY B.Sc. IT',
+    class_name: 'FY M.Sc. IT',
     semester: 'Sem 1',
     division: 'A',
     password: 'student@123',
@@ -91,7 +91,7 @@ export const AdminStudents = () => {
     mobile_number: '',
     email: '',
     stream: 'IT',
-    class_name: 'FY B.Sc. IT',
+    class_name: 'FY M.Sc. IT',
     semester: 'Sem 1',
     division: 'A',
     password: '',
@@ -112,7 +112,7 @@ export const AdminStudents = () => {
       mobile_number: student.mobile_number || student.mobile || student.phone || '',
       email: student.email || '',
       stream: isDS ? 'DS' : 'IT',
-      class_name: isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT',
+      class_name: isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT',
       semester: student.semester || 'Sem 1',
       division: student.division || 'A',
       password: student.password || 'student@123',
@@ -134,7 +134,7 @@ export const AdminStudents = () => {
     try {
       const isDS = editStudentForm.stream === 'DS' || (editStudentForm.class_name || '').toUpperCase().includes('DS');
       const streamVal = isDS ? 'DS' : 'IT';
-      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT';
       const semesterVal = editStudentForm.semester || 'Sem 1';
 
       const updatedFields = {
@@ -279,7 +279,7 @@ export const AdminStudents = () => {
     try {
       const isDS = (newStudentForm.stream === 'DS') || (newStudentForm.class_name || '').toUpperCase().includes('DS');
       const streamVal = isDS ? 'DS' : 'IT';
-      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY B.Sc. IT';
+      const classNameVal = isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT';
 
       await dataService.addStudent({
         full_name: newStudentForm.full_name.trim(),
@@ -300,7 +300,7 @@ export const AdminStudents = () => {
         mobile_number: '',
         email: '',
         stream: 'IT',
-        class_name: 'FY B.Sc. IT',
+        class_name: 'FY M.Sc. IT',
         semester: 'Sem 1',
         division: 'A',
         password: 'student@123',
@@ -366,7 +366,7 @@ export const AdminStudents = () => {
         <div>
           <h1 className="page-title">Manage Students Directory</h1>
           <p className="page-description">
-            View registered FY B.Sc. IT students, activate or deactivate accounts, and monitor individual academic progress.
+            View registered FY M.Sc. IT & B.Sc. DS students, activate or deactivate accounts, and monitor individual academic progress.
           </p>
         </div>
         <button
@@ -543,7 +543,7 @@ export const AdminStudents = () => {
                             >
                               {isDS ? 'DS' : 'IT'}
                             </span>
-                            <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>{st.class_name || 'FY B.Sc. IT'}</span>
+                            <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>{st.class_name || (isDS ? 'FY B.Sc. DS' : 'FY M.Sc. IT')}</span>
                             <span
                               style={{
                                 background: '#FEF3C7',
@@ -719,7 +719,7 @@ export const AdminStudents = () => {
                     {(selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? '📊 DS Stream' : '💻 IT Stream'}
                   </span>
                   <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                    {selectedStudent.class_name || 'FY B.Sc. IT'}
+                    {selectedStudent.class_name || ((selectedStudent.stream === 'DS' || (selectedStudent.class_name || '').toUpperCase().includes('DS')) ? 'FY B.Sc. DS' : 'FY M.Sc. IT')}
                   </span>
                   <span
                     style={{
@@ -1100,7 +1100,7 @@ export const AdminStudents = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
                     <button
                       type="button"
-                      onClick={() => setNewStudentForm({ ...newStudentForm, stream: 'IT', class_name: 'FY B.Sc. IT' })}
+                      onClick={() => setNewStudentForm({ ...newStudentForm, stream: 'IT', class_name: 'FY M.Sc. IT' })}
                       style={{
                         padding: '9px 12px',
                         borderRadius: '8px',
@@ -1117,7 +1117,7 @@ export const AdminStudents = () => {
                       }}
                     >
                       <span>💻</span>
-                      <span>IT Stream</span>
+                      <span>M.Sc. IT Stream</span>
                     </button>
                     <button
                       type="button"
@@ -1138,7 +1138,7 @@ export const AdminStudents = () => {
                       }}
                     >
                       <span>📊</span>
-                      <span>DS Stream</span>
+                      <span>B.Sc. DS Stream</span>
                     </button>
                   </div>
                   <select
@@ -1154,7 +1154,7 @@ export const AdminStudents = () => {
                       });
                     }}
                   >
-                    <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                    <option value="FY M.Sc. IT">💻 FY M.Sc. IT (Information Technology)</option>
                     <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
                   </select>
                 </div>
@@ -1311,7 +1311,7 @@ export const AdminStudents = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
                     <button
                       type="button"
-                      onClick={() => setEditStudentForm({ ...editStudentForm, stream: 'IT', class_name: 'FY B.Sc. IT' })}
+                      onClick={() => setEditStudentForm({ ...editStudentForm, stream: 'IT', class_name: 'FY M.Sc. IT' })}
                       style={{
                         padding: '9px 12px',
                         borderRadius: '8px',
@@ -1328,7 +1328,7 @@ export const AdminStudents = () => {
                       }}
                     >
                       <span>💻</span>
-                      <span>IT Stream</span>
+                      <span>M.Sc. IT Stream</span>
                     </button>
                     <button
                       type="button"
@@ -1349,7 +1349,7 @@ export const AdminStudents = () => {
                       }}
                     >
                       <span>📊</span>
-                      <span>DS Stream</span>
+                      <span>B.Sc. DS Stream</span>
                     </button>
                   </div>
                   <select
@@ -1365,7 +1365,7 @@ export const AdminStudents = () => {
                       });
                     }}
                   >
-                    <option value="FY B.Sc. IT">💻 FY B.Sc. IT (Information Technology)</option>
+                    <option value="FY M.Sc. IT">💻 FY M.Sc. IT (Information Technology)</option>
                     <option value="FY B.Sc. DS">📊 FY B.Sc. DS (Data Science)</option>
                   </select>
                 </div>

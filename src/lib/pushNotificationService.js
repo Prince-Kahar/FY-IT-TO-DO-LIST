@@ -78,7 +78,7 @@ class PushNotificationService {
 
         // Immediate test push notification to confirm
         this.sendNotification('🔔 Push Notifications Activated!', {
-          body: 'You will now receive instant desktop alerts for FY B.Sc. IT assignments, study timers, and deadlines.',
+          body: 'You will now receive instant desktop alerts for FY M.Sc. IT & B.Sc. DS assignments, study timers, and deadlines.',
           tag: 'fy_welcome_push',
         });
 
