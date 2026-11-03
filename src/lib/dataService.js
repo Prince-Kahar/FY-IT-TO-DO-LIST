@@ -791,6 +791,7 @@ export const dataService = {
   },
 
   async getTopicsBySubject(subjectId) {
+    let rawTopics = [];
     if (isSupabaseConfigured()) {
       try {
         const queryPromise = supabase
@@ -799,23 +800,45 @@ export const dataService = {
           .eq('subject_id', subjectId)
           .order('created_at', { ascending: true });
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Topics query timeout')), 2000)
+          setTimeout(() => reject(new Error('Topics query timeout')), 5000)
         );
         const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
-        if (!error && Array.isArray(data) && data.length > 0) return data;
+        if (!error && Array.isArray(data) && data.length > 0) {
+          rawTopics = data;
+        }
       } catch (err) {
         console.warn('Supabase getTopicsBySubject notice:', err.message);
       }
     }
-    const memTopics = (localTopics || []).filter((t) => t.subject_id === subjectId);
-    if (memTopics.length > 0) return memTopics;
-
-    // Check embedded topics in local subjects
-    const sub = (localSubjects || []).find((s) => s.id === subjectId);
-    if (sub && Array.isArray(sub.topics) && sub.topics.length > 0) {
-      return sub.topics;
+    if (rawTopics.length === 0) {
+      rawTopics = (localTopics || []).filter((t) => t.subject_id === subjectId);
     }
-    return [];
+    if (rawTopics.length === 0) {
+      // Check embedded topics in local subjects
+      const sub = (localSubjects || []).find((s) => s.id === subjectId);
+      if (sub && Array.isArray(sub.topics) && sub.topics.length > 0) {
+        rawTopics = sub.topics;
+      }
+    }
+
+    let topicOverrides = {};
+    try {
+      topicOverrides = JSON.parse(localStorage.getItem('fy_topic_overrides') || '{}');
+    } catch (e) {}
+
+    return (rawTopics || []).map((tp) => {
+      const tov = topicOverrides[tp.id] || {};
+      const mem = (localTopics || []).find((l) => l.id === tp.id) || {};
+      const unitName = tov.unit_name || mem.unit_name || tp.unit_name || 'Unit 1: General Topics';
+      const subtopic = tov.subtopic !== undefined ? tov.subtopic : (mem.subtopic !== undefined ? mem.subtopic : tp.subtopic || null);
+      return {
+        ...tp,
+        ...mem,
+        ...tov,
+        unit_name: unitName,
+        subtopic: subtopic,
+      };
+    });
   },
 
   async createTopic(topicData) {
@@ -1038,6 +1061,8 @@ export const dataService = {
               ...t,
               subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
               topics: top ? (top.name ? top : { name: top.name }) : null,
+              unit_name: ov?.unit_name || top?.unit_name || null,
+              subtopic: ov?.subtopic || top?.subtopic || null,
             };
             if (ov) {
               return {
@@ -1067,6 +1092,8 @@ export const dataService = {
         ...(ov || {}),
         subjects: sub ? (sub.name ? sub : { name: sub.name, subject_code: sub.subject_code }) : null,
         topics: top ? (top.name ? top : { name: top.name }) : null,
+        unit_name: ov?.unit_name || top?.unit_name || null,
+        subtopic: ov?.subtopic || top?.subtopic || null,
       };
     });
     return this.checkAndAutoPublishScheduledTasks(localResult);
@@ -1131,6 +1158,9 @@ export const dataService = {
       overrides[newTask.id] = {
         publication_status: taskData.publication_status || 'Published',
         scheduled_at: taskData.scheduled_at || null,
+        unit_name: taskData.unit_name || null,
+        subtopic: taskData.subtopic || null,
+        stream: taskData.stream || null,
       };
       localStorage.setItem('fy_task_overrides', JSON.stringify(overrides));
     } catch (e) {}

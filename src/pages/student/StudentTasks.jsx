@@ -370,6 +370,21 @@ export const StudentTasks = () => {
                       {task.subjects?.subject_code || 'IT'} • {task.subjects?.name}
                     </span>
 
+                    {task.unit_name && (
+                      <span
+                        style={{
+                          background: 'var(--primary-50)',
+                          color: 'var(--primary-700)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        📖 {task.unit_name}
+                      </span>
+                    )}
+
                     {task.topics && (
                       <span
                         style={{
@@ -382,6 +397,7 @@ export const StudentTasks = () => {
                         }}
                       >
                         Topic: {task.topics.name}
+                        {task.subtopic && ` • 🔹 ${task.subtopic}`}
                       </span>
                     )}
 

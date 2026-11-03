@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, CheckCircle2, Loader2, AlertCircle, Calendar, Clock, BookOpen, Layers } from 'lucide-react';
 import { dataService } from '../lib/dataService';
 import { useToast } from '../context/ToastContext';
 
@@ -20,32 +20,72 @@ const formatToLocalDateTimeInput = (dateInput) => {
 export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess }) => {
   const { addToast } = useToast();
 
-  const [title, setTitle] = useState(taskToEdit?.title || '');
-  const [description, setDescription] = useState(taskToEdit?.description || '');
-  const [subjectId, setSubjectId] = useState(taskToEdit?.subject_id || (subjects[0]?.id || ''));
+  // 1. STREAM SELECTION (Asked First)
+  const determineInitialStream = () => {
+    if (taskToEdit?.stream) return taskToEdit.stream;
+    if (taskToEdit?.subject_id) {
+      const s = (subjects || []).find((sub) => sub.id === taskToEdit.subject_id);
+      if (s) {
+        return s.stream || (s.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+      }
+    }
+    return 'IT';
+  };
+  const [selectedStream, setSelectedStream] = useState(determineInitialStream);
+
+  // Filter subjects based on selected stream
+  const filteredSubjects = useMemo(() => {
+    return (subjects || []).filter((sub) => {
+      if (selectedStream === 'ALL') return true;
+      const st = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+      return st === selectedStream || sub.stream === 'Both';
+    });
+  }, [subjects, selectedStream]);
+
+  // 2. SUBJECT SELECTION
+  const determineInitialSubjectId = () => {
+    if (taskToEdit?.subject_id) return taskToEdit.subject_id;
+    if (filteredSubjects.length > 0) return filteredSubjects[0].id;
+    return subjects[0]?.id || '';
+  };
+  const [subjectId, setSubjectId] = useState(determineInitialSubjectId);
+
+  // 3. UNIT & TOPIC STATES
+  const [availableTopics, setAvailableTopics] = useState([]);
+  const [selectedUnit, setSelectedUnit] = useState(taskToEdit?.unit_name || '');
   const [topicId, setTopicId] = useState(taskToEdit?.topic_id || '');
+
+  // 4. SUBTOPIC STATES
+  const [selectedSubtopic, setSelectedSubtopic] = useState(taskToEdit?.subtopic || '');
+  const [customSubtopic, setCustomSubtopic] = useState(taskToEdit?.subtopic || '');
+
+  // 5. TASK TITLE (Right after Subtopic)
+  const [title, setTitle] = useState(taskToEdit?.title || '');
+
+  // Hidden Priority (Removed from UI, preserved for backend schema compatibility)
+  const priority = taskToEdit?.priority || 'Medium';
+
+  // Task Details
   const [taskType, setTaskType] = useState(taskToEdit?.task_type || 'Assignment');
-  const [priority, setPriority] = useState(taskToEdit?.priority || 'Medium');
+  const [description, setDescription] = useState(taskToEdit?.description || '');
 
   // Format initial due date for datetime-local input using exact local time
   const getFormattedDueDate = () => {
     if (taskToEdit?.due_at) {
       return formatToLocalDateTimeInput(taskToEdit.due_at);
     }
-    // Default 3 days ahead at 11:59 PM
     const d = new Date();
     d.setDate(d.getDate() + 3);
     d.setHours(23, 59, 0, 0);
     return formatToLocalDateTimeInput(d);
   };
-
   const [dueAt, setDueAt] = useState(getFormattedDueDate());
   const [maxMarks, setMaxMarks] = useState(taskToEdit?.max_marks || '');
+
   const [publicationStatus, setPublicationStatus] = useState(
     taskToEdit?.publication_status || 'Published'
   );
 
-  // Format initial scheduled release date using exact local time
   const getFormattedScheduledDate = () => {
     if (taskToEdit?.scheduled_at) {
       return formatToLocalDateTimeInput(taskToEdit.scheduled_at);
@@ -55,51 +95,170 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     d.setHours(9, 0, 0, 0);
     return formatToLocalDateTimeInput(d);
   };
-
   const [scheduledAt, setScheduledAt] = useState(getFormattedScheduledDate());
+
   const [assignmentTarget, setAssignmentTarget] = useState(
     taskToEdit?.assignment_target || 'all'
   );
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [studentsList, setStudentsList] = useState([]);
 
-  const [availableTopics, setAvailableTopics] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Handle Stream Change: Keep subject if valid, else pick first available in stream
+  const handleStreamChange = (newStream) => {
+    setSelectedStream(newStream);
+    const nextSubjects = (subjects || []).filter((sub) => {
+      if (newStream === 'ALL') return true;
+      const st = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+      return st === newStream || sub.stream === 'Both';
+    });
+    if (nextSubjects.length > 0 && !nextSubjects.some((s) => s.id === subjectId)) {
+      setSubjectId(nextSubjects[0].id);
+    } else if (nextSubjects.length === 0) {
+      setSubjectId('');
+    }
+  };
 
   // Load topics dynamically when subject changes
   useEffect(() => {
     if (!subjectId) {
       setAvailableTopics([]);
+      setSelectedUnit('');
       setTopicId('');
+      setSelectedSubtopic('');
+      setCustomSubtopic('');
       return;
     }
+
+    let isCurrent = true;
     const loadTopics = async () => {
       try {
         const topics = await dataService.getTopicsBySubject(subjectId);
-        setAvailableTopics(topics);
+        if (!isCurrent) return;
+
+        setAvailableTopics(topics || []);
+
+        // Derive unique units
+        const units = [];
+        (topics || []).forEach((t) => {
+          const u = (t.unit_name || 'Unit 1: General Topics').trim();
+          if (u && !units.includes(u)) {
+            units.push(u);
+          }
+        });
+
+        // Determine which unit should be selected
+        let unitToSelect = '';
+        if (taskToEdit && taskToEdit.subject_id === subjectId && taskToEdit.unit_name) {
+          unitToSelect = taskToEdit.unit_name;
+        } else if (taskToEdit && taskToEdit.subject_id === subjectId && taskToEdit.topic_id) {
+          const matchingTop = (topics || []).find((t) => t.id === taskToEdit.topic_id);
+          unitToSelect = matchingTop?.unit_name || units[0] || 'Unit 1: General Topics';
+        } else {
+          unitToSelect = units[0] || (topics.length > 0 ? 'Unit 1: General Topics' : '');
+        }
+        setSelectedUnit(unitToSelect);
+
+        // Filter topics under the chosen unit
+        const topicsInUnit = (topics || []).filter(
+          (t) => (t.unit_name || 'Unit 1: General Topics').trim() === unitToSelect
+        );
+
         if (taskToEdit && taskToEdit.subject_id === subjectId && taskToEdit.topic_id) {
           setTopicId(taskToEdit.topic_id);
+        } else if (topicsInUnit.length > 0) {
+          setTopicId(topicsInUnit[0].id);
         } else if (topics && topics.length > 0) {
-          if (!topicId || !topics.some((t) => t.id === topicId)) {
-            setTopicId(topics[0].id);
-          }
+          setTopicId(topics[0].id);
         } else {
           setTopicId('');
+        }
+
+        // Subtopic selection initialization
+        if (taskToEdit && taskToEdit.subject_id === subjectId && taskToEdit.subtopic) {
+          setSelectedSubtopic(taskToEdit.subtopic);
+          setCustomSubtopic(taskToEdit.subtopic);
         }
       } catch (err) {
         console.error('Error loading topics:', err);
       }
     };
+
     loadTopics();
+    return () => {
+      isCurrent = false;
+    };
   }, [subjectId]);
+
+  // Extract unique units from loaded topics
+  const availableUnits = useMemo(() => {
+    const units = [];
+    (availableTopics || []).forEach((t) => {
+      const u = (t.unit_name || 'Unit 1: General Topics').trim();
+      if (u && !units.includes(u)) {
+        units.push(u);
+      }
+    });
+    return units;
+  }, [availableTopics]);
+
+  // Filter topics strictly under the selected unit
+  const unitTopics = useMemo(() => {
+    if (!selectedUnit) return availableTopics;
+    return availableTopics.filter(
+      (t) => (t.unit_name || 'Unit 1: General Topics').trim() === selectedUnit
+    );
+  }, [availableTopics, selectedUnit]);
+
+  // Active topic object
+  const activeTopic = useMemo(() => {
+    return availableTopics.find((t) => t.id === topicId);
+  }, [availableTopics, topicId]);
+
+  // Parse subtopics from active topic
+  const parsedSubtopics = useMemo(() => {
+    if (!activeTopic?.subtopic) return [];
+    return activeTopic.subtopic
+      .split(/[\r\n,;•|]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }, [activeTopic]);
+
+  // Handle unit change
+  const handleUnitChange = (newUnit) => {
+    setSelectedUnit(newUnit);
+    const matchingTopics = availableTopics.filter(
+      (t) => (t.unit_name || 'Unit 1: General Topics').trim() === newUnit
+    );
+    if (matchingTopics.length > 0) {
+      if (!matchingTopics.some((t) => t.id === topicId)) {
+        setTopicId(matchingTopics[0].id);
+        setSelectedSubtopic('');
+        setCustomSubtopic('');
+      }
+    } else {
+      setTopicId('');
+      setSelectedSubtopic('');
+      setCustomSubtopic('');
+    }
+  };
+
+  // Handle topic change
+  const handleTopicChange = (newTopicId) => {
+    setTopicId(newTopicId);
+    if (errorMsg) setErrorMsg('');
+    setSelectedSubtopic('');
+    setCustomSubtopic('');
+  };
 
   // Load students for target selection
   useEffect(() => {
     const loadStudents = async () => {
       try {
         const students = await dataService.getStudents();
-        setStudentsList(students);
+        setStudentsList(students || []);
       } catch (err) {
         console.error('Error loading students:', err);
       }
@@ -112,6 +271,14 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
       prev.includes(sId) ? prev.filter((id) => id !== sId) : [...prev, sId]
     );
   };
+
+  // Filter student list by selected stream
+  const filteredStudents = useMemo(() => {
+    return (studentsList || []).filter((st) => {
+      if (selectedStream === 'ALL') return true;
+      return st.stream === selectedStream || !st.stream;
+    });
+  }, [studentsList, selectedStream]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,18 +315,26 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
     setErrorMsg('');
 
     try {
+      const finalSubtopic =
+        selectedSubtopic === '__custom__' || parsedSubtopics.length === 0
+          ? customSubtopic.trim() || null
+          : selectedSubtopic.trim() || customSubtopic.trim() || null;
+
       const taskPayload = {
         title: title.trim(),
         description: description.trim(),
         subject_id: subjectId,
         topic_id: topicId || null,
         task_type: taskType,
-        priority,
+        priority: priority, // Maintained for database schema without showing in form
         due_at: new Date(dueAt).toISOString(),
         max_marks: maxMarks ? parseFloat(maxMarks) : null,
         publication_status: publicationStatus,
         scheduled_at: publicationStatus === 'Scheduled' ? new Date(scheduledAt).toISOString() : null,
         assignment_target: assignmentTarget,
+        unit_name: selectedUnit || null,
+        subtopic: finalSubtopic || null,
+        stream: selectedStream || null,
       };
 
       let saved = null;
@@ -221,9 +396,230 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
             )}
 
-            {/* Task Title */}
+            {/* 1. ACADEMIC STREAM (Asked First) */}
             <div className="form-group">
-              <label className="form-label">Task Title *</label>
+              <label className="form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Academic Stream</span>
+                <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('IT')}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: selectedStream === 'IT' ? '2px solid #2563EB' : '1px solid var(--border-light)',
+                    background: selectedStream === 'IT' ? '#EFF6FF' : 'var(--bg-surface)',
+                    color: selectedStream === 'IT' ? '#1D4ED8' : 'var(--text-primary)',
+                    fontWeight: selectedStream === 'IT' ? 700 : 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  💻 M.Sc. IT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('DS')}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: selectedStream === 'DS' ? '2px solid #7C3AED' : '1px solid var(--border-light)',
+                    background: selectedStream === 'DS' ? '#FAF5FF' : 'var(--bg-surface)',
+                    color: selectedStream === 'DS' ? '#6D28D9' : 'var(--text-primary)',
+                    fontWeight: selectedStream === 'DS' ? 700 : 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📊 B.Sc. DS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStreamChange('ALL')}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: selectedStream === 'ALL' ? '2px solid var(--primary-600)' : '1px solid var(--border-light)',
+                    background: selectedStream === 'ALL' ? 'var(--primary-50)' : 'var(--bg-surface)',
+                    color: selectedStream === 'ALL' ? 'var(--primary-700)' : 'var(--text-primary)',
+                    fontWeight: selectedStream === 'ALL' ? 700 : 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  🌐 Both Streams
+                </button>
+              </div>
+            </div>
+
+            {/* 2. SUBJECT SELECTION (Filtered by Stream) */}
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 700 }}>
+                Subject <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                className="form-control"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                required
+              >
+                <option value="">-- Select Subject ({filteredSubjects.length} available) --</option>
+                {filteredSubjects.map((sub) => {
+                  const st = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
+                  return (
+                    <option key={sub.id} value={sub.id}>
+                      [{st}] {sub.name} ({sub.subject_code || st})
+                    </option>
+                  );
+                })}
+              </select>
+              {filteredSubjects.length === 0 && (
+                <span style={{ fontSize: '0.75rem', color: '#DC2626', marginTop: '4px', display: 'block' }}>
+                  ⚠️ No subjects found for {selectedStream} stream. Please configure subjects in Manage Subjects.
+                </span>
+              )}
+            </div>
+
+            {/* 3. UNIT & 4. TOPIC SELECTION */}
+            <div className="form-grid-2">
+              {/* Unit Selection */}
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BookOpen size={15} color="var(--primary-600)" />
+                  <span>Unit</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <select
+                  className="form-control"
+                  value={selectedUnit}
+                  onChange={(e) => handleUnitChange(e.target.value)}
+                  required
+                  disabled={availableUnits.length === 0}
+                >
+                  <option value="">
+                    {availableUnits.length === 0 ? 'No Units Defined' : '-- Select Unit --'}
+                  </option>
+                  {availableUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Topic Selection */}
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Layers size={15} color="var(--primary-600)" />
+                  <span>Topic (Under Unit)</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <select
+                  className="form-control"
+                  value={topicId}
+                  onChange={(e) => handleTopicChange(e.target.value)}
+                  required
+                  disabled={unitTopics.length === 0}
+                >
+                  <option value="">
+                    {unitTopics.length === 0 ? 'No Topics under this Unit' : '-- Select Topic --'}
+                  </option>
+                  {unitTopics.map((top) => (
+                    <option key={top.id} value={top.id}>
+                      {top.name}
+                    </option>
+                  ))}
+                </select>
+                {availableTopics.length === 0 && subjectId && (
+                  <span style={{ fontSize: '0.75rem', color: '#DC2626', marginTop: '4px', display: 'block' }}>
+                    ⚠️ No topics found for this subject. Please add topics under Manage Subjects first.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 5. SUBTOPIC SELECTION (Optional) */}
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" style={{ fontWeight: 600, margin: 0 }}>
+                  Subtopic (Optional)
+                </label>
+                {parsedSubtopics.length > 0 && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {parsedSubtopics.length} subtopic{parsedSubtopics.length > 1 ? 's' : ''} available in syllabus
+                  </span>
+                )}
+              </div>
+
+              {parsedSubtopics.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <select
+                    className="form-control"
+                    value={selectedSubtopic}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedSubtopic(val);
+                      if (val !== '__custom__') {
+                        setCustomSubtopic(val);
+                      }
+                    }}
+                  >
+                    <option value="">-- All Subtopics / Complete Topic --</option>
+                    {parsedSubtopics.map((st, idx) => (
+                      <option key={idx} value={st}>
+                        🔹 {st}
+                      </option>
+                    ))}
+                    <option value="__custom__">✏️ Custom Subtopic (Type manually)...</option>
+                  </select>
+
+                  {selectedSubtopic === '__custom__' && (
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Type custom subtopic..."
+                      value={customSubtopic}
+                      onChange={(e) => setCustomSubtopic(e.target.value)}
+                      autoFocus
+                    />
+                  )}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. for loop, while loop, do-while (Optional - type if applicable)"
+                  value={customSubtopic}
+                  onChange={(e) => {
+                    setCustomSubtopic(e.target.value);
+                    setSelectedSubtopic(e.target.value);
+                  }}
+                />
+              )}
+            </div>
+
+            {/* 6. TASK TITLE (Directly after Subtopic) */}
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 700 }}>
+                Task Title <span style={{ color: '#DC2626' }}>*</span>
+              </label>
               <input
                 type="text"
                 className="form-control"
@@ -234,60 +630,10 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               />
             </div>
 
-            {/* Subject and Topic selection */}
-            <div className="form-grid-2">
+            {/* Task Type, Due Date & Time, Max Marks (Priority is REMOVED from form UI) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               <div className="form-group">
-                <label className="form-label">Subject *</label>
-                <select
-                  className="form-control"
-                  value={subjectId}
-                  onChange={(e) => setSubjectId(e.target.value)}
-                  required
-                >
-                  <option value="">Select Subject</option>
-                  {subjects.map((sub) => {
-                    const st = sub.stream || (sub.subject_code?.toUpperCase().startsWith('DS') ? 'DS' : 'IT');
-                    return (
-                      <option key={sub.id} value={sub.id}>
-                        [{st}] {sub.name} ({sub.subject_code || st})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Topic (Under Subject) <span style={{ color: '#DC2626' }}>*</span>
-                </label>
-                <select
-                  className="form-control"
-                  value={topicId}
-                  onChange={(e) => {
-                    setTopicId(e.target.value);
-                    if (errorMsg) setErrorMsg('');
-                  }}
-                  required
-                >
-                  <option value="">Select Topic (Compulsory) *</option>
-                  {availableTopics.map((top) => (
-                    <option key={top.id} value={top.id}>
-                      {top.name}
-                    </option>
-                  ))}
-                </select>
-                {availableTopics.length === 0 && (
-                  <span style={{ fontSize: '0.75rem', color: '#DC2626', marginTop: '4px', display: 'block' }}>
-                    ⚠️ No topics found for this subject. Please add a topic in Manage Subjects first.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Type, Priority, and Due Date */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Task Type</label>
+                <label className="form-label" style={{ fontWeight: 600 }}>Task Type</label>
                 <select
                   className="form-control"
                   value={taskType}
@@ -304,21 +650,8 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
 
               <div className="form-group">
-                <label className="form-label">Priority</label>
-                <select
-                  className="form-control"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-
-              <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>Due Date & Time *</label>
+                  <label className="form-label" style={{ marginBottom: 0, fontWeight: 600 }}>Due Date & Time *</label>
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button
                       type="button"
@@ -328,7 +661,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                         const d = new Date();
                         d.setDate(d.getDate() + 2);
                         d.setHours(23, 59, 0, 0);
-                        setDueAt(d.toISOString().slice(0, 16));
+                        setDueAt(formatToLocalDateTimeInput(d));
                       }}
                     >
                       +2 Days
@@ -341,7 +674,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                         const d = new Date();
                         d.setDate(d.getDate() + 7);
                         d.setHours(23, 59, 0, 0);
-                        setDueAt(d.toISOString().slice(0, 16));
+                        setDueAt(formatToLocalDateTimeInput(d));
                       }}
                     >
                       +1 Week
@@ -359,7 +692,7 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
 
               <div className="form-group">
-                <label className="form-label">Max Marks (Optional)</label>
+                <label className="form-label" style={{ fontWeight: 600 }}>Max Marks (Optional)</label>
                 <input
                   type="number"
                   min="0"
@@ -372,9 +705,9 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
               </div>
             </div>
 
-            {/* Instructions / Description */}
+            {/* Task Instructions & Description */}
             <div className="form-group">
-              <label className="form-label">Task Instructions & Description</label>
+              <label className="form-label" style={{ fontWeight: 600 }}>Task Instructions & Description</label>
               <textarea
                 className="form-control"
                 rows={4}
@@ -387,19 +720,21 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
             {/* Assignment Target & Publication Status */}
             <div className="form-grid-2">
               <div className="form-group">
-                <label className="form-label">Target Students</label>
+                <label className="form-label" style={{ fontWeight: 600 }}>Target Students</label>
                 <select
                   className="form-control"
                   value={assignmentTarget}
                   onChange={(e) => setAssignmentTarget(e.target.value)}
                 >
-                  <option value="all">All Enrolled Students (Stream-wise)</option>
+                  <option value="all">
+                    All Enrolled Students ({selectedStream === 'ALL' ? 'All Streams' : `${selectedStream} Stream`})
+                  </option>
                   <option value="selected">Selected Students Only</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Publication & Schedule</label>
+                <label className="form-label" style={{ fontWeight: 600 }}>Publication & Schedule</label>
                 <select
                   className="form-control"
                   value={publicationStatus}
@@ -469,7 +804,9 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
             {/* Selected Students Checkboxes (if target == selected) */}
             {assignmentTarget === 'selected' && (
               <div className="form-group">
-                <label className="form-label">Select Students ({selectedStudentIds.length} chosen):</label>
+                <label className="form-label" style={{ fontWeight: 600 }}>
+                  Select Students ({selectedStudentIds.length} chosen of {filteredStudents.length}):
+                </label>
                 <div
                   style={{
                     maxHeight: '160px',
@@ -482,27 +819,33 @@ export const TaskModal = ({ taskToEdit = null, subjects = [], onClose, onSuccess
                     gap: '6px',
                   }}
                 >
-                  {studentsList.map((st) => (
-                    <label
-                      key={st.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedStudentIds.includes(st.id)}
-                        onChange={() => handleStudentToggle(st.id)}
-                      />
-                      <span>
-                        {st.full_name} ({st.roll_number || 'No Roll No'}) • Div {st.division}
-                      </span>
-                    </label>
-                  ))}
+                  {filteredStudents.length === 0 ? (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      No students enrolled in {selectedStream} stream.
+                    </span>
+                  ) : (
+                    filteredStudents.map((st) => (
+                      <label
+                        key={st.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.includes(st.id)}
+                          onChange={() => handleStudentToggle(st.id)}
+                        />
+                        <span>
+                          {st.full_name} ({st.roll_number || 'No Roll No'}) • Div {st.division} • [{st.stream || 'IT'}]
+                        </span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
             )}

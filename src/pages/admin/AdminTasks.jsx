@@ -461,9 +461,15 @@ export const AdminTasks = () => {
                               {t.subjects?.name || 'Subject'}
                             </span>
                           </div>
+                          {t.unit_name && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--primary-600)', fontWeight: 600 }}>
+                              📖 {t.unit_name}
+                            </div>
+                          )}
                           {t.topics && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              {t.topics.name}
+                              📌 {t.topics.name}
+                              {t.subtopic && <span style={{ color: 'var(--text-secondary)' }}> • 🔹 {t.subtopic}</span>}
                             </div>
                           )}
                         </div>
